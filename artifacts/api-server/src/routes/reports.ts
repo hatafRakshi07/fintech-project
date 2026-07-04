@@ -15,15 +15,16 @@ router.get("/reports/collection", async (req, res): Promise<void> => {
     .leftJoin(branchesTable, eq(collectionsTable.branchId, branchesTable.id))
     .where(and(gte(collectionsTable.collectedAt, start), lte(collectionsTable.collectedAt, end)));
 
-  if (branchId) rows = rows.filter((r) => r.c.branchId === parseInt(branchId as string, 10));
-  if (collectorId) rows = rows.filter((r) => r.c.collectorId === parseInt(collectorId as string, 10));
+  if (branchId) rows = rows.filter((r: (typeof rows)[number]) => r.c.branchId === parseInt(branchId as string, 10));
+  if (collectorId) rows = rows.filter((r: (typeof rows)[number]) => r.c.collectorId === parseInt(collectorId as string, 10));
 
-  const totalAmount = rows.reduce((s, r) => s + parseFloat(r.c.amount), 0);
+  const totalAmount = rows.reduce((s, r: (typeof rows)[number]) => s + parseFloat(r.c.amount), 0);
   const totalCount = rows.length;
 
   // By branch
+  type ColRow = (typeof rows)[number];
   const branchMap = new Map<string, { amount: number; count: number }>();
-  for (const r of rows) {
+  for (const r of rows as ColRow[]) {
     const name = r.branchName ?? "Unknown";
     const prev = branchMap.get(name) ?? { amount: 0, count: 0 };
     branchMap.set(name, { amount: prev.amount + parseFloat(r.c.amount), count: prev.count + 1 });
@@ -32,7 +33,7 @@ router.get("/reports/collection", async (req, res): Promise<void> => {
 
   // By payment mode
   const modeMap = new Map<string, { amount: number; count: number }>();
-  for (const r of rows) {
+  for (const r of rows as ColRow[]) {
     const mode = r.c.paymentMode;
     const prev = modeMap.get(mode) ?? { amount: 0, count: 0 };
     modeMap.set(mode, { amount: prev.amount + parseFloat(r.c.amount), count: prev.count + 1 });
@@ -41,7 +42,7 @@ router.get("/reports/collection", async (req, res): Promise<void> => {
 
   // Daily trend
   const dayMap = new Map<string, { amount: number; count: number }>();
-  for (const r of rows) {
+  for (const r of rows as ColRow[]) {
     const day = r.c.collectedAt.toISOString().split("T")[0];
     const prev = dayMap.get(day) ?? { amount: 0, count: 0 };
     dayMap.set(day, { amount: prev.amount + parseFloat(r.c.amount), count: prev.count + 1 });
@@ -72,15 +73,16 @@ router.get("/reports/loan", async (req, res): Promise<void> => {
     .leftJoin(branchesTable, eq(loansTable.branchId, branchesTable.id))
     .where(and(gte(loansTable.createdAt, start), lte(loansTable.createdAt, end)));
 
-  if (branchId) rows = rows.filter((r) => r.l.branchId === parseInt(branchId as string, 10));
+  if (branchId) rows = rows.filter((r: (typeof rows)[number]) => r.l.branchId === parseInt(branchId as string, 10));
 
-  const disbursed = rows.filter((r) => ["active", "closed", "overdue"].includes(r.l.status));
-  const totalDisbursed = disbursed.reduce((s, r) => s + parseFloat(r.l.principalAmount), 0);
-  const totalCollected = rows.reduce((s, r) => s + parseFloat(r.l.paidAmount), 0);
-  const totalOverdue = rows.filter((r) => r.l.status === "overdue").reduce((s, r) => s + parseFloat(r.l.principalAmount), 0);
+  type LoanRow = (typeof rows)[number];
+  const disbursed = rows.filter((r: LoanRow) => ["active", "closed", "overdue"].includes(r.l.status));
+  const totalDisbursed = disbursed.reduce((s, r: LoanRow) => s + parseFloat(r.l.principalAmount), 0);
+  const totalCollected = rows.reduce((s, r: LoanRow) => s + parseFloat(r.l.paidAmount), 0);
+  const totalOverdue = rows.filter((r: LoanRow) => r.l.status === "overdue").reduce((s, r: LoanRow) => s + parseFloat(r.l.principalAmount), 0);
 
   const branchMap = new Map<string, { amount: number; count: number }>();
-  for (const r of rows) {
+  for (const r of rows as LoanRow[]) {
     const name = r.branchName ?? "Unknown";
     const prev = branchMap.get(name) ?? { amount: 0, count: 0 };
     branchMap.set(name, { amount: prev.amount + parseFloat(r.l.principalAmount), count: prev.count + 1 });

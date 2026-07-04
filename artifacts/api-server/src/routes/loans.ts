@@ -35,7 +35,7 @@ router.get("/loans", async (req, res): Promise<void> => {
   const total = rows.length;
   const sliced = rows.slice(offset, offset + limitNum);
 
-  const data = sliced.map((row) => {
+  const data = sliced.map((row: (typeof sliced)[number]) => {
     const principal = parseFloat(row.l.principalAmount);
     const rate = parseFloat(row.l.interestRate);
     const tenure = row.l.tenure;

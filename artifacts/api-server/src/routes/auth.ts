@@ -1,36 +1,80 @@
-import { Router, type IRouter } from "express";
-import { db, usersTable } from "@workspace/db";
-import { eq } from "drizzle-orm";
-import { createHash } from "crypto";
+import { Router, type IRouter, type Request, type Response, type NextFunction } from "express";
+import { db, usersTable, sessionsTable } from "@workspace/db";
+import { eq, lt } from "drizzle-orm";
+import { randomBytes } from "crypto";
+import bcrypt from "bcryptjs";
+import { rateLimit } from "express-rate-limit";
 
 const router: IRouter = Router();
 
-function hashPassword(password: string): string {
-  return createHash("sha256").update(password + "bissi_salt_2024").digest("hex");
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
+const SESSION_TTL_MS = 8 * 60 * 60 * 1000; // 8 hours
+
+function generateToken(): string {
+  return randomBytes(32).toString("hex");
 }
 
-function generateToken(userId: number): string {
-  return createHash("sha256").update(`${userId}_${Date.now()}_bissi_secret`).digest("hex");
+async function hashPassword(password: string): Promise<string> {
+  return bcrypt.hash(password, 12);
 }
 
-// Simple in-memory session store (for demo — production would use Redis/DB)
-export const sessions = new Map<string, number>();
+export async function verifyPassword(password: string, hash: string): Promise<boolean> {
+  return bcrypt.compare(password, hash);
+}
 
-router.post("/auth/login", async (req, res): Promise<void> => {
+/** Purge expired sessions (best-effort, runs on each login). */
+async function purgeExpiredSessions(): Promise<void> {
+  try {
+    await db.delete(sessionsTable).where(lt(sessionsTable.expiresAt, new Date()));
+  } catch {
+    // Non-critical — do not let cleanup failures break login
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Rate limiter — applied only to the login endpoint
+// ---------------------------------------------------------------------------
+const loginLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 10,                   // 10 attempts per window per IP
+  standardHeaders: "draft-8",
+  legacyHeaders: false,
+  message: { error: "Too many login attempts. Please try again later." },
+  skipSuccessfulRequests: true,
+});
+
+// ---------------------------------------------------------------------------
+// Routes
+// ---------------------------------------------------------------------------
+
+router.post("/auth/login", loginLimiter, async (req: Request, res: Response): Promise<void> => {
   const { username, password } = req.body;
-  if (!username || !password) {
+  if (typeof username !== "string" || typeof password !== "string" || !username || !password) {
     res.status(400).json({ error: "Username and password required" });
     return;
   }
 
   const [user] = await db.select().from(usersTable).where(eq(usersTable.username, username));
-  if (!user || user.passwordHash !== hashPassword(password)) {
+
+  // Constant-time comparison: always run bcrypt even if user not found to prevent timing attacks
+  const dummyHash = "$2a$12$invalidhashthatisnevermatched000000000000000";
+  const isValid = user
+    ? await verifyPassword(password, user.passwordHash)
+    : await bcrypt.compare(password, dummyHash).then(() => false);
+
+  if (!user || !isValid) {
     res.status(401).json({ error: "Invalid credentials" });
     return;
   }
 
-  const token = generateToken(user.id);
-  sessions.set(token, user.id);
+  await purgeExpiredSessions();
+
+  const token = generateToken();
+  const expiresAt = new Date(Date.now() + SESSION_TTL_MS);
+  await db.insert(sessionsTable).values({ token, userId: user.id, expiresAt });
 
   res.json({
     token,
@@ -46,21 +90,26 @@ router.post("/auth/login", async (req, res): Promise<void> => {
   });
 });
 
-router.get("/auth/me", async (req, res): Promise<void> => {
+router.get("/auth/me", async (req: Request, res: Response): Promise<void> => {
   const auth = req.headers.authorization;
-  const token = auth?.replace("Bearer ", "");
+  const token = auth?.replace("Bearer ", "").trim();
   if (!token) {
     res.status(401).json({ error: "Unauthorized" });
     return;
   }
 
-  const userId = sessions.get(token);
-  if (!userId) {
-    res.status(401).json({ error: "Invalid token" });
+  const [session] = await db
+    .select()
+    .from(sessionsTable)
+    .where(eq(sessionsTable.token, token));
+
+  if (!session || session.expiresAt < new Date()) {
+    if (session) await db.delete(sessionsTable).where(eq(sessionsTable.token, token));
+    res.status(401).json({ error: "Invalid or expired token" });
     return;
   }
 
-  const [user] = await db.select().from(usersTable).where(eq(usersTable.id, userId));
+  const [user] = await db.select().from(usersTable).where(eq(usersTable.id, session.userId));
   if (!user) {
     res.status(404).json({ error: "User not found" });
     return;
@@ -77,11 +126,14 @@ router.get("/auth/me", async (req, res): Promise<void> => {
   });
 });
 
-router.post("/auth/logout", async (req, res): Promise<void> => {
+router.post("/auth/logout", async (req: Request, res: Response): Promise<void> => {
   const auth = req.headers.authorization;
-  const token = auth?.replace("Bearer ", "");
-  if (token) sessions.delete(token);
+  const token = auth?.replace("Bearer ", "").trim();
+  if (token) {
+    await db.delete(sessionsTable).where(eq(sessionsTable.token, token)).catch(() => {});
+  }
   res.json({ success: true });
 });
 
 export default router;
+

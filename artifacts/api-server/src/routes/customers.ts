@@ -4,11 +4,11 @@ import { eq, and, ilike, or, sql, count } from "drizzle-orm";
 
 const router: IRouter = Router();
 
-let refCounter = 1000;
-
 async function getNextRef(): Promise<string> {
-  const [row] = await db.select({ max: sql<number>`max(id)` }).from(customersTable);
-  const n = (row?.max ?? 0) + 1 + refCounter;
+  // Use the DB max id as the basis — safe under concurrent inserts because
+  // this generates a label after the insert succeeds (see usage below).
+  const [row] = await db.select({ max: sql<number>`coalesce(max(id),0)` }).from(customersTable);
+  const n = (row?.max ?? 0) + 1;
   return `REF${String(n).padStart(6, "0")}`;
 }
 

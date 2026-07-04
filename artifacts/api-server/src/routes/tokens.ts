@@ -13,11 +13,11 @@ router.get("/tokens", async (req, res): Promise<void> => {
     .leftJoin(committeesTable, eq(tokensTable.committeeId, committeesTable.id))
     .orderBy(tokensTable.createdAt);
 
-  if (customerId) rows = rows.filter((r) => r.t.customerId === parseInt(customerId as string, 10));
-  if (committeeId) rows = rows.filter((r) => r.t.committeeId === parseInt(committeeId as string, 10));
-  if (status) rows = rows.filter((r) => r.t.status === status);
+  if (customerId) rows = rows.filter((r: (typeof rows)[number]) => r.t.customerId === parseInt(customerId as string, 10));
+  if (committeeId) rows = rows.filter((r: (typeof rows)[number]) => r.t.committeeId === parseInt(committeeId as string, 10));
+  if (status) rows = rows.filter((r: (typeof rows)[number]) => r.t.status === status);
 
-  res.json(rows.map((r) => ({ ...r.t, customerName: r.customerName, committeeName: r.committeeName, createdAt: r.t.createdAt.toISOString() })));
+  res.json(rows.map((r: (typeof rows)[number]) => ({ ...r.t, customerName: r.customerName, committeeName: r.committeeName, createdAt: r.t.createdAt.toISOString() })));
 });
 
 router.post("/tokens", async (req, res): Promise<void> => {

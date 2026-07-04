@@ -36,7 +36,7 @@ router.get("/dashboard/stats", async (req, res): Promise<void> => {
 });
 
 router.get("/dashboard/collection-trend", async (req, res): Promise<void> => {
-  const rows = await db.execute(sql`
+  const result = await db.execute(sql`
     SELECT
       date_trunc('day', collected_at)::date as date,
       coalesce(sum(amount::numeric), 0) as amount,
@@ -46,10 +46,11 @@ router.get("/dashboard/collection-trend", async (req, res): Promise<void> => {
     GROUP BY date_trunc('day', collected_at)::date
     ORDER BY date asc
   `);
-  res.json((rows as any[]).map((r: any) => ({
-    date: new Date(r.date).toISOString().split("T")[0],
-    amount: parseFloat(r.amount),
-    count: parseInt(r.count, 10),
+  const rows = (result as unknown as Array<Record<string, unknown>>);
+  res.json(rows.map((r) => ({
+    date: new Date(r["date"] as string).toISOString().split("T")[0],
+    amount: parseFloat(r["amount"] as string),
+    count: parseInt(r["count"] as string, 10),
   })));
 });
 

@@ -12,11 +12,11 @@ router.get("/lotteries", async (req, res): Promise<void> => {
     .leftJoin(committeesTable, eq(lotteriesTable.committeeId, committeesTable.id))
     .orderBy(lotteriesTable.drawDate);
 
-  if (committeeId) rows = rows.filter((r) => r.l.committeeId === parseInt(committeeId as string, 10));
-  if (status) rows = rows.filter((r) => r.l.status === status);
+  if (committeeId) rows = rows.filter((r: (typeof rows)[number]) => r.l.committeeId === parseInt(committeeId as string, 10));
+  if (status) rows = rows.filter((r: (typeof rows)[number]) => r.l.status === status);
 
   const result = await Promise.all(
-    rows.map(async (row) => {
+    rows.map(async (row: (typeof rows)[number]) => {
       let winnerName = null;
       let winnerToken = null;
       if (row.l.winnerId) {
