@@ -4,12 +4,74 @@ modules = ["nodejs-24", "postgresql-16"]
 router = "application"
 deploymentTarget = "autoscale"
 
+[deployment.build]
+args = ["sh", "-c", "pnpm install && pnpm --filter @workspace/bissi-app run build && pnpm --filter @workspace/collector-app run build && pnpm --filter @workspace/api-server run build"]
+
+[deployment.run]
+args = ["sh", "-c", "cd artifacts/api-server && node --enable-source-maps ./dist/index.mjs"]
+
 [deployment.postBuild]
 args = ["pnpm", "store", "prune"]
 env = { "CI" = "true" }
 
 [workflows]
 runButton = "Project"
+
+[[workflows.workflow]]
+name = "Project"
+mode = "parallel"
+author = "agent"
+
+[[workflows.workflow.tasks]]
+task = "workflow.run"
+args = "Start API"
+
+[[workflows.workflow.tasks]]
+task = "workflow.run"
+args = "Start Frontend"
+
+[[workflows.workflow.tasks]]
+task = "workflow.run"
+args = "Start Collector App"
+
+[[workflows.workflow]]
+name = "Start API"
+author = "agent"
+
+[workflows.workflow.newTab]
+title = "API Server"
+waitForPort = 5001
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "PORT=5001 pnpm --filter @workspace/api-server run dev"
+waitForPort = 5001
+
+[[workflows.workflow]]
+name = "Start Frontend"
+author = "agent"
+
+[workflows.workflow.newTab]
+title = "Bissi App"
+waitForPort = 5000
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "PORT=5000 pnpm --filter @workspace/bissi-app run dev"
+waitForPort = 5000
+
+[[workflows.workflow]]
+name = "Start Collector App"
+author = "agent"
+
+[workflows.workflow.newTab]
+title = "Collector App"
+waitForPort = 5002
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "PORT=5002 pnpm --filter @workspace/collector-app run dev"
+waitForPort = 5002
 
 [agent]
 stack = "PNPM_WORKSPACE"

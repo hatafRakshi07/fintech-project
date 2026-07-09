@@ -17,6 +17,7 @@ import interestsRouter from "./interests";
 import recoveryRouter from "./recovery";
 import officeRouter from "./office";
 import importsRouter from "./imports";
+import notificationsRouter from "./notifications";
 
 const router: IRouter = Router();
 
@@ -67,5 +68,8 @@ router.use(requireRole("super_admin", "owner", "branch_manager", "accountant"), 
 
 // Imports — managers and above
 router.use(requireRole("super_admin", "owner", "branch_manager"), importsRouter);
+
+// Notifications — all authenticated roles
+router.use(notificationsRouter);
 
 export default router;

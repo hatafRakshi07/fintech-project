@@ -66,19 +66,22 @@ router.get("/lotteries/:id", async (req, res): Promise<void> => {
 
 router.patch("/lotteries/:id", async (req, res): Promise<void> => {
   const id = parseInt(Array.isArray(req.params.id) ? req.params.id[0] : req.params.id, 10);
-  const { status, winnerId, prizeAmount, notes } = req.body;
+  const { status, winnerId, prizeAmount, notes, rewardType, cashTaken } = req.body;
   const update: any = {};
   if (status !== undefined) update.status = status;
   if (winnerId !== undefined) update.winnerId = winnerId;
   if (prizeAmount !== undefined) update.prizeAmount = String(prizeAmount);
   if (notes !== undefined) update.notes = notes;
+  if (rewardType !== undefined) update.rewardType = rewardType;
+  if (cashTaken !== undefined) update.cashTaken = cashTaken !== null ? String(cashTaken) : null;
   const [lottery] = await db.update(lotteriesTable).set(update).where(eq(lotteriesTable.id, id)).returning();
   if (!lottery) { res.status(404).json({ error: "Lottery not found" }); return; }
-  res.json({ ...lottery, committeeName: null, winnerName: null, winnerToken: null, prizeAmount: lottery.prizeAmount ? parseFloat(lottery.prizeAmount) : null, createdAt: lottery.createdAt.toISOString() });
+  res.json({ ...lottery, committeeName: null, winnerName: null, winnerToken: null, prizeAmount: lottery.prizeAmount ? parseFloat(lottery.prizeAmount) : null, cashTaken: lottery.cashTaken ? parseFloat(lottery.cashTaken) : null, createdAt: lottery.createdAt.toISOString() });
 });
 
 router.post("/lotteries/:id/draw", async (req, res): Promise<void> => {
   const id = parseInt(Array.isArray(req.params.id) ? req.params.id[0] : req.params.id, 10);
+  const { rewardType, cashTaken } = req.body as { rewardType?: "cash" | "gift"; cashTaken?: number };
   const [lottery] = await db.select().from(lotteriesTable).where(eq(lotteriesTable.id, id));
   if (!lottery) { res.status(404).json({ error: "Lottery not found" }); return; }
 
@@ -96,7 +99,12 @@ router.post("/lotteries/:id/draw", async (req, res): Promise<void> => {
   const winner = members[Math.floor(Math.random() * members.length)];
   const [updated] = await db
     .update(lotteriesTable)
-    .set({ winnerId: winner.customerId, status: "completed" })
+    .set({
+      winnerId: winner.customerId,
+      status: "completed",
+      rewardType: rewardType ?? null,
+      cashTaken: (rewardType === "cash" && cashTaken) ? String(cashTaken) : null,
+    })
     .where(eq(lotteriesTable.id, id))
     .returning();
 
@@ -108,8 +116,30 @@ router.post("/lotteries/:id/draw", async (req, res): Promise<void> => {
     winnerName: cust?.name ?? null,
     winnerToken: winner.tokenNumber,
     prizeAmount: updated.prizeAmount ? parseFloat(updated.prizeAmount) : null,
+    cashTaken: updated.cashTaken ? parseFloat(updated.cashTaken) : null,
     createdAt: updated.createdAt.toISOString(),
   });
+});
+
+// ---------------------------------------------------------------------------
+// Committee members for a lottery (to show who is in this draw)
+// ---------------------------------------------------------------------------
+router.get("/lotteries/:id/members", async (req, res): Promise<void> => {
+  const id = parseInt(Array.isArray(req.params.id) ? req.params.id[0] : req.params.id, 10);
+  const [lottery] = await db.select({ committeeId: lotteriesTable.committeeId }).from(lotteriesTable).where(eq(lotteriesTable.id, id));
+  if (!lottery) { res.status(404).json({ error: "Lottery not found" }); return; }
+
+  const members = await db
+    .select({ cm: committeeMembersTable, customerName: customersTable.name, customerMobile: customersTable.mobile })
+    .from(committeeMembersTable)
+    .leftJoin(customersTable, eq(committeeMembersTable.customerId, customersTable.id))
+    .where(eq(committeeMembersTable.committeeId, lottery.committeeId));
+
+  res.json(members.map((m) => ({
+    ...m.cm,
+    customerName: m.customerName,
+    customerMobile: m.customerMobile,
+  })));
 });
 
 export default router;

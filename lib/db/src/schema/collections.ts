@@ -3,6 +3,7 @@ import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 
 export const paymentModeEnum = pgEnum("payment_mode", ["cash", "upi", "bank", "card"]);
+export const collectionVerificationStatusEnum = pgEnum("collection_verification_status", ["pending", "verified", "rejected"]);
 
 export const collectionsTable = pgTable("collections", {
   id: serial("id").primaryKey(),
@@ -17,6 +18,11 @@ export const collectionsTable = pgTable("collections", {
   notes: text("notes"),
   collectedAt: timestamp("collected_at", { withTimezone: true }).notNull().defaultNow(),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  // Verification workflow
+  verificationStatus: collectionVerificationStatusEnum("verification_status").notNull().default("pending"),
+  verifiedById: integer("verified_by_id"),
+  verifiedAt: timestamp("verified_at", { withTimezone: true }),
+  verificationNotes: text("verification_notes"),
 });
 
 export const insertCollectionSchema = createInsertSchema(collectionsTable).omit({ id: true, createdAt: true });

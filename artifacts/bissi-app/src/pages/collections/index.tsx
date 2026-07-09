@@ -9,39 +9,30 @@ import {
   useListCommittees,
   getListCollectionsQueryKey,
 } from "@workspace/api-client-react";
+import { useQuery, useMutation, useQueryClient as useQC } from "@tanstack/react-query";
+import { api } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
+  Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
+  Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger,
 } from "@/components/ui/dialog";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
-import { Plus, Wallet, Banknote, Smartphone, Building2, CreditCard, AlertCircle } from "lucide-react";
-import { useQueryClient } from "@tanstack/react-query";
+import { Plus, Wallet, Banknote, Smartphone, Building2, CreditCard, AlertCircle, CheckCircle2, XCircle, Clock } from "lucide-react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import { useToast } from "@/hooks/use-toast";
+import { useRole } from "@/hooks/use-role";
 
 const collectionSchema = z.object({
   customerId: z.coerce.number().min(1, "Customer is required"),
@@ -59,6 +50,12 @@ const paymentModeIcon: Record<string, React.ReactNode> = {
   card: <CreditCard className="h-4 w-4" />,
 };
 
+const verificationBadge = (status: string) => {
+  if (status === "verified") return <Badge variant="default" className="gap-1 bg-green-600"><CheckCircle2 className="h-3 w-3" />Verified</Badge>;
+  if (status === "rejected") return <Badge variant="destructive" className="gap-1"><XCircle className="h-3 w-3" />Rejected</Badge>;
+  return <Badge variant="outline" className="gap-1 text-amber-600 border-amber-300"><Clock className="h-3 w-3" />Pending</Badge>;
+};
+
 const formatCurrency = (n: number) =>
   new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 0 }).format(n);
 
@@ -66,21 +63,51 @@ export default function CollectionsPage() {
   const [page, setPage] = useState(1);
   const [dateFilter, setDateFilter] = useState("");
   const [isCreateOpen, setIsCreateOpen] = useState(false);
+  const [verifyDialogId, setVerifyDialogId] = useState<number | null>(null);
+  const [verifyNotes, setVerifyNotes] = useState("");
+  const { role } = useRole();
+  const isManager = ["super_admin", "owner", "branch_manager"].includes(role ?? "");
 
-  const { data: collections, isLoading } = useListCollections({
-    page,
-    limit: 20,
-    date: dateFilter || undefined,
-  });
+  const { data: collections, isLoading } = useListCollections({ page, limit: 20, date: dateFilter || undefined });
   const { data: summary } = useGetTodayCollectionSummary();
   const { data: dueList } = useGetDueToday();
   const { data: customers } = useListCustomers({ limit: 200 });
   const { data: collectors } = useListCollectors();
   const { data: committees } = useListCommittees();
 
+  // Pending verifications (managers only)
+  const { data: pendingCollections, isLoading: pendingLoading } = useQuery<any[]>({
+    queryKey: ["collections-pending"],
+    queryFn: () => api.get("/collections?verificationStatus=pending&limit=50"),
+    enabled: isManager,
+    select: (d: any) => (Array.isArray(d) ? d : d.data ?? []),
+    refetchInterval: 30_000,
+  });
+
+  const { data: pendingCount } = useQuery<{ count: number }>({
+    queryKey: ["collections-pending-count"],
+    queryFn: () => api.get("/collections/pending-verifications"),
+    enabled: isManager,
+    refetchInterval: 30_000,
+  });
+
   const createCollection = useCreateCollection();
-  const queryClient = useQueryClient();
+  const queryClient = useQC();
   const { toast } = useToast();
+
+  const verifyMutation = useMutation({
+    mutationFn: ({ id, status, notes }: { id: number; status: "verified" | "rejected"; notes?: string }) =>
+      api.patch(`/collections/${id}/verify`, { verificationStatus: status, verificationNotes: notes }),
+    onSuccess: (_, vars) => {
+      toast({ title: vars.status === "verified" ? "Collection verified ✓" : "Collection rejected" });
+      queryClient.invalidateQueries({ queryKey: ["collections-pending"] });
+      queryClient.invalidateQueries({ queryKey: ["collections-pending-count"] });
+      queryClient.invalidateQueries({ queryKey: getListCollectionsQueryKey() });
+      setVerifyDialogId(null);
+      setVerifyNotes("");
+    },
+    onError: () => toast({ title: "Failed to update", variant: "destructive" }),
+  });
 
   const form = useForm<z.infer<typeof collectionSchema>>({
     resolver: zodResolver(collectionSchema),
@@ -353,7 +380,8 @@ export default function CollectionsPage() {
                 <TableHead className="text-center">Mode</TableHead>
                 <TableHead className="text-right">Amount</TableHead>
                 <TableHead>Receipt</TableHead>
-                <TableHead className="pr-4">Date</TableHead>
+                <TableHead>Date</TableHead>
+                <TableHead className="pr-4">Status</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -382,9 +410,10 @@ export default function CollectionsPage() {
                     </TableCell>
                     <TableCell className="text-right font-semibold text-primary">{formatCurrency(col.amount)}</TableCell>
                     <TableCell className="font-mono text-xs text-muted-foreground">{col.receiptNumber ?? "—"}</TableCell>
-                    <TableCell className="pr-4 text-sm text-muted-foreground">
+                    <TableCell className="text-sm text-muted-foreground">
                       {new Date(col.collectedAt).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })}
                     </TableCell>
+                    <TableCell className="pr-4">{verificationBadge((col as any).verificationStatus ?? "pending")}</TableCell>
                   </TableRow>
                 ))
               )}
@@ -401,7 +430,111 @@ export default function CollectionsPage() {
           )}
         </CardContent>
       </Card>
+
+      {/* ── Manager: Pending Verification ── */}
+      {isManager && (
+        <Card className="border-amber-200">
+          <CardHeader className="p-4 border-b bg-amber-50/50 dark:bg-amber-900/10">
+            <CardTitle className="text-sm flex items-center gap-2 text-amber-700">
+              <Clock className="h-4 w-4" />
+              Pending Verification
+              {(pendingCount?.count ?? 0) > 0 && (
+                <Badge variant="outline" className="ml-1 text-amber-600 border-amber-300">{pendingCount?.count}</Badge>
+              )}
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="p-0">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead className="pl-4">Customer</TableHead>
+                  <TableHead>Collector</TableHead>
+                  <TableHead className="text-center">Mode</TableHead>
+                  <TableHead className="text-right">Amount</TableHead>
+                  <TableHead>Date</TableHead>
+                  <TableHead className="pr-4 text-right">Actions</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {pendingLoading ? (
+                  <TableRow><TableCell colSpan={6} className="text-center py-6 text-muted-foreground">Loading...</TableCell></TableRow>
+                ) : !pendingCollections?.length ? (
+                  <TableRow>
+                    <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
+                      <CheckCircle2 className="h-8 w-8 mx-auto mb-2 text-green-400 opacity-60" />
+                      All collections verified!
+                    </TableCell>
+                  </TableRow>
+                ) : (
+                  pendingCollections.map((col: any) => (
+                    <TableRow key={col.id} className="hover:bg-muted/50">
+                      <TableCell className="pl-4">
+                        <div className="font-medium">{col.customerName ?? `#${col.customerId}`}</div>
+                        {col.customerMobile && <div className="text-xs text-muted-foreground">{col.customerMobile}</div>}
+                      </TableCell>
+                      <TableCell className="text-sm">{col.collectorName ?? "—"}</TableCell>
+                      <TableCell className="text-center">
+                        <Badge variant="outline" className="gap-1">
+                          {paymentModeIcon[col.paymentMode]}
+                          {col.paymentMode?.toUpperCase()}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="text-right font-semibold text-primary">{formatCurrency(col.amount)}</TableCell>
+                      <TableCell className="text-sm text-muted-foreground">
+                        {col.collectedAt ? new Date(col.collectedAt).toLocaleDateString("en-IN", { day: "2-digit", month: "short" }) : "—"}
+                      </TableCell>
+                      <TableCell className="pr-4 text-right">
+                        <div className="flex justify-end gap-2">
+                          <Button
+                            size="sm"
+                            className="bg-green-600 hover:bg-green-700 text-white h-7 px-3 gap-1"
+                            onClick={() => verifyMutation.mutate({ id: col.id, status: "verified" })}
+                            disabled={verifyMutation.isPending}>
+                            <CheckCircle2 className="h-3.5 w-3.5" /> Verify
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="destructive"
+                            className="h-7 px-3 gap-1"
+                            onClick={() => { setVerifyDialogId(col.id); setVerifyNotes(""); }}
+                            disabled={verifyMutation.isPending}>
+                            <XCircle className="h-3.5 w-3.5" /> Reject
+                          </Button>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ))
+                )}
+              </TableBody>
+            </Table>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Reject with notes dialog */}
+      <Dialog open={verifyDialogId !== null} onOpenChange={(o) => { if (!o) setVerifyDialogId(null); }}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader><DialogTitle>Reject Collection</DialogTitle></DialogHeader>
+          <div className="space-y-3 pt-2">
+            <p className="text-sm text-muted-foreground">Optionally provide a reason for rejection:</p>
+            <Textarea
+              value={verifyNotes}
+              onChange={(e) => setVerifyNotes(e.target.value)}
+              placeholder="Reason for rejection..."
+              rows={3}
+            />
+            <div className="flex justify-end gap-2">
+              <Button variant="ghost" onClick={() => setVerifyDialogId(null)}>Cancel</Button>
+              <Button
+                variant="destructive"
+                onClick={() => verifyDialogId && verifyMutation.mutate({ id: verifyDialogId, status: "rejected", notes: verifyNotes })}
+                disabled={verifyMutation.isPending}>
+                Confirm Reject
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
-

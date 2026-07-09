@@ -7,49 +7,32 @@ import {
   useListCommittees,
   getListLotteriesQueryKey,
 } from "@workspace/api-client-react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { api } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
+  Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
+  Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger,
 } from "@/components/ui/dialog";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
-import { Plus, Gift, Trophy, CalendarDays } from "lucide-react";
-import { useQueryClient } from "@tanstack/react-query";
+import { Plus, Gift, Trophy, CalendarDays, Users, Banknote } from "lucide-react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import { useToast } from "@/hooks/use-toast";
 import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { Label } from "@/components/ui/label";
 
 const lotterySchema = z.object({
   committeeId: z.coerce.number().min(1, "Committee is required"),
@@ -72,6 +55,9 @@ export default function LotteriesPage() {
   const [committeeFilter, setCommitteeFilter] = useState("all");
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [drawConfirmId, setDrawConfirmId] = useState<number | null>(null);
+  const [drawRewardType, setDrawRewardType] = useState<"cash" | "gift">("cash");
+  const [drawCashTaken, setDrawCashTaken] = useState("");
+  const [membersLotteryId, setMembersLotteryId] = useState<number | null>(null);
 
   const { data: lotteries, isLoading } = useListLotteries({
     status: statusFilter !== "all" ? statusFilter : undefined,
@@ -83,6 +69,13 @@ export default function LotteriesPage() {
   const conductDraw = useConductDraw();
   const queryClient = useQueryClient();
   const { toast } = useToast();
+
+  // Members for selected lottery
+  const { data: members = [] } = useQuery<any[]>({
+    queryKey: ["lottery-members", membersLotteryId],
+    queryFn: () => api.get(`/lotteries/${membersLotteryId}/members`),
+    enabled: membersLotteryId !== null,
+  });
 
   const form = useForm<z.infer<typeof lotterySchema>>({
     resolver: zodResolver(lotterySchema),
@@ -112,10 +105,10 @@ export default function LotteriesPage() {
   const handleConductDraw = () => {
     if (!drawConfirmId) return;
     conductDraw.mutate(
-      { id: drawConfirmId },
+      { id: drawConfirmId, data: { rewardType: drawRewardType, cashTaken: drawRewardType === "cash" && drawCashTaken ? parseFloat(drawCashTaken) : undefined } } as any,
       {
-        onSuccess: (result) => {
-          toast({ title: `🎉 Winner: ${result.winnerName ?? "Selected!"}`, description: `Token: ${result.winnerToken ?? "—"}` });
+        onSuccess: (result: any) => {
+          toast({ title: `🎉 Winner: ${result.winnerName ?? "Selected!"}`, description: `Token: ${result.winnerToken ?? "—"} | Reward: ${drawRewardType === "cash" ? `Cash ₹${drawCashTaken || result.prizeAmount}` : "Gift"}` });
           setDrawConfirmId(null);
           queryClient.invalidateQueries({ queryKey: getListLotteriesQueryKey() });
         },
@@ -210,19 +203,83 @@ export default function LotteriesPage() {
       <AlertDialog open={drawConfirmId !== null} onOpenChange={(o) => !o && setDrawConfirmId(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Conduct Lucky Draw?</AlertDialogTitle>
+            <AlertDialogTitle>Conduct Lucky Draw</AlertDialogTitle>
             <AlertDialogDescription>
-              This will randomly select a winner from all eligible committee members. This action cannot be undone.
+              Randomly select a winner. Choose what reward they receive:
             </AlertDialogDescription>
           </AlertDialogHeader>
+          <div className="space-y-3 py-2">
+            <div>
+              <Label className="text-sm font-medium">Reward Type</Label>
+              <div className="flex gap-2 mt-1.5">
+                <button
+                  type="button"
+                  onClick={() => setDrawRewardType("cash")}
+                  className={`flex-1 py-2 rounded-lg border text-sm font-medium flex items-center justify-center gap-1.5 transition-colors
+                    ${drawRewardType === "cash" ? "border-primary bg-primary text-primary-foreground" : "border-input bg-background hover:bg-accent"}`}>
+                  <Banknote className="h-4 w-4" /> Cash
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setDrawRewardType("gift")}
+                  className={`flex-1 py-2 rounded-lg border text-sm font-medium flex items-center justify-center gap-1.5 transition-colors
+                    ${drawRewardType === "gift" ? "border-primary bg-primary text-primary-foreground" : "border-input bg-background hover:bg-accent"}`}>
+                  <Gift className="h-4 w-4" /> Gift Item
+                </button>
+              </div>
+            </div>
+            {drawRewardType === "cash" && (
+              <div>
+                <Label className="text-sm font-medium">Cash Amount (₹)</Label>
+                <Input
+                  type="number"
+                  className="mt-1.5"
+                  value={drawCashTaken}
+                  onChange={(e) => setDrawCashTaken(e.target.value)}
+                  placeholder="Enter cash amount"
+                />
+              </div>
+            )}
+          </div>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction onClick={handleConductDraw} disabled={conductDraw.isPending}>
-              {conductDraw.isPending ? "Drawing..." : "Conduct Draw"}
+              {conductDraw.isPending ? "Drawing..." : "🎲 Conduct Draw"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Members Dialog */}
+      <Dialog open={membersLotteryId !== null} onOpenChange={(o) => !o && setMembersLotteryId(null)}>
+        <DialogContent className="max-w-md">
+          <DialogHeader><DialogTitle>Committee Members</DialogTitle></DialogHeader>
+          {members.length === 0 ? (
+            <p className="text-sm text-muted-foreground py-4 text-center">No members found in this committee.</p>
+          ) : (
+            <div className="max-h-80 overflow-y-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Name</TableHead>
+                    <TableHead>Mobile</TableHead>
+                    <TableHead>Token #</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {members.map((m: any) => (
+                    <TableRow key={m.id}>
+                      <TableCell className="font-medium">{m.customerName ?? `#${m.customerId}`}</TableCell>
+                      <TableCell className="text-sm text-muted-foreground">{m.customerMobile ?? "—"}</TableCell>
+                      <TableCell className="font-mono text-sm">{m.tokenNumber ?? "—"}</TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
 
       {/* Stats */}
       <div className="grid grid-cols-3 gap-4">
@@ -270,6 +327,7 @@ export default function LotteriesPage() {
                 <TableHead>Winner</TableHead>
                 <TableHead>Token</TableHead>
                 <TableHead className="text-right">Prize</TableHead>
+                <TableHead>Reward</TableHead>
                 <TableHead className="text-center">Status</TableHead>
                 <TableHead className="pr-4" />
               </TableRow>
@@ -302,19 +360,32 @@ export default function LotteriesPage() {
                     <TableCell className="text-right">
                       {lottery.prizeAmount ? formatCurrency(lottery.prizeAmount) : "—"}
                     </TableCell>
+                    <TableCell>
+                      {(lottery as any).rewardType === "cash" ? (
+                        <span className="flex items-center gap-1 text-emerald-700 text-sm font-medium">
+                          <Banknote className="h-4 w-4" />
+                          {(lottery as any).cashTaken ? formatCurrency((lottery as any).cashTaken) : "Cash"}
+                        </span>
+                      ) : (lottery as any).rewardType === "gift" ? (
+                        <span className="flex items-center gap-1 text-purple-600 text-sm font-medium">
+                          <Gift className="h-4 w-4" /> Gift
+                        </span>
+                      ) : "—"}
+                    </TableCell>
                     <TableCell className="text-center">
                       <Badge variant={statusBadge[lottery.status] ?? "secondary"}>{lottery.status}</Badge>
                     </TableCell>
                     <TableCell className="pr-4 text-right">
-                      {lottery.status === "scheduled" && (
-                        <Button
-                          size="sm"
-                          variant="default"
-                          onClick={() => setDrawConfirmId(lottery.id)}
-                        >
-                          <Gift className="h-3 w-3 mr-1" /> Conduct Draw
+                      <div className="flex justify-end gap-1.5">
+                        <Button size="sm" variant="outline" className="h-7 px-2" onClick={() => setMembersLotteryId(lottery.id)}>
+                          <Users className="h-3.5 w-3.5 mr-1" /> Members
                         </Button>
-                      )}
+                        {lottery.status === "scheduled" && (
+                          <Button size="sm" variant="default" className="h-7 px-2" onClick={() => { setDrawConfirmId(lottery.id); setDrawRewardType("cash"); setDrawCashTaken(""); }}>
+                            <Gift className="h-3 w-3 mr-1" /> Draw
+                          </Button>
+                        )}
+                      </div>
                     </TableCell>
                   </TableRow>
                 ))

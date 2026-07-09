@@ -16,7 +16,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
-import { TrendingUp, IndianRupee, AlertCircle, CheckCircle2, Plus, CreditCard } from "lucide-react";
+import { TrendingUp, IndianRupee, AlertCircle, CheckCircle2, Plus, CreditCard, PiggyBank, Clock } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
 const formatCurrency = (n: number) =>
@@ -87,6 +87,55 @@ export default function InterestsPage() {
           <DialogTrigger asChild>
             <Button><Plus className="mr-2 h-4 w-4" />New Interest Account</Button>
           </DialogTrigger>
+
+      {/* ── Summary Cards ── */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        {[
+          {
+            label: "Active Accounts",
+            value: summary?.activeAccounts ?? 0,
+            icon: <PiggyBank className="h-5 w-5 text-indigo-500" />,
+            bg: "bg-indigo-50 dark:bg-indigo-950/30",
+            isCurrency: false,
+          },
+          {
+            label: "Total Principal",
+            value: summary?.totalPrincipal ?? 0,
+            icon: <IndianRupee className="h-5 w-5 text-blue-500" />,
+            bg: "bg-blue-50 dark:bg-blue-950/30",
+            isCurrency: true,
+          },
+          {
+            label: "Interest Paid",
+            value: summary?.totalInterestPaid ?? 0,
+            icon: <CheckCircle2 className="h-5 w-5 text-green-500" />,
+            bg: "bg-green-50 dark:bg-green-950/30",
+            isCurrency: true,
+          },
+          {
+            label: "Interest Pending",
+            value: summary?.totalPendingInterest ?? 0,
+            icon: <Clock className="h-5 w-5 text-amber-500" />,
+            bg: "bg-amber-50 dark:bg-amber-950/30",
+            isCurrency: true,
+          },
+        ].map(({ label, value, icon, bg, isCurrency }) => (
+          <Card key={label} className={`border-0 ${bg}`}>
+            <CardHeader className="p-4 pb-2 flex flex-row items-center gap-2">
+              {icon}
+              <p className="text-xs font-medium text-muted-foreground">{label}</p>
+            </CardHeader>
+            <CardContent className="px-4 pb-4 pt-0">
+              <p className="text-2xl font-bold">
+                {isCurrency
+                  ? new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 0 }).format(value as number)
+                  : value}
+              </p>
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+
           <DialogContent>
             <DialogHeader><DialogTitle>Create Interest Account</DialogTitle></DialogHeader>
             <div className="space-y-4 pt-2">

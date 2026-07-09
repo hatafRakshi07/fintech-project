@@ -2,6 +2,8 @@ import express, { type Express, type Request, type Response, type NextFunction }
 import cors from "cors";
 import helmet from "helmet";
 import pinoHttp from "pino-http";
+import { fileURLToPath } from "node:url";
+import { dirname, resolve, join } from "node:path";
 import router from "./routes";
 import { logger } from "./lib/logger";
 
@@ -59,6 +61,24 @@ app.use(express.urlencoded({ extended: true, limit: "1mb" }));
 // Routes
 // ---------------------------------------------------------------------------
 app.use("/api", router);
+
+// ---------------------------------------------------------------------------
+// Static frontend serving (production only)
+// Serves the built bissi-app on / and collector-app on /collector
+// ---------------------------------------------------------------------------
+if (process.env.NODE_ENV === "production") {
+  const __serverDir = dirname(fileURLToPath(import.meta.url));
+  const bissiDist = resolve(__serverDir, "../../bissi-app/dist/public");
+  const collectorDist = resolve(__serverDir, "../../collector-app/dist");
+
+  // Collector app — must be registered before the root static handler
+  app.use("/collector", express.static(collectorDist));
+  app.get("/collector/*", (_req, res) => res.sendFile(join(collectorDist, "index.html")));
+
+  // Bissi main app
+  app.use(express.static(bissiDist));
+  app.get("*", (_req, res) => res.sendFile(join(bissiDist, "index.html")));
+}
 
 // ---------------------------------------------------------------------------
 // Global error handler — must be last, must have 4 params

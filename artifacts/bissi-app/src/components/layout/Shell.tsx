@@ -5,6 +5,7 @@ import { useRole } from "@/hooks/use-role";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
+import NotificationBell from "@/components/NotificationBell";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -154,7 +155,8 @@ export function Shell({ children }: { children: React.ReactNode }) {
       <aside className="hidden md:flex flex-col w-64 bg-sidebar border-r border-sidebar-border h-full">
         <div className="p-4 border-b border-sidebar-border flex items-center gap-2">
           <div className="w-8 h-8 rounded bg-primary flex items-center justify-center text-primary-foreground font-bold">B</div>
-          <span className="font-semibold text-lg text-sidebar-foreground">Bissi.</span>
+          <span className="font-semibold text-lg text-sidebar-foreground flex-1">Bissi.</span>
+          <NotificationBell />
         </div>
         <div className="flex-1 overflow-y-auto py-4">
           <nav className="space-y-1 px-2">
@@ -218,6 +220,7 @@ export function Shell({ children }: { children: React.ReactNode }) {
           <Button variant="ghost" size="icon" onClick={toggleDark}>
             {dark ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}
           </Button>
+          <NotificationBell />
           <Button variant="ghost" size="icon" onClick={toggleMobile}>
             {isMobileOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
           </Button>

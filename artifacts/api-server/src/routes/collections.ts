@@ -1,6 +1,7 @@
 import { Router, type IRouter } from "express";
-import { db, collectionsTable, customersTable, collectorsTable, committeesTable, branchesTable, loansTable } from "@workspace/db";
+import { db, collectionsTable, customersTable, collectorsTable, committeesTable, branchesTable, loansTable, usersTable } from "@workspace/db";
 import { eq, and, gte, lte, sql } from "drizzle-orm";
+import { createNotification, notifyManagers } from "./notifications";
 
 const router: IRouter = Router();
 
@@ -104,6 +105,16 @@ router.post("/collections", async (req, res): Promise<void> => {
     collectedAt: col.collectedAt.toISOString(),
     createdAt: col.createdAt.toISOString(),
   });
+
+  // Fire-and-forget notifications — do NOT await so the response is already sent
+  const amtFmt = new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 0 }).format(parseFloat(String(amount)));
+  notifyManagers(
+    cust?.branchId ?? null,
+    "New Collection Recorded",
+    `${amtFmt} collected from ${cust?.name ?? "customer"} via ${paymentMode}. Awaiting verification.`,
+    "collection_recorded",
+    col.id,
+  );
 });
 
 router.get("/collections/today-summary", async (req, res): Promise<void> => {
@@ -178,6 +189,74 @@ router.get("/collections/:id", async (req, res): Promise<void> => {
     collectedAt: row.c.collectedAt.toISOString(),
     createdAt: row.c.createdAt.toISOString(),
   });
+});
+
+// ---------------------------------------------------------------------------
+// Verify / Reject a collection (branch_manager, owner, super_admin only)
+// ---------------------------------------------------------------------------
+router.patch("/collections/:id/verify", async (req, res): Promise<void> => {
+  const id = parseInt(Array.isArray(req.params.id) ? req.params.id[0] : req.params.id, 10);
+  const { verificationStatus, verificationNotes } = req.body as {
+    verificationStatus: "verified" | "rejected";
+    verificationNotes?: string;
+  };
+
+  if (!verificationStatus || !["verified", "rejected"].includes(verificationStatus)) {
+    res.status(400).json({ error: "verificationStatus must be 'verified' or 'rejected'" });
+    return;
+  }
+
+  const [col] = await db
+    .update(collectionsTable)
+    .set({
+      verificationStatus,
+      verifiedById: req.userId,
+      verifiedAt: new Date(),
+      verificationNotes: verificationNotes ?? null,
+    })
+    .where(eq(collectionsTable.id, id))
+    .returning();
+
+  if (!col) { res.status(404).json({ error: "Collection not found" }); return; }
+
+  res.json({ ...col, amount: parseFloat(col.amount), collectedAt: col.collectedAt.toISOString(), createdAt: col.createdAt.toISOString() });
+
+  // Notify the collector who recorded this (find user by collector mobile match)
+  if (col.collectorId) {
+    const [collector] = await db.select({ mobile: collectorsTable.mobile }).from(collectorsTable).where(eq(collectorsTable.id, col.collectorId));
+    if (collector?.mobile) {
+      const [collectorUser] = await db.select({ id: usersTable.id }).from(usersTable).where(eq(usersTable.phone, collector.mobile));
+      if (collectorUser) {
+        const [cust] = await db.select({ name: customersTable.name }).from(customersTable).where(eq(customersTable.id, col.customerId));
+        const amtFmt = new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 0 }).format(parseFloat(col.amount));
+        const isVerified = verificationStatus === "verified";
+        createNotification({
+          userId: collectorUser.id,
+          title: isVerified ? "Collection Approved ✓" : "Collection Rejected ✗",
+          message: isVerified
+            ? `Your collection of ${amtFmt} from ${cust?.name ?? "customer"} has been approved.`
+            : `Your collection of ${amtFmt} from ${cust?.name ?? "customer"} was rejected. ${verificationNotes ?? ""}`,
+          type: isVerified ? "collection_verified" : "collection_rejected",
+          entityId: id,
+          entityType: "collection",
+        });
+      }
+    }
+  }
+});
+
+// ---------------------------------------------------------------------------
+// Pending verifications count (for manager dashboard badge)
+// ---------------------------------------------------------------------------
+router.get("/collections/pending-verifications", async (req, res): Promise<void> => {
+  const { branchId } = req.query;
+  const conditions: any[] = [eq(collectionsTable.verificationStatus, "pending")];
+  if (branchId) conditions.push(eq(collectionsTable.branchId, parseInt(branchId as string, 10)));
+  const [row] = await db
+    .select({ count: sql<number>`count(*)::int` })
+    .from(collectionsTable)
+    .where(and(...conditions));
+  res.json({ count: row?.count ?? 0 });
 });
 
 export default router;
