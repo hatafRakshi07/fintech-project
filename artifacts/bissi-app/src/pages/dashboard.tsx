@@ -55,8 +55,8 @@ export default function DashboardPage() {
         <p className="text-muted-foreground">Welcome to Bissi management dashboard.</p>
       </div>
 
-      {/* KPI Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+      {/* KPI Cards — 2-col on mobile, 4-col on desktop */}
+      <div className="grid grid-cols-2 md:grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground">Today's Collection</CardTitle>
@@ -119,7 +119,7 @@ export default function DashboardPage() {
             <CardDescription>Daily collection amounts across all branches</CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="h-[300px] w-full">
+            <div className="h-55 md:h-75 w-full">
               <ResponsiveContainer width="100%" height="100%">
                 <LineChart data={trend || []} margin={{ top: 5, right: 10, left: 10, bottom: 0 }}>
                   <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e5e7eb" />
@@ -197,7 +197,7 @@ export default function DashboardPage() {
           <CardDescription>Top performing branches by total collection</CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="h-[250px] w-full mt-4">
+          <div className="h-50 md:h-62.5 w-full mt-4">
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={branchSummary || []} layout="vertical" margin={{ top: 0, right: 30, left: 40, bottom: 0 }}>
                 <CartesianGrid strokeDasharray="3 3" horizontal={true} vertical={false} />

@@ -188,7 +188,7 @@ function DiaryTab({ today }: { today: string }) {
           entries.map(e => (
             <Card key={e.id}>
               <CardHeader className="pb-2">
-                <div className="flex items-center justify-between">
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
                   <div className="flex items-center gap-2">
                     <CardTitle className="text-base">{e.title}</CardTitle>
                     {e.category && <Badge variant="outline" className="text-xs">{e.category}</Badge>}
@@ -277,7 +277,7 @@ function TasksTab() {
         </Dialog>
       </div>
       <Card>
-        <CardContent className="p-0">
+        <CardContent className="p-0 overflow-x-auto">
           <Table>
             <TableHeader>
               <TableRow>
@@ -385,7 +385,7 @@ function ComplaintsTab() {
         </Dialog>
       </div>
       <Card>
-        <CardContent className="p-0">
+        <CardContent className="p-0 overflow-x-auto">
           <Table>
             <TableHeader>
               <TableRow>
@@ -483,7 +483,7 @@ function DonationsTab() {
         </Dialog>
       </div>
       <Card>
-        <CardContent className="p-0">
+        <CardContent className="p-0 overflow-x-auto">
           <Table>
             <TableHeader>
               <TableRow>

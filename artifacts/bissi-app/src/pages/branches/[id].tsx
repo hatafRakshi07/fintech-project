@@ -190,7 +190,7 @@ export default function BranchDetailPage() {
                 <Input placeholder="Search customers…" value={customerSearch} onChange={(e) => setCustomerSearch(e.target.value)} />
               </div>
             </CardHeader>
-            <CardContent className="p-0">
+            <CardContent className="p-0 overflow-x-auto">
               <Table>
                 <TableHeader>
                   <TableRow>
@@ -232,7 +232,7 @@ export default function BranchDetailPage() {
                 <Input placeholder="Search collectors…" value={collectorSearch} onChange={(e) => setCollectorSearch(e.target.value)} />
               </div>
             </CardHeader>
-            <CardContent className="p-0">
+            <CardContent className="p-0 overflow-x-auto">
               <Table>
                 <TableHeader>
                   <TableRow>

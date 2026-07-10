@@ -1,10 +1,11 @@
-import React from "react";
+import React, { useState } from "react";
 import { Route, Switch, Router as WouterRouter, useLocation } from "wouter";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { setAuthTokenGetter } from "@workspace/api-client-react";
 import { useRole, type UserRole } from "@/hooks/use-role";
+import { SplashScreen } from "@/components/SplashScreen";
 
 // Register localStorage auth token getter for all API requests
 setAuthTokenGetter(() => localStorage.getItem("auth_token"));
@@ -214,6 +215,20 @@ function AppRoutes() {
 }
 
 function App() {
+  // Show splash only once per session
+  const [showSplash, setShowSplash] = useState(
+    () => !sessionStorage.getItem("ska_splash_done")
+  );
+
+  function handleSplashDone() {
+    sessionStorage.setItem("ska_splash_done", "1");
+    setShowSplash(false);
+  }
+
+  if (showSplash) {
+    return <SplashScreen onDone={handleSplashDone} />;
+  }
+
   return (
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>

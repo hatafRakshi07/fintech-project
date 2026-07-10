@@ -135,7 +135,7 @@ export default function CollectorDetailPage() {
 
         <TabsContent value="collections" className="mt-4">
           <Card>
-            <CardContent className="p-0">
+            <CardContent className="p-0 overflow-x-auto">
               <Table>
                 <TableHeader>
                   <TableRow>

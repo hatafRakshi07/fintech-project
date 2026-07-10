@@ -207,7 +207,7 @@ export default function LoanDetailPage() {
 
         <TabsContent value="emi" className="mt-4">
           <Card>
-            <CardContent className="p-0">
+            <CardContent className="p-0 overflow-x-auto">
               <Table>
                 <TableHeader>
                   <TableRow>
@@ -251,7 +251,7 @@ export default function LoanDetailPage() {
 
         <TabsContent value="payments" className="mt-4">
           <Card>
-            <CardContent className="p-0">
+            <CardContent className="p-0 overflow-x-auto">
               <Table>
                 <TableHeader>
                   <TableRow>

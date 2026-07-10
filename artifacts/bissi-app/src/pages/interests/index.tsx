@@ -78,7 +78,7 @@ export default function InterestsPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div>
           <h1 className="text-2xl font-bold tracking-tight">Interest Management</h1>
           <p className="text-muted-foreground">Track interest-bearing deposit accounts and payments</p>
@@ -209,7 +209,7 @@ export default function InterestsPage() {
 
         <TabsContent value="accounts" className="mt-4">
           <Card>
-            <CardContent className="p-0">
+            <CardContent className="p-0 overflow-x-auto">
               <Table>
                 <TableHeader>
                   <TableRow>
@@ -262,7 +262,7 @@ export default function InterestsPage() {
 
         <TabsContent value="transactions" className="mt-4">
           <Card>
-            <CardContent className="p-0">
+            <CardContent className="p-0 overflow-x-auto">
               <Table>
                 <TableHeader>
                   <TableRow>

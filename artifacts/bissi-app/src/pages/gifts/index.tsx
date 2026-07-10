@@ -75,7 +75,7 @@ export default function GiftsPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div>
           <h1 className="text-2xl font-bold tracking-tight">Gift Management</h1>
           <p className="text-muted-foreground">Manage gift inventory, distribution, and tracking</p>
@@ -201,7 +201,7 @@ export default function GiftsPage() {
 
         <TabsContent value="inventory" className="mt-4">
           <Card>
-            <CardContent className="p-0">
+            <CardContent className="p-0 overflow-x-auto">
               <Table>
                 <TableHeader>
                   <TableRow>
@@ -242,7 +242,7 @@ export default function GiftsPage() {
 
         <TabsContent value="distributions" className="mt-4">
           <Card>
-            <CardContent className="p-0">
+            <CardContent className="p-0 overflow-x-auto">
               <Table>
                 <TableHeader>
                   <TableRow>
@@ -335,7 +335,7 @@ function GiftCategoriesTab({ categories }: { categories: GiftCategory[] }) {
           </DialogContent>
         </Dialog>
       </CardHeader>
-      <CardContent className="p-0">
+      <CardContent className="p-0 overflow-x-auto">
         <Table>
           <TableHeader>
             <TableRow>

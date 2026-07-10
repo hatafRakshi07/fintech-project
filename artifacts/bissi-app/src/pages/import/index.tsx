@@ -230,7 +230,7 @@ export default function ImportPage() {
 
         {/* Preview Tab */}
         <TabsContent value="preview" className="mt-4 space-y-4">
-          <div className="flex items-center justify-between">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
             <div>
               <h2 className="font-semibold">Preview — {fileName}</h2>
               <p className="text-sm text-muted-foreground">{normalizedRows.length} rows detected</p>
@@ -320,7 +320,7 @@ export default function ImportPage() {
               {validationResult.issues.length > 0 && (
                 <Card>
                   <CardHeader><CardTitle className="text-base">Validation Issues</CardTitle></CardHeader>
-                  <CardContent className="p-0">
+                  <CardContent className="p-0 overflow-x-auto">
                     <Table>
                       <TableHeader>
                         <TableRow>
@@ -383,7 +383,7 @@ export default function ImportPage() {
               {importResult.errors.length > 0 && (
                 <Card>
                   <CardHeader><CardTitle className="text-base text-destructive">Failed Rows</CardTitle></CardHeader>
-                  <CardContent className="p-0">
+                  <CardContent className="p-0 overflow-x-auto">
                     <Table>
                       <TableHeader>
                         <TableRow>

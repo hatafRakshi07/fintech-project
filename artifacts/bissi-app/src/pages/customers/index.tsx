@@ -185,7 +185,7 @@ export default function CustomersPage() {
             <Filter className="h-4 w-4" />
           </Button>
         </CardHeader>
-        <CardContent className="p-0">
+        <CardContent className="p-0 overflow-x-auto">
           <Table>
             <TableHeader>
               <TableRow>

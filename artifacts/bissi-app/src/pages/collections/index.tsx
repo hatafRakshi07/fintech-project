@@ -319,7 +319,7 @@ export default function CollectionsPage() {
               <AlertCircle className="h-4 w-4" /> Due Today ({dueList.length} customers)
             </CardTitle>
           </CardHeader>
-          <CardContent className="p-0">
+          <CardContent className="p-0 overflow-x-auto">
             <Table>
               <TableHeader>
                 <TableRow>
@@ -370,7 +370,7 @@ export default function CollectionsPage() {
             <Button variant="ghost" size="sm" onClick={() => setDateFilter("")}>Clear</Button>
           )}
         </CardHeader>
-        <CardContent className="p-0">
+        <CardContent className="p-0 overflow-x-auto">
           <Table>
             <TableHeader>
               <TableRow>
@@ -443,7 +443,7 @@ export default function CollectionsPage() {
               )}
             </CardTitle>
           </CardHeader>
-          <CardContent className="p-0">
+          <CardContent className="p-0 overflow-x-auto">
             <Table>
               <TableHeader>
                 <TableRow>

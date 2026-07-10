@@ -196,7 +196,7 @@ export default function ReportsPage() {
                   <CardHeader className="pb-2">
                     <CardTitle className="text-sm">Branch-wise Breakdown</CardTitle>
                   </CardHeader>
-                  <CardContent className="p-0">
+                  <CardContent className="p-0 overflow-x-auto">
                     <Table>
                       <TableHeader>
                         <TableRow>
@@ -295,7 +295,7 @@ export default function ReportsPage() {
                     <CardHeader className="pb-2">
                       <CardTitle className="text-sm">Branch-wise Breakdown</CardTitle>
                     </CardHeader>
-                    <CardContent className="p-0">
+                    <CardContent className="p-0 overflow-x-auto">
                       <Table>
                         <TableHeader>
                           <TableRow>
