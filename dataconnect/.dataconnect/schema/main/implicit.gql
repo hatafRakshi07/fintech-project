@@ -1,0 +1,64 @@
+extend type Collection {
+  """
+  ✨ Implicit primary key field. It's a UUID column default to a generated new value. See `@table` for how to customize it.
+  """
+  id: UUID! @default(expr: "uuidV4()") @fdc_generated(from: "Collection", purpose: IMPLICIT_KEY_FIELD)
+  """
+  ✨ Implicit foreign key field based on `Collection`.`membership`. It must match the value of `Membership`.`id`. See `@ref` for how to customize it.
+  """
+  membershipId: UUID! @fdc_generated(from: "Collection.membership", purpose: IMPLICIT_REF_FIELD)
+}
+extend type Draw {
+  """
+  ✨ Implicit primary key field. It's a UUID column default to a generated new value. See `@table` for how to customize it.
+  """
+  id: UUID! @default(expr: "uuidV4()") @fdc_generated(from: "Draw", purpose: IMPLICIT_KEY_FIELD)
+  """
+  ✨ Implicit foreign key field based on `Draw`.`group`. It must match the value of `Group`.`id`. See `@ref` for how to customize it.
+  """
+  groupId: UUID! @fdc_generated(from: "Draw.group", purpose: IMPLICIT_REF_FIELD)
+  """
+  ✨ Implicit foreign key field based on `Draw`.`winnerMembership`. It must match the value of `Membership`.`id`. See `@ref` for how to customize it.
+  """
+  winnerMembershipId: UUID! @fdc_generated(from: "Draw.winnerMembership", purpose: IMPLICIT_REF_FIELD)
+}
+extend type Group {
+  """
+  ✨ Implicit primary key field. It's a UUID column default to a generated new value. See `@table` for how to customize it.
+  """
+  id: UUID! @default(expr: "uuidV4()") @fdc_generated(from: "Group", purpose: IMPLICIT_KEY_FIELD)
+  """
+  ✨ Implicit foreign key field based on `Group`.`adminUser`. It must match the value of `User`.`id`. See `@ref` for how to customize it.
+  """
+  adminUserId: UUID! @fdc_generated(from: "Group.adminUser", purpose: IMPLICIT_REF_FIELD)
+}
+extend type Loan {
+  """
+  ✨ Implicit primary key field. It's a UUID column default to a generated new value. See `@table` for how to customize it.
+  """
+  id: UUID! @default(expr: "uuidV4()") @fdc_generated(from: "Loan", purpose: IMPLICIT_KEY_FIELD)
+  """
+  ✨ Implicit foreign key field based on `Loan`.`membership`. It must match the value of `Membership`.`id`. See `@ref` for how to customize it.
+  """
+  membershipId: UUID! @fdc_generated(from: "Loan.membership", purpose: IMPLICIT_REF_FIELD)
+}
+extend type Membership {
+  """
+  ✨ Implicit primary key field. It's a UUID column default to a generated new value. See `@table` for how to customize it.
+  """
+  id: UUID! @default(expr: "uuidV4()") @fdc_generated(from: "Membership", purpose: IMPLICIT_KEY_FIELD)
+  """
+  ✨ Implicit foreign key field based on `Membership`.`group`. It must match the value of `Group`.`id`. See `@ref` for how to customize it.
+  """
+  groupId: UUID! @fdc_generated(from: "Membership.group", purpose: IMPLICIT_REF_FIELD)
+  """
+  ✨ Implicit foreign key field based on `Membership`.`user`. It must match the value of `User`.`id`. See `@ref` for how to customize it.
+  """
+  userId: UUID! @fdc_generated(from: "Membership.user", purpose: IMPLICIT_REF_FIELD)
+}
+extend type User {
+  """
+  ✨ Implicit primary key field. It's a UUID column default to a generated new value. See `@table` for how to customize it.
+  """
+  id: UUID! @default(expr: "uuidV4()") @fdc_generated(from: "User", purpose: IMPLICIT_KEY_FIELD)
+}

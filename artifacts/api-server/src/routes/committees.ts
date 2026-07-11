@@ -90,16 +90,23 @@ router.patch("/committees/:id", async (req, res): Promise<void> => {
 router.get("/committees/:id/members", async (req, res): Promise<void> => {
   const id = parseInt(Array.isArray(req.params.id) ? req.params.id[0] : req.params.id, 10);
   const members = await db
-    .select({ m: committeeMembersTable, customerName: customersTable.name, customerMobile: customersTable.mobile })
+    .select({
+      m: committeeMembersTable,
+      customerName: customersTable.name,
+      customerMobile: customersTable.mobile,
+      referenceNumber: customersTable.referenceNumber,
+    })
     .from(committeeMembersTable)
     .leftJoin(customersTable, eq(committeeMembersTable.customerId, customersTable.id))
-    .where(eq(committeeMembersTable.committeeId, id));
+    .where(eq(committeeMembersTable.committeeId, id))
+    .orderBy(committeeMembersTable.customerId);
   res.json(members.map((m) => ({
     id: m.m.id,
     committeeId: m.m.committeeId,
     customerId: m.m.customerId,
     customerName: m.customerName ?? "",
     customerMobile: m.customerMobile,
+    referenceNumber: m.referenceNumber ?? "",
     tokenNumber: m.m.tokenNumber,
     status: m.m.status,
     joinedAt: m.m.joinedAt.toISOString(),

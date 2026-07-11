@@ -1,0 +1,2042 @@
+"""
+✨ `Collection_KeyOutput` returns the primary key fields of table type `Collection`.
+
+It has the same format as `Collection_Key`, but is only used as mutation return value.
+"""
+scalar Collection_KeyOutput
+"""
+✨ `Draw_KeyOutput` returns the primary key fields of table type `Draw`.
+
+It has the same format as `Draw_Key`, but is only used as mutation return value.
+"""
+scalar Draw_KeyOutput
+"""
+✨ `Group_KeyOutput` returns the primary key fields of table type `Group`.
+
+It has the same format as `Group_Key`, but is only used as mutation return value.
+"""
+scalar Group_KeyOutput
+"""
+✨ `Loan_KeyOutput` returns the primary key fields of table type `Loan`.
+
+It has the same format as `Loan_Key`, but is only used as mutation return value.
+"""
+scalar Loan_KeyOutput
+"""
+✨ `Membership_KeyOutput` returns the primary key fields of table type `Membership`.
+
+It has the same format as `Membership_Key`, but is only used as mutation return value.
+"""
+scalar Membership_KeyOutput
+"""
+✨ `User_KeyOutput` returns the primary key fields of table type `User`.
+
+It has the same format as `User_Key`, but is only used as mutation return value.
+"""
+scalar User_KeyOutput
+"""
+✨ Generated data input type for table 'Collection'. It includes all necessary fields for creating or upserting rows into table.
+"""
+input Collection_Data {
+  """
+  ✨ Generated from Field `Collection`.`id` of type `UUID!`
+  """
+  id: UUID
+  """
+  ✨ `_expr` server value variant of `id` (✨ Generated from Field `Collection`.`id` of type `UUID!`)
+  """
+  id_expr: UUID_Expr @fdc_forbiddenInVariables
+  """
+  ✨ Generated from Field `Collection`.`membershipId` of type `UUID!`
+  """
+  membershipId: UUID
+  """
+  ✨ `_expr` server value variant of `membershipId` (✨ Generated from Field `Collection`.`membershipId` of type `UUID!`)
+  """
+  membershipId_expr: UUID_Expr @fdc_forbiddenInVariables
+  """
+  ✨ Generated from Field `Collection`.`membership` of type `Membership!`
+  """
+  membership: Membership_Key @fdc_forbiddenInVariables
+  """
+  ✨ Generated from Field `Collection`.`amount` of type `Float!`
+  """
+  amount: Float
+  """
+  ✨ `_expr` server value variant of `amount` (✨ Generated from Field `Collection`.`amount` of type `Float!`)
+  """
+  amount_expr: Float_Expr @fdc_forbiddenInVariables
+  """
+  ✨ `_update` server value variant of `amount` (✨ Generated from Field `Collection`.`amount` of type `Float!`)
+  """
+  amount_update: [Float_Update!] @fdc_forbiddenInVariables
+  """
+  ✨ Generated from Field `Collection`.`dueDate` of type `Timestamp!`
+  """
+  dueDate: Timestamp
+  """
+  ✨ `_expr` server value variant of `dueDate` (✨ Generated from Field `Collection`.`dueDate` of type `Timestamp!`)
+  """
+  dueDate_expr: Timestamp_Expr @fdc_forbiddenInVariables
+  """
+  ✨ `_time` server value variant of `dueDate` (✨ Generated from Field `Collection`.`dueDate` of type `Timestamp!`)
+  """
+  dueDate_time: Timestamp_Relative @fdc_forbiddenInVariables
+  """
+  ✨ `_update` server value variant of `dueDate` (✨ Generated from Field `Collection`.`dueDate` of type `Timestamp!`)
+  """
+  dueDate_update: [Timestamp_Update!] @fdc_forbiddenInVariables
+  """
+  ✨ Generated from Field `Collection`.`paymentDate` of type `Timestamp`
+  """
+  paymentDate: Timestamp
+  """
+  ✨ `_expr` server value variant of `paymentDate` (✨ Generated from Field `Collection`.`paymentDate` of type `Timestamp`)
+  """
+  paymentDate_expr: Timestamp_Expr @fdc_forbiddenInVariables
+  """
+  ✨ `_time` server value variant of `paymentDate` (✨ Generated from Field `Collection`.`paymentDate` of type `Timestamp`)
+  """
+  paymentDate_time: Timestamp_Relative @fdc_forbiddenInVariables
+  """
+  ✨ `_update` server value variant of `paymentDate` (✨ Generated from Field `Collection`.`paymentDate` of type `Timestamp`)
+  """
+  paymentDate_update: [Timestamp_Update!] @fdc_forbiddenInVariables
+  """
+  ✨ Generated from Field `Collection`.`referenceNumber` of type `String`
+  """
+  referenceNumber: String
+  """
+  ✨ `_expr` server value variant of `referenceNumber` (✨ Generated from Field `Collection`.`referenceNumber` of type `String`)
+  """
+  referenceNumber_expr: String_Expr @fdc_forbiddenInVariables
+  """
+  ✨ Generated from Field `Collection`.`status` of type `String!`
+  """
+  status: String
+  """
+  ✨ `_expr` server value variant of `status` (✨ Generated from Field `Collection`.`status` of type `String!`)
+  """
+  status_expr: String_Expr @fdc_forbiddenInVariables
+}
+"""
+✨ Generated filter input type for table 'Collection'. This input allows filtering objects using various conditions. Use `_or`, `_and`, and `_not` to compose complex filters.
+"""
+input Collection_Filter {
+  """
+  Apply multiple filter conditions using `AND` logic.
+  """
+  _and: [Collection_Filter!]
+  """
+  Negate the result of the provided filter condition.
+  """
+  _not: Collection_Filter
+  """
+  Apply multiple filter conditions using `OR` logic.
+  """
+  _or: [Collection_Filter!]
+  """
+  ✨ Generated from Field `Collection`.`id` of type `UUID!`
+  """
+  id: UUID_Filter
+  """
+  ✨ Generated from Field `Collection`.`membershipId` of type `UUID!`
+  """
+  membershipId: UUID_Filter
+  """
+  ✨ Generated from Field `Collection`.`membership` of type `Membership!`
+  """
+  membership: Membership_Filter
+  """
+  ✨ Generated from Field `Collection`.`amount` of type `Float!`
+  """
+  amount: Float_Filter
+  """
+  ✨ Generated from Field `Collection`.`dueDate` of type `Timestamp!`
+  """
+  dueDate: Timestamp_Filter
+  """
+  ✨ Generated from Field `Collection`.`paymentDate` of type `Timestamp`
+  """
+  paymentDate: Timestamp_Filter
+  """
+  ✨ Generated from Field `Collection`.`referenceNumber` of type `String`
+  """
+  referenceNumber: String_Filter
+  """
+  ✨ Generated from Field `Collection`.`status` of type `String!`
+  """
+  status: String_Filter
+}
+"""
+✨ Generated first-row input type for table 'Collection'. This input selects the first row matching the filter criteria, ordered according to the specified conditions.
+"""
+input Collection_FirstRow {
+  """
+  Order the result by the specified fields.
+  """
+  orderBy: [Collection_Order!]
+  """
+  Filters rows based on the specified conditions.
+  """
+  where: Collection_Filter
+}
+"""
+✨ Generated having input type for table 'Collection'. This input allows you to filter groups during aggregate queries using various conditions. Use `_or`, `_and`, and `_not` to compose complex filters.
+"""
+input Collection_Having {
+  """
+  Apply multiple Having conditions using `AND` logic.
+  """
+  _and: [Collection_Having!]
+  """
+  Whether to apply DISTINCT to the aggregate function.
+  """
+  _distinct: Boolean
+  """
+  Negate the result of the provided Having condition.
+  """
+  _not: Collection_Having
+  """
+  Apply multiple Having conditions using `OR` logic.
+  """
+  _or: [Collection_Having!]
+  """
+  ✨ Generated from Field `Collection`.`_count` of type `Int!`
+  """
+  _count: Int_Filter
+  """
+  ✨ Generated from Field `Collection`.`amount_count` of type `Int!`
+  """
+  amount_count: Int_Filter
+  """
+  ✨ Generated from Field `Collection`.`dueDate_count` of type `Int!`
+  """
+  dueDate_count: Int_Filter
+  """
+  ✨ Generated from Field `Collection`.`id_count` of type `Int!`
+  """
+  id_count: Int_Filter
+  """
+  ✨ Generated from Field `Collection`.`membershipId_count` of type `Int!`
+  """
+  membershipId_count: Int_Filter
+  """
+  ✨ Generated from Field `Collection`.`paymentDate_count` of type `Int!`
+  """
+  paymentDate_count: Int_Filter
+  """
+  ✨ Generated from Field `Collection`.`referenceNumber_count` of type `Int!`
+  """
+  referenceNumber_count: Int_Filter
+  """
+  ✨ Generated from Field `Collection`.`status_count` of type `Int!`
+  """
+  status_count: Int_Filter
+  """
+  ✨ Generated from Field `Collection`.`amount_sum` of type `Float`
+  """
+  amount_sum: Float_Filter
+  """
+  ✨ Generated from Field `Collection`.`amount_avg` of type `Float`
+  """
+  amount_avg: Float_Filter
+  """
+  ✨ Generated from Field `Collection`.`amount_min` of type `Float`
+  """
+  amount_min: Float_Filter
+  """
+  ✨ Generated from Field `Collection`.`dueDate_min` of type `Timestamp`
+  """
+  dueDate_min: Timestamp_Filter
+  """
+  ✨ Generated from Field `Collection`.`paymentDate_min` of type `Timestamp`
+  """
+  paymentDate_min: Timestamp_Filter
+  """
+  ✨ Generated from Field `Collection`.`amount_max` of type `Float`
+  """
+  amount_max: Float_Filter
+  """
+  ✨ Generated from Field `Collection`.`dueDate_max` of type `Timestamp`
+  """
+  dueDate_max: Timestamp_Filter
+  """
+  ✨ Generated from Field `Collection`.`paymentDate_max` of type `Timestamp`
+  """
+  paymentDate_max: Timestamp_Filter
+}
+"""
+✨ Generated key input type for table 'Collection'. It represents the primary key fields used to uniquely identify a row in the table.
+"""
+input Collection_Key {
+  """
+  ✨ Generated from Field `Collection`.`id` of type `UUID!`
+  """
+  id: UUID
+  """
+  ✨ `_expr` server value variant of `id` (✨ Generated from Field `Collection`.`id` of type `UUID!`)
+  """
+  id_expr: UUID_Expr @fdc_forbiddenInVariables
+}
+"""
+✨ Generated list filter input type for table 'Collection'. This input applies filtering logic based on the count or existence of related objects that matches certain criteria.
+"""
+input Collection_ListFilter {
+  """
+  The desired number of objects that match the condition (defaults to at least one).
+  """
+  count: Int_Filter = {gt:0}
+  """
+  Condition of the related objects to filter for.
+  """
+  exist: Collection_Filter
+}
+"""
+✨ Generated order input type for table 'Collection'. This input defines the sorting order of rows in query results based on one or more fields.
+"""
+input Collection_Order {
+  """
+  ✨ Generated from Field `Collection`.`id` of type `UUID!`
+  """
+  id: OrderDirection
+  """
+  ✨ Generated from Field `Collection`.`membershipId` of type `UUID!`
+  """
+  membershipId: OrderDirection
+  """
+  ✨ Generated from Field `Collection`.`membership` of type `Membership!`
+  """
+  membership: Membership_Order
+  """
+  ✨ Generated from Field `Collection`.`amount` of type `Float!`
+  """
+  amount: OrderDirection
+  """
+  ✨ Generated from Field `Collection`.`dueDate` of type `Timestamp!`
+  """
+  dueDate: OrderDirection
+  """
+  ✨ Generated from Field `Collection`.`paymentDate` of type `Timestamp`
+  """
+  paymentDate: OrderDirection
+  """
+  ✨ Generated from Field `Collection`.`referenceNumber` of type `String`
+  """
+  referenceNumber: OrderDirection
+  """
+  ✨ Generated from Field `Collection`.`status` of type `String!`
+  """
+  status: OrderDirection
+  """
+  ✨ Generated from Field `Collection`.`_count` of type `Int!`
+  """
+  _count: OrderDirection
+  """
+  ✨ Generated from Field `Collection`.`amount_count` of type `Int!`
+  """
+  amount_count: OrderDirection
+  """
+  ✨ Generated from Field `Collection`.`dueDate_count` of type `Int!`
+  """
+  dueDate_count: OrderDirection
+  """
+  ✨ Generated from Field `Collection`.`id_count` of type `Int!`
+  """
+  id_count: OrderDirection
+  """
+  ✨ Generated from Field `Collection`.`membershipId_count` of type `Int!`
+  """
+  membershipId_count: OrderDirection
+  """
+  ✨ Generated from Field `Collection`.`paymentDate_count` of type `Int!`
+  """
+  paymentDate_count: OrderDirection
+  """
+  ✨ Generated from Field `Collection`.`referenceNumber_count` of type `Int!`
+  """
+  referenceNumber_count: OrderDirection
+  """
+  ✨ Generated from Field `Collection`.`status_count` of type `Int!`
+  """
+  status_count: OrderDirection
+  """
+  ✨ Generated from Field `Collection`.`amount_sum` of type `Float`
+  """
+  amount_sum: OrderDirection
+  """
+  ✨ Generated from Field `Collection`.`amount_avg` of type `Float`
+  """
+  amount_avg: OrderDirection
+  """
+  ✨ Generated from Field `Collection`.`amount_min` of type `Float`
+  """
+  amount_min: OrderDirection
+  """
+  ✨ Generated from Field `Collection`.`dueDate_min` of type `Timestamp`
+  """
+  dueDate_min: OrderDirection
+  """
+  ✨ Generated from Field `Collection`.`paymentDate_min` of type `Timestamp`
+  """
+  paymentDate_min: OrderDirection
+  """
+  ✨ Generated from Field `Collection`.`amount_max` of type `Float`
+  """
+  amount_max: OrderDirection
+  """
+  ✨ Generated from Field `Collection`.`dueDate_max` of type `Timestamp`
+  """
+  dueDate_max: OrderDirection
+  """
+  ✨ Generated from Field `Collection`.`paymentDate_max` of type `Timestamp`
+  """
+  paymentDate_max: OrderDirection
+}
+"""
+✨ Generated data input type for table 'Draw'. It includes all necessary fields for creating or upserting rows into table.
+"""
+input Draw_Data {
+  """
+  ✨ Generated from Field `Draw`.`id` of type `UUID!`
+  """
+  id: UUID
+  """
+  ✨ `_expr` server value variant of `id` (✨ Generated from Field `Draw`.`id` of type `UUID!`)
+  """
+  id_expr: UUID_Expr @fdc_forbiddenInVariables
+  """
+  ✨ Generated from Field `Draw`.`groupId` of type `UUID!`
+  """
+  groupId: UUID
+  """
+  ✨ `_expr` server value variant of `groupId` (✨ Generated from Field `Draw`.`groupId` of type `UUID!`)
+  """
+  groupId_expr: UUID_Expr @fdc_forbiddenInVariables
+  """
+  ✨ Generated from Field `Draw`.`winnerMembershipId` of type `UUID!`
+  """
+  winnerMembershipId: UUID
+  """
+  ✨ `_expr` server value variant of `winnerMembershipId` (✨ Generated from Field `Draw`.`winnerMembershipId` of type `UUID!`)
+  """
+  winnerMembershipId_expr: UUID_Expr @fdc_forbiddenInVariables
+  """
+  ✨ Generated from Field `Draw`.`group` of type `Group!`
+  """
+  group: Group_Key @fdc_forbiddenInVariables
+  """
+  ✨ Generated from Field `Draw`.`winnerMembership` of type `Membership!`
+  """
+  winnerMembership: Membership_Key @fdc_forbiddenInVariables
+  """
+  ✨ Generated from Field `Draw`.`drawDate` of type `Timestamp!`
+  """
+  drawDate: Timestamp
+  """
+  ✨ `_expr` server value variant of `drawDate` (✨ Generated from Field `Draw`.`drawDate` of type `Timestamp!`)
+  """
+  drawDate_expr: Timestamp_Expr @fdc_forbiddenInVariables
+  """
+  ✨ `_time` server value variant of `drawDate` (✨ Generated from Field `Draw`.`drawDate` of type `Timestamp!`)
+  """
+  drawDate_time: Timestamp_Relative @fdc_forbiddenInVariables
+  """
+  ✨ `_update` server value variant of `drawDate` (✨ Generated from Field `Draw`.`drawDate` of type `Timestamp!`)
+  """
+  drawDate_update: [Timestamp_Update!] @fdc_forbiddenInVariables
+  """
+  ✨ Generated from Field `Draw`.`prizeAmount` of type `Float`
+  """
+  prizeAmount: Float
+  """
+  ✨ `_expr` server value variant of `prizeAmount` (✨ Generated from Field `Draw`.`prizeAmount` of type `Float`)
+  """
+  prizeAmount_expr: Float_Expr @fdc_forbiddenInVariables
+  """
+  ✨ `_update` server value variant of `prizeAmount` (✨ Generated from Field `Draw`.`prizeAmount` of type `Float`)
+  """
+  prizeAmount_update: [Float_Update!] @fdc_forbiddenInVariables
+  """
+  ✨ Generated from Field `Draw`.`roundNumber` of type `Int`
+  """
+  roundNumber: Int
+  """
+  ✨ `_expr` server value variant of `roundNumber` (✨ Generated from Field `Draw`.`roundNumber` of type `Int`)
+  """
+  roundNumber_expr: Int_Expr @fdc_forbiddenInVariables
+  """
+  ✨ `_update` server value variant of `roundNumber` (✨ Generated from Field `Draw`.`roundNumber` of type `Int`)
+  """
+  roundNumber_update: [Int_Update!] @fdc_forbiddenInVariables
+}
+"""
+✨ Generated filter input type for table 'Draw'. This input allows filtering objects using various conditions. Use `_or`, `_and`, and `_not` to compose complex filters.
+"""
+input Draw_Filter {
+  """
+  Apply multiple filter conditions using `AND` logic.
+  """
+  _and: [Draw_Filter!]
+  """
+  Negate the result of the provided filter condition.
+  """
+  _not: Draw_Filter
+  """
+  Apply multiple filter conditions using `OR` logic.
+  """
+  _or: [Draw_Filter!]
+  """
+  ✨ Generated from Field `Draw`.`id` of type `UUID!`
+  """
+  id: UUID_Filter
+  """
+  ✨ Generated from Field `Draw`.`groupId` of type `UUID!`
+  """
+  groupId: UUID_Filter
+  """
+  ✨ Generated from Field `Draw`.`winnerMembershipId` of type `UUID!`
+  """
+  winnerMembershipId: UUID_Filter
+  """
+  ✨ Generated from Field `Draw`.`group` of type `Group!`
+  """
+  group: Group_Filter
+  """
+  ✨ Generated from Field `Draw`.`winnerMembership` of type `Membership!`
+  """
+  winnerMembership: Membership_Filter
+  """
+  ✨ Generated from Field `Draw`.`drawDate` of type `Timestamp!`
+  """
+  drawDate: Timestamp_Filter
+  """
+  ✨ Generated from Field `Draw`.`prizeAmount` of type `Float`
+  """
+  prizeAmount: Float_Filter
+  """
+  ✨ Generated from Field `Draw`.`roundNumber` of type `Int`
+  """
+  roundNumber: Int_Filter
+}
+"""
+✨ Generated first-row input type for table 'Draw'. This input selects the first row matching the filter criteria, ordered according to the specified conditions.
+"""
+input Draw_FirstRow {
+  """
+  Order the result by the specified fields.
+  """
+  orderBy: [Draw_Order!]
+  """
+  Filters rows based on the specified conditions.
+  """
+  where: Draw_Filter
+}
+"""
+✨ Generated having input type for table 'Draw'. This input allows you to filter groups during aggregate queries using various conditions. Use `_or`, `_and`, and `_not` to compose complex filters.
+"""
+input Draw_Having {
+  """
+  Apply multiple Having conditions using `AND` logic.
+  """
+  _and: [Draw_Having!]
+  """
+  Whether to apply DISTINCT to the aggregate function.
+  """
+  _distinct: Boolean
+  """
+  Negate the result of the provided Having condition.
+  """
+  _not: Draw_Having
+  """
+  Apply multiple Having conditions using `OR` logic.
+  """
+  _or: [Draw_Having!]
+  """
+  ✨ Generated from Field `Draw`.`_count` of type `Int!`
+  """
+  _count: Int_Filter
+  """
+  ✨ Generated from Field `Draw`.`drawDate_count` of type `Int!`
+  """
+  drawDate_count: Int_Filter
+  """
+  ✨ Generated from Field `Draw`.`groupId_count` of type `Int!`
+  """
+  groupId_count: Int_Filter
+  """
+  ✨ Generated from Field `Draw`.`id_count` of type `Int!`
+  """
+  id_count: Int_Filter
+  """
+  ✨ Generated from Field `Draw`.`prizeAmount_count` of type `Int!`
+  """
+  prizeAmount_count: Int_Filter
+  """
+  ✨ Generated from Field `Draw`.`roundNumber_count` of type `Int!`
+  """
+  roundNumber_count: Int_Filter
+  """
+  ✨ Generated from Field `Draw`.`winnerMembershipId_count` of type `Int!`
+  """
+  winnerMembershipId_count: Int_Filter
+  """
+  ✨ Generated from Field `Draw`.`prizeAmount_sum` of type `Float`
+  """
+  prizeAmount_sum: Float_Filter
+  """
+  ✨ Generated from Field `Draw`.`roundNumber_sum` of type `Int`
+  """
+  roundNumber_sum: Int_Filter
+  """
+  ✨ Generated from Field `Draw`.`prizeAmount_avg` of type `Float`
+  """
+  prizeAmount_avg: Float_Filter
+  """
+  ✨ Generated from Field `Draw`.`roundNumber_avg` of type `Float`
+  """
+  roundNumber_avg: Float_Filter
+  """
+  ✨ Generated from Field `Draw`.`drawDate_min` of type `Timestamp`
+  """
+  drawDate_min: Timestamp_Filter
+  """
+  ✨ Generated from Field `Draw`.`prizeAmount_min` of type `Float`
+  """
+  prizeAmount_min: Float_Filter
+  """
+  ✨ Generated from Field `Draw`.`roundNumber_min` of type `Int`
+  """
+  roundNumber_min: Int_Filter
+  """
+  ✨ Generated from Field `Draw`.`drawDate_max` of type `Timestamp`
+  """
+  drawDate_max: Timestamp_Filter
+  """
+  ✨ Generated from Field `Draw`.`prizeAmount_max` of type `Float`
+  """
+  prizeAmount_max: Float_Filter
+  """
+  ✨ Generated from Field `Draw`.`roundNumber_max` of type `Int`
+  """
+  roundNumber_max: Int_Filter
+}
+"""
+✨ Generated key input type for table 'Draw'. It represents the primary key fields used to uniquely identify a row in the table.
+"""
+input Draw_Key {
+  """
+  ✨ Generated from Field `Draw`.`id` of type `UUID!`
+  """
+  id: UUID
+  """
+  ✨ `_expr` server value variant of `id` (✨ Generated from Field `Draw`.`id` of type `UUID!`)
+  """
+  id_expr: UUID_Expr @fdc_forbiddenInVariables
+}
+"""
+✨ Generated list filter input type for table 'Draw'. This input applies filtering logic based on the count or existence of related objects that matches certain criteria.
+"""
+input Draw_ListFilter {
+  """
+  The desired number of objects that match the condition (defaults to at least one).
+  """
+  count: Int_Filter = {gt:0}
+  """
+  Condition of the related objects to filter for.
+  """
+  exist: Draw_Filter
+}
+"""
+✨ Generated order input type for table 'Draw'. This input defines the sorting order of rows in query results based on one or more fields.
+"""
+input Draw_Order {
+  """
+  ✨ Generated from Field `Draw`.`id` of type `UUID!`
+  """
+  id: OrderDirection
+  """
+  ✨ Generated from Field `Draw`.`groupId` of type `UUID!`
+  """
+  groupId: OrderDirection
+  """
+  ✨ Generated from Field `Draw`.`winnerMembershipId` of type `UUID!`
+  """
+  winnerMembershipId: OrderDirection
+  """
+  ✨ Generated from Field `Draw`.`group` of type `Group!`
+  """
+  group: Group_Order
+  """
+  ✨ Generated from Field `Draw`.`winnerMembership` of type `Membership!`
+  """
+  winnerMembership: Membership_Order
+  """
+  ✨ Generated from Field `Draw`.`drawDate` of type `Timestamp!`
+  """
+  drawDate: OrderDirection
+  """
+  ✨ Generated from Field `Draw`.`prizeAmount` of type `Float`
+  """
+  prizeAmount: OrderDirection
+  """
+  ✨ Generated from Field `Draw`.`roundNumber` of type `Int`
+  """
+  roundNumber: OrderDirection
+  """
+  ✨ Generated from Field `Draw`.`_count` of type `Int!`
+  """
+  _count: OrderDirection
+  """
+  ✨ Generated from Field `Draw`.`drawDate_count` of type `Int!`
+  """
+  drawDate_count: OrderDirection
+  """
+  ✨ Generated from Field `Draw`.`groupId_count` of type `Int!`
+  """
+  groupId_count: OrderDirection
+  """
+  ✨ Generated from Field `Draw`.`id_count` of type `Int!`
+  """
+  id_count: OrderDirection
+  """
+  ✨ Generated from Field `Draw`.`prizeAmount_count` of type `Int!`
+  """
+  prizeAmount_count: OrderDirection
+  """
+  ✨ Generated from Field `Draw`.`roundNumber_count` of type `Int!`
+  """
+  roundNumber_count: OrderDirection
+  """
+  ✨ Generated from Field `Draw`.`winnerMembershipId_count` of type `Int!`
+  """
+  winnerMembershipId_count: OrderDirection
+  """
+  ✨ Generated from Field `Draw`.`prizeAmount_sum` of type `Float`
+  """
+  prizeAmount_sum: OrderDirection
+  """
+  ✨ Generated from Field `Draw`.`roundNumber_sum` of type `Int`
+  """
+  roundNumber_sum: OrderDirection
+  """
+  ✨ Generated from Field `Draw`.`prizeAmount_avg` of type `Float`
+  """
+  prizeAmount_avg: OrderDirection
+  """
+  ✨ Generated from Field `Draw`.`roundNumber_avg` of type `Float`
+  """
+  roundNumber_avg: OrderDirection
+  """
+  ✨ Generated from Field `Draw`.`drawDate_min` of type `Timestamp`
+  """
+  drawDate_min: OrderDirection
+  """
+  ✨ Generated from Field `Draw`.`prizeAmount_min` of type `Float`
+  """
+  prizeAmount_min: OrderDirection
+  """
+  ✨ Generated from Field `Draw`.`roundNumber_min` of type `Int`
+  """
+  roundNumber_min: OrderDirection
+  """
+  ✨ Generated from Field `Draw`.`drawDate_max` of type `Timestamp`
+  """
+  drawDate_max: OrderDirection
+  """
+  ✨ Generated from Field `Draw`.`prizeAmount_max` of type `Float`
+  """
+  prizeAmount_max: OrderDirection
+  """
+  ✨ Generated from Field `Draw`.`roundNumber_max` of type `Int`
+  """
+  roundNumber_max: OrderDirection
+}
+"""
+✨ Generated data input type for table 'Group'. It includes all necessary fields for creating or upserting rows into table.
+"""
+input Group_Data {
+  """
+  ✨ Generated from Field `Group`.`id` of type `UUID!`
+  """
+  id: UUID
+  """
+  ✨ `_expr` server value variant of `id` (✨ Generated from Field `Group`.`id` of type `UUID!`)
+  """
+  id_expr: UUID_Expr @fdc_forbiddenInVariables
+  """
+  ✨ Generated from Field `Group`.`adminUserId` of type `UUID!`
+  """
+  adminUserId: UUID
+  """
+  ✨ `_expr` server value variant of `adminUserId` (✨ Generated from Field `Group`.`adminUserId` of type `UUID!`)
+  """
+  adminUserId_expr: UUID_Expr @fdc_forbiddenInVariables
+  """
+  ✨ Generated from Field `Group`.`adminUser` of type `User!`
+  """
+  adminUser: User_Key @fdc_forbiddenInVariables
+  """
+  ✨ Generated from Field `Group`.`creationDate` of type `Timestamp!`
+  """
+  creationDate: Timestamp
+  """
+  ✨ `_expr` server value variant of `creationDate` (✨ Generated from Field `Group`.`creationDate` of type `Timestamp!`)
+  """
+  creationDate_expr: Timestamp_Expr @fdc_forbiddenInVariables
+  """
+  ✨ `_time` server value variant of `creationDate` (✨ Generated from Field `Group`.`creationDate` of type `Timestamp!`)
+  """
+  creationDate_time: Timestamp_Relative @fdc_forbiddenInVariables
+  """
+  ✨ `_update` server value variant of `creationDate` (✨ Generated from Field `Group`.`creationDate` of type `Timestamp!`)
+  """
+  creationDate_update: [Timestamp_Update!] @fdc_forbiddenInVariables
+  """
+  ✨ Generated from Field `Group`.`description` of type `String`
+  """
+  description: String
+  """
+  ✨ `_expr` server value variant of `description` (✨ Generated from Field `Group`.`description` of type `String`)
+  """
+  description_expr: String_Expr @fdc_forbiddenInVariables
+  """
+  ✨ Generated from Field `Group`.`maxMembers` of type `Int`
+  """
+  maxMembers: Int
+  """
+  ✨ `_expr` server value variant of `maxMembers` (✨ Generated from Field `Group`.`maxMembers` of type `Int`)
+  """
+  maxMembers_expr: Int_Expr @fdc_forbiddenInVariables
+  """
+  ✨ `_update` server value variant of `maxMembers` (✨ Generated from Field `Group`.`maxMembers` of type `Int`)
+  """
+  maxMembers_update: [Int_Update!] @fdc_forbiddenInVariables
+  """
+  ✨ Generated from Field `Group`.`name` of type `String!`
+  """
+  name: String
+  """
+  ✨ `_expr` server value variant of `name` (✨ Generated from Field `Group`.`name` of type `String!`)
+  """
+  name_expr: String_Expr @fdc_forbiddenInVariables
+  """
+  ✨ Generated from Field `Group`.`type` of type `String!`
+  """
+  type: String
+  """
+  ✨ `_expr` server value variant of `type` (✨ Generated from Field `Group`.`type` of type `String!`)
+  """
+  type_expr: String_Expr @fdc_forbiddenInVariables
+  """
+  ✨ Generated from Field `Group`.`draws_on_group` of type `[Draw!]!`
+  """
+  draws_on_group: [Draw_Data!]
+  """
+  ✨ Generated from Field `Group`.`memberships_on_group` of type `[Membership!]!`
+  """
+  memberships_on_group: [Membership_Data!]
+}
+"""
+✨ Generated filter input type for table 'Group'. This input allows filtering objects using various conditions. Use `_or`, `_and`, and `_not` to compose complex filters.
+"""
+input Group_Filter {
+  """
+  Apply multiple filter conditions using `AND` logic.
+  """
+  _and: [Group_Filter!]
+  """
+  Negate the result of the provided filter condition.
+  """
+  _not: Group_Filter
+  """
+  Apply multiple filter conditions using `OR` logic.
+  """
+  _or: [Group_Filter!]
+  """
+  ✨ Generated from Field `Group`.`id` of type `UUID!`
+  """
+  id: UUID_Filter
+  """
+  ✨ Generated from Field `Group`.`adminUserId` of type `UUID!`
+  """
+  adminUserId: UUID_Filter
+  """
+  ✨ Generated from Field `Group`.`adminUser` of type `User!`
+  """
+  adminUser: User_Filter
+  """
+  ✨ Generated from Field `Group`.`creationDate` of type `Timestamp!`
+  """
+  creationDate: Timestamp_Filter
+  """
+  ✨ Generated from Field `Group`.`description` of type `String`
+  """
+  description: String_Filter
+  """
+  ✨ Generated from Field `Group`.`maxMembers` of type `Int`
+  """
+  maxMembers: Int_Filter
+  """
+  ✨ Generated from Field `Group`.`name` of type `String!`
+  """
+  name: String_Filter
+  """
+  ✨ Generated from Field `Group`.`type` of type `String!`
+  """
+  type: String_Filter
+  """
+  ✨ Generated from Field `Group`.`draws_on_group` of type `[Draw!]!`
+  """
+  draws_on_group: Draw_ListFilter
+  """
+  ✨ Generated from Field `Group`.`memberships_on_group` of type `[Membership!]!`
+  """
+  memberships_on_group: Membership_ListFilter
+}
+"""
+✨ Generated first-row input type for table 'Group'. This input selects the first row matching the filter criteria, ordered according to the specified conditions.
+"""
+input Group_FirstRow {
+  """
+  Order the result by the specified fields.
+  """
+  orderBy: [Group_Order!]
+  """
+  Filters rows based on the specified conditions.
+  """
+  where: Group_Filter
+}
+"""
+✨ Generated having input type for table 'Group'. This input allows you to filter groups during aggregate queries using various conditions. Use `_or`, `_and`, and `_not` to compose complex filters.
+"""
+input Group_Having {
+  """
+  Apply multiple Having conditions using `AND` logic.
+  """
+  _and: [Group_Having!]
+  """
+  Whether to apply DISTINCT to the aggregate function.
+  """
+  _distinct: Boolean
+  """
+  Negate the result of the provided Having condition.
+  """
+  _not: Group_Having
+  """
+  Apply multiple Having conditions using `OR` logic.
+  """
+  _or: [Group_Having!]
+  """
+  ✨ Generated from Field `Group`.`_count` of type `Int!`
+  """
+  _count: Int_Filter
+  """
+  ✨ Generated from Field `Group`.`adminUserId_count` of type `Int!`
+  """
+  adminUserId_count: Int_Filter
+  """
+  ✨ Generated from Field `Group`.`creationDate_count` of type `Int!`
+  """
+  creationDate_count: Int_Filter
+  """
+  ✨ Generated from Field `Group`.`description_count` of type `Int!`
+  """
+  description_count: Int_Filter
+  """
+  ✨ Generated from Field `Group`.`id_count` of type `Int!`
+  """
+  id_count: Int_Filter
+  """
+  ✨ Generated from Field `Group`.`maxMembers_count` of type `Int!`
+  """
+  maxMembers_count: Int_Filter
+  """
+  ✨ Generated from Field `Group`.`name_count` of type `Int!`
+  """
+  name_count: Int_Filter
+  """
+  ✨ Generated from Field `Group`.`type_count` of type `Int!`
+  """
+  type_count: Int_Filter
+  """
+  ✨ Generated from Field `Group`.`maxMembers_sum` of type `Int`
+  """
+  maxMembers_sum: Int_Filter
+  """
+  ✨ Generated from Field `Group`.`maxMembers_avg` of type `Float`
+  """
+  maxMembers_avg: Float_Filter
+  """
+  ✨ Generated from Field `Group`.`creationDate_min` of type `Timestamp`
+  """
+  creationDate_min: Timestamp_Filter
+  """
+  ✨ Generated from Field `Group`.`maxMembers_min` of type `Int`
+  """
+  maxMembers_min: Int_Filter
+  """
+  ✨ Generated from Field `Group`.`creationDate_max` of type `Timestamp`
+  """
+  creationDate_max: Timestamp_Filter
+  """
+  ✨ Generated from Field `Group`.`maxMembers_max` of type `Int`
+  """
+  maxMembers_max: Int_Filter
+}
+"""
+✨ Generated key input type for table 'Group'. It represents the primary key fields used to uniquely identify a row in the table.
+"""
+input Group_Key {
+  """
+  ✨ Generated from Field `Group`.`id` of type `UUID!`
+  """
+  id: UUID
+  """
+  ✨ `_expr` server value variant of `id` (✨ Generated from Field `Group`.`id` of type `UUID!`)
+  """
+  id_expr: UUID_Expr @fdc_forbiddenInVariables
+}
+"""
+✨ Generated list filter input type for table 'Group'. This input applies filtering logic based on the count or existence of related objects that matches certain criteria.
+"""
+input Group_ListFilter {
+  """
+  The desired number of objects that match the condition (defaults to at least one).
+  """
+  count: Int_Filter = {gt:0}
+  """
+  Condition of the related objects to filter for.
+  """
+  exist: Group_Filter
+}
+"""
+✨ Generated order input type for table 'Group'. This input defines the sorting order of rows in query results based on one or more fields.
+"""
+input Group_Order {
+  """
+  ✨ Generated from Field `Group`.`id` of type `UUID!`
+  """
+  id: OrderDirection
+  """
+  ✨ Generated from Field `Group`.`adminUserId` of type `UUID!`
+  """
+  adminUserId: OrderDirection
+  """
+  ✨ Generated from Field `Group`.`adminUser` of type `User!`
+  """
+  adminUser: User_Order
+  """
+  ✨ Generated from Field `Group`.`creationDate` of type `Timestamp!`
+  """
+  creationDate: OrderDirection
+  """
+  ✨ Generated from Field `Group`.`description` of type `String`
+  """
+  description: OrderDirection
+  """
+  ✨ Generated from Field `Group`.`maxMembers` of type `Int`
+  """
+  maxMembers: OrderDirection
+  """
+  ✨ Generated from Field `Group`.`name` of type `String!`
+  """
+  name: OrderDirection
+  """
+  ✨ Generated from Field `Group`.`type` of type `String!`
+  """
+  type: OrderDirection
+  """
+  ✨ Generated from Field `Group`.`_count` of type `Int!`
+  """
+  _count: OrderDirection
+  """
+  ✨ Generated from Field `Group`.`adminUserId_count` of type `Int!`
+  """
+  adminUserId_count: OrderDirection
+  """
+  ✨ Generated from Field `Group`.`creationDate_count` of type `Int!`
+  """
+  creationDate_count: OrderDirection
+  """
+  ✨ Generated from Field `Group`.`description_count` of type `Int!`
+  """
+  description_count: OrderDirection
+  """
+  ✨ Generated from Field `Group`.`id_count` of type `Int!`
+  """
+  id_count: OrderDirection
+  """
+  ✨ Generated from Field `Group`.`maxMembers_count` of type `Int!`
+  """
+  maxMembers_count: OrderDirection
+  """
+  ✨ Generated from Field `Group`.`name_count` of type `Int!`
+  """
+  name_count: OrderDirection
+  """
+  ✨ Generated from Field `Group`.`type_count` of type `Int!`
+  """
+  type_count: OrderDirection
+  """
+  ✨ Generated from Field `Group`.`maxMembers_sum` of type `Int`
+  """
+  maxMembers_sum: OrderDirection
+  """
+  ✨ Generated from Field `Group`.`maxMembers_avg` of type `Float`
+  """
+  maxMembers_avg: OrderDirection
+  """
+  ✨ Generated from Field `Group`.`creationDate_min` of type `Timestamp`
+  """
+  creationDate_min: OrderDirection
+  """
+  ✨ Generated from Field `Group`.`maxMembers_min` of type `Int`
+  """
+  maxMembers_min: OrderDirection
+  """
+  ✨ Generated from Field `Group`.`creationDate_max` of type `Timestamp`
+  """
+  creationDate_max: OrderDirection
+  """
+  ✨ Generated from Field `Group`.`maxMembers_max` of type `Int`
+  """
+  maxMembers_max: OrderDirection
+}
+"""
+✨ Generated data input type for table 'Loan'. It includes all necessary fields for creating or upserting rows into table.
+"""
+input Loan_Data {
+  """
+  ✨ Generated from Field `Loan`.`id` of type `UUID!`
+  """
+  id: UUID
+  """
+  ✨ `_expr` server value variant of `id` (✨ Generated from Field `Loan`.`id` of type `UUID!`)
+  """
+  id_expr: UUID_Expr @fdc_forbiddenInVariables
+  """
+  ✨ Generated from Field `Loan`.`membershipId` of type `UUID!`
+  """
+  membershipId: UUID
+  """
+  ✨ `_expr` server value variant of `membershipId` (✨ Generated from Field `Loan`.`membershipId` of type `UUID!`)
+  """
+  membershipId_expr: UUID_Expr @fdc_forbiddenInVariables
+  """
+  ✨ Generated from Field `Loan`.`membership` of type `Membership!`
+  """
+  membership: Membership_Key @fdc_forbiddenInVariables
+  """
+  ✨ Generated from Field `Loan`.`disbursementDate` of type `Timestamp`
+  """
+  disbursementDate: Timestamp
+  """
+  ✨ `_expr` server value variant of `disbursementDate` (✨ Generated from Field `Loan`.`disbursementDate` of type `Timestamp`)
+  """
+  disbursementDate_expr: Timestamp_Expr @fdc_forbiddenInVariables
+  """
+  ✨ `_time` server value variant of `disbursementDate` (✨ Generated from Field `Loan`.`disbursementDate` of type `Timestamp`)
+  """
+  disbursementDate_time: Timestamp_Relative @fdc_forbiddenInVariables
+  """
+  ✨ `_update` server value variant of `disbursementDate` (✨ Generated from Field `Loan`.`disbursementDate` of type `Timestamp`)
+  """
+  disbursementDate_update: [Timestamp_Update!] @fdc_forbiddenInVariables
+  """
+  ✨ Generated from Field `Loan`.`interestRate` of type `Float!`
+  """
+  interestRate: Float
+  """
+  ✨ `_expr` server value variant of `interestRate` (✨ Generated from Field `Loan`.`interestRate` of type `Float!`)
+  """
+  interestRate_expr: Float_Expr @fdc_forbiddenInVariables
+  """
+  ✨ `_update` server value variant of `interestRate` (✨ Generated from Field `Loan`.`interestRate` of type `Float!`)
+  """
+  interestRate_update: [Float_Update!] @fdc_forbiddenInVariables
+  """
+  ✨ Generated from Field `Loan`.`maturityDate` of type `Timestamp`
+  """
+  maturityDate: Timestamp
+  """
+  ✨ `_expr` server value variant of `maturityDate` (✨ Generated from Field `Loan`.`maturityDate` of type `Timestamp`)
+  """
+  maturityDate_expr: Timestamp_Expr @fdc_forbiddenInVariables
+  """
+  ✨ `_time` server value variant of `maturityDate` (✨ Generated from Field `Loan`.`maturityDate` of type `Timestamp`)
+  """
+  maturityDate_time: Timestamp_Relative @fdc_forbiddenInVariables
+  """
+  ✨ `_update` server value variant of `maturityDate` (✨ Generated from Field `Loan`.`maturityDate` of type `Timestamp`)
+  """
+  maturityDate_update: [Timestamp_Update!] @fdc_forbiddenInVariables
+  """
+  ✨ Generated from Field `Loan`.`principalAmount` of type `Float!`
+  """
+  principalAmount: Float
+  """
+  ✨ `_expr` server value variant of `principalAmount` (✨ Generated from Field `Loan`.`principalAmount` of type `Float!`)
+  """
+  principalAmount_expr: Float_Expr @fdc_forbiddenInVariables
+  """
+  ✨ `_update` server value variant of `principalAmount` (✨ Generated from Field `Loan`.`principalAmount` of type `Float!`)
+  """
+  principalAmount_update: [Float_Update!] @fdc_forbiddenInVariables
+  """
+  ✨ Generated from Field `Loan`.`status` of type `String!`
+  """
+  status: String
+  """
+  ✨ `_expr` server value variant of `status` (✨ Generated from Field `Loan`.`status` of type `String!`)
+  """
+  status_expr: String_Expr @fdc_forbiddenInVariables
+}
+"""
+✨ Generated filter input type for table 'Loan'. This input allows filtering objects using various conditions. Use `_or`, `_and`, and `_not` to compose complex filters.
+"""
+input Loan_Filter {
+  """
+  Apply multiple filter conditions using `AND` logic.
+  """
+  _and: [Loan_Filter!]
+  """
+  Negate the result of the provided filter condition.
+  """
+  _not: Loan_Filter
+  """
+  Apply multiple filter conditions using `OR` logic.
+  """
+  _or: [Loan_Filter!]
+  """
+  ✨ Generated from Field `Loan`.`id` of type `UUID!`
+  """
+  id: UUID_Filter
+  """
+  ✨ Generated from Field `Loan`.`membershipId` of type `UUID!`
+  """
+  membershipId: UUID_Filter
+  """
+  ✨ Generated from Field `Loan`.`membership` of type `Membership!`
+  """
+  membership: Membership_Filter
+  """
+  ✨ Generated from Field `Loan`.`disbursementDate` of type `Timestamp`
+  """
+  disbursementDate: Timestamp_Filter
+  """
+  ✨ Generated from Field `Loan`.`interestRate` of type `Float!`
+  """
+  interestRate: Float_Filter
+  """
+  ✨ Generated from Field `Loan`.`maturityDate` of type `Timestamp`
+  """
+  maturityDate: Timestamp_Filter
+  """
+  ✨ Generated from Field `Loan`.`principalAmount` of type `Float!`
+  """
+  principalAmount: Float_Filter
+  """
+  ✨ Generated from Field `Loan`.`status` of type `String!`
+  """
+  status: String_Filter
+}
+"""
+✨ Generated first-row input type for table 'Loan'. This input selects the first row matching the filter criteria, ordered according to the specified conditions.
+"""
+input Loan_FirstRow {
+  """
+  Order the result by the specified fields.
+  """
+  orderBy: [Loan_Order!]
+  """
+  Filters rows based on the specified conditions.
+  """
+  where: Loan_Filter
+}
+"""
+✨ Generated having input type for table 'Loan'. This input allows you to filter groups during aggregate queries using various conditions. Use `_or`, `_and`, and `_not` to compose complex filters.
+"""
+input Loan_Having {
+  """
+  Apply multiple Having conditions using `AND` logic.
+  """
+  _and: [Loan_Having!]
+  """
+  Whether to apply DISTINCT to the aggregate function.
+  """
+  _distinct: Boolean
+  """
+  Negate the result of the provided Having condition.
+  """
+  _not: Loan_Having
+  """
+  Apply multiple Having conditions using `OR` logic.
+  """
+  _or: [Loan_Having!]
+  """
+  ✨ Generated from Field `Loan`.`_count` of type `Int!`
+  """
+  _count: Int_Filter
+  """
+  ✨ Generated from Field `Loan`.`disbursementDate_count` of type `Int!`
+  """
+  disbursementDate_count: Int_Filter
+  """
+  ✨ Generated from Field `Loan`.`id_count` of type `Int!`
+  """
+  id_count: Int_Filter
+  """
+  ✨ Generated from Field `Loan`.`interestRate_count` of type `Int!`
+  """
+  interestRate_count: Int_Filter
+  """
+  ✨ Generated from Field `Loan`.`maturityDate_count` of type `Int!`
+  """
+  maturityDate_count: Int_Filter
+  """
+  ✨ Generated from Field `Loan`.`membershipId_count` of type `Int!`
+  """
+  membershipId_count: Int_Filter
+  """
+  ✨ Generated from Field `Loan`.`principalAmount_count` of type `Int!`
+  """
+  principalAmount_count: Int_Filter
+  """
+  ✨ Generated from Field `Loan`.`status_count` of type `Int!`
+  """
+  status_count: Int_Filter
+  """
+  ✨ Generated from Field `Loan`.`interestRate_sum` of type `Float`
+  """
+  interestRate_sum: Float_Filter
+  """
+  ✨ Generated from Field `Loan`.`principalAmount_sum` of type `Float`
+  """
+  principalAmount_sum: Float_Filter
+  """
+  ✨ Generated from Field `Loan`.`interestRate_avg` of type `Float`
+  """
+  interestRate_avg: Float_Filter
+  """
+  ✨ Generated from Field `Loan`.`principalAmount_avg` of type `Float`
+  """
+  principalAmount_avg: Float_Filter
+  """
+  ✨ Generated from Field `Loan`.`disbursementDate_min` of type `Timestamp`
+  """
+  disbursementDate_min: Timestamp_Filter
+  """
+  ✨ Generated from Field `Loan`.`interestRate_min` of type `Float`
+  """
+  interestRate_min: Float_Filter
+  """
+  ✨ Generated from Field `Loan`.`maturityDate_min` of type `Timestamp`
+  """
+  maturityDate_min: Timestamp_Filter
+  """
+  ✨ Generated from Field `Loan`.`principalAmount_min` of type `Float`
+  """
+  principalAmount_min: Float_Filter
+  """
+  ✨ Generated from Field `Loan`.`disbursementDate_max` of type `Timestamp`
+  """
+  disbursementDate_max: Timestamp_Filter
+  """
+  ✨ Generated from Field `Loan`.`interestRate_max` of type `Float`
+  """
+  interestRate_max: Float_Filter
+  """
+  ✨ Generated from Field `Loan`.`maturityDate_max` of type `Timestamp`
+  """
+  maturityDate_max: Timestamp_Filter
+  """
+  ✨ Generated from Field `Loan`.`principalAmount_max` of type `Float`
+  """
+  principalAmount_max: Float_Filter
+}
+"""
+✨ Generated key input type for table 'Loan'. It represents the primary key fields used to uniquely identify a row in the table.
+"""
+input Loan_Key {
+  """
+  ✨ Generated from Field `Loan`.`id` of type `UUID!`
+  """
+  id: UUID
+  """
+  ✨ `_expr` server value variant of `id` (✨ Generated from Field `Loan`.`id` of type `UUID!`)
+  """
+  id_expr: UUID_Expr @fdc_forbiddenInVariables
+}
+"""
+✨ Generated list filter input type for table 'Loan'. This input applies filtering logic based on the count or existence of related objects that matches certain criteria.
+"""
+input Loan_ListFilter {
+  """
+  The desired number of objects that match the condition (defaults to at least one).
+  """
+  count: Int_Filter = {gt:0}
+  """
+  Condition of the related objects to filter for.
+  """
+  exist: Loan_Filter
+}
+"""
+✨ Generated order input type for table 'Loan'. This input defines the sorting order of rows in query results based on one or more fields.
+"""
+input Loan_Order {
+  """
+  ✨ Generated from Field `Loan`.`id` of type `UUID!`
+  """
+  id: OrderDirection
+  """
+  ✨ Generated from Field `Loan`.`membershipId` of type `UUID!`
+  """
+  membershipId: OrderDirection
+  """
+  ✨ Generated from Field `Loan`.`membership` of type `Membership!`
+  """
+  membership: Membership_Order
+  """
+  ✨ Generated from Field `Loan`.`disbursementDate` of type `Timestamp`
+  """
+  disbursementDate: OrderDirection
+  """
+  ✨ Generated from Field `Loan`.`interestRate` of type `Float!`
+  """
+  interestRate: OrderDirection
+  """
+  ✨ Generated from Field `Loan`.`maturityDate` of type `Timestamp`
+  """
+  maturityDate: OrderDirection
+  """
+  ✨ Generated from Field `Loan`.`principalAmount` of type `Float!`
+  """
+  principalAmount: OrderDirection
+  """
+  ✨ Generated from Field `Loan`.`status` of type `String!`
+  """
+  status: OrderDirection
+  """
+  ✨ Generated from Field `Loan`.`_count` of type `Int!`
+  """
+  _count: OrderDirection
+  """
+  ✨ Generated from Field `Loan`.`disbursementDate_count` of type `Int!`
+  """
+  disbursementDate_count: OrderDirection
+  """
+  ✨ Generated from Field `Loan`.`id_count` of type `Int!`
+  """
+  id_count: OrderDirection
+  """
+  ✨ Generated from Field `Loan`.`interestRate_count` of type `Int!`
+  """
+  interestRate_count: OrderDirection
+  """
+  ✨ Generated from Field `Loan`.`maturityDate_count` of type `Int!`
+  """
+  maturityDate_count: OrderDirection
+  """
+  ✨ Generated from Field `Loan`.`membershipId_count` of type `Int!`
+  """
+  membershipId_count: OrderDirection
+  """
+  ✨ Generated from Field `Loan`.`principalAmount_count` of type `Int!`
+  """
+  principalAmount_count: OrderDirection
+  """
+  ✨ Generated from Field `Loan`.`status_count` of type `Int!`
+  """
+  status_count: OrderDirection
+  """
+  ✨ Generated from Field `Loan`.`interestRate_sum` of type `Float`
+  """
+  interestRate_sum: OrderDirection
+  """
+  ✨ Generated from Field `Loan`.`principalAmount_sum` of type `Float`
+  """
+  principalAmount_sum: OrderDirection
+  """
+  ✨ Generated from Field `Loan`.`interestRate_avg` of type `Float`
+  """
+  interestRate_avg: OrderDirection
+  """
+  ✨ Generated from Field `Loan`.`principalAmount_avg` of type `Float`
+  """
+  principalAmount_avg: OrderDirection
+  """
+  ✨ Generated from Field `Loan`.`disbursementDate_min` of type `Timestamp`
+  """
+  disbursementDate_min: OrderDirection
+  """
+  ✨ Generated from Field `Loan`.`interestRate_min` of type `Float`
+  """
+  interestRate_min: OrderDirection
+  """
+  ✨ Generated from Field `Loan`.`maturityDate_min` of type `Timestamp`
+  """
+  maturityDate_min: OrderDirection
+  """
+  ✨ Generated from Field `Loan`.`principalAmount_min` of type `Float`
+  """
+  principalAmount_min: OrderDirection
+  """
+  ✨ Generated from Field `Loan`.`disbursementDate_max` of type `Timestamp`
+  """
+  disbursementDate_max: OrderDirection
+  """
+  ✨ Generated from Field `Loan`.`interestRate_max` of type `Float`
+  """
+  interestRate_max: OrderDirection
+  """
+  ✨ Generated from Field `Loan`.`maturityDate_max` of type `Timestamp`
+  """
+  maturityDate_max: OrderDirection
+  """
+  ✨ Generated from Field `Loan`.`principalAmount_max` of type `Float`
+  """
+  principalAmount_max: OrderDirection
+}
+"""
+✨ Generated data input type for table 'Membership'. It includes all necessary fields for creating or upserting rows into table.
+"""
+input Membership_Data {
+  """
+  ✨ Generated from Field `Membership`.`id` of type `UUID!`
+  """
+  id: UUID
+  """
+  ✨ `_expr` server value variant of `id` (✨ Generated from Field `Membership`.`id` of type `UUID!`)
+  """
+  id_expr: UUID_Expr @fdc_forbiddenInVariables
+  """
+  ✨ Generated from Field `Membership`.`groupId` of type `UUID!`
+  """
+  groupId: UUID
+  """
+  ✨ `_expr` server value variant of `groupId` (✨ Generated from Field `Membership`.`groupId` of type `UUID!`)
+  """
+  groupId_expr: UUID_Expr @fdc_forbiddenInVariables
+  """
+  ✨ Generated from Field `Membership`.`userId` of type `UUID!`
+  """
+  userId: UUID
+  """
+  ✨ `_expr` server value variant of `userId` (✨ Generated from Field `Membership`.`userId` of type `UUID!`)
+  """
+  userId_expr: UUID_Expr @fdc_forbiddenInVariables
+  """
+  ✨ Generated from Field `Membership`.`group` of type `Group!`
+  """
+  group: Group_Key @fdc_forbiddenInVariables
+  """
+  ✨ Generated from Field `Membership`.`user` of type `User!`
+  """
+  user: User_Key @fdc_forbiddenInVariables
+  """
+  ✨ Generated from Field `Membership`.`joinDate` of type `Timestamp!`
+  """
+  joinDate: Timestamp
+  """
+  ✨ `_expr` server value variant of `joinDate` (✨ Generated from Field `Membership`.`joinDate` of type `Timestamp!`)
+  """
+  joinDate_expr: Timestamp_Expr @fdc_forbiddenInVariables
+  """
+  ✨ `_time` server value variant of `joinDate` (✨ Generated from Field `Membership`.`joinDate` of type `Timestamp!`)
+  """
+  joinDate_time: Timestamp_Relative @fdc_forbiddenInVariables
+  """
+  ✨ `_update` server value variant of `joinDate` (✨ Generated from Field `Membership`.`joinDate` of type `Timestamp!`)
+  """
+  joinDate_update: [Timestamp_Update!] @fdc_forbiddenInVariables
+  """
+  ✨ Generated from Field `Membership`.`status` of type `String!`
+  """
+  status: String
+  """
+  ✨ `_expr` server value variant of `status` (✨ Generated from Field `Membership`.`status` of type `String!`)
+  """
+  status_expr: String_Expr @fdc_forbiddenInVariables
+  """
+  ✨ Generated from Field `Membership`.`collections_on_membership` of type `[Collection!]!`
+  """
+  collections_on_membership: [Collection_Data!]
+  """
+  ✨ Generated from Field `Membership`.`draws_on_winnerMembership` of type `[Draw!]!`
+  """
+  draws_on_winnerMembership: [Draw_Data!]
+  """
+  ✨ Generated from Field `Membership`.`loans_on_membership` of type `[Loan!]!`
+  """
+  loans_on_membership: [Loan_Data!]
+}
+"""
+✨ Generated filter input type for table 'Membership'. This input allows filtering objects using various conditions. Use `_or`, `_and`, and `_not` to compose complex filters.
+"""
+input Membership_Filter {
+  """
+  Apply multiple filter conditions using `AND` logic.
+  """
+  _and: [Membership_Filter!]
+  """
+  Negate the result of the provided filter condition.
+  """
+  _not: Membership_Filter
+  """
+  Apply multiple filter conditions using `OR` logic.
+  """
+  _or: [Membership_Filter!]
+  """
+  ✨ Generated from Field `Membership`.`id` of type `UUID!`
+  """
+  id: UUID_Filter
+  """
+  ✨ Generated from Field `Membership`.`groupId` of type `UUID!`
+  """
+  groupId: UUID_Filter
+  """
+  ✨ Generated from Field `Membership`.`userId` of type `UUID!`
+  """
+  userId: UUID_Filter
+  """
+  ✨ Generated from Field `Membership`.`group` of type `Group!`
+  """
+  group: Group_Filter
+  """
+  ✨ Generated from Field `Membership`.`user` of type `User!`
+  """
+  user: User_Filter
+  """
+  ✨ Generated from Field `Membership`.`joinDate` of type `Timestamp!`
+  """
+  joinDate: Timestamp_Filter
+  """
+  ✨ Generated from Field `Membership`.`status` of type `String!`
+  """
+  status: String_Filter
+  """
+  ✨ Generated from Field `Membership`.`collections_on_membership` of type `[Collection!]!`
+  """
+  collections_on_membership: Collection_ListFilter
+  """
+  ✨ Generated from Field `Membership`.`draws_on_winnerMembership` of type `[Draw!]!`
+  """
+  draws_on_winnerMembership: Draw_ListFilter
+  """
+  ✨ Generated from Field `Membership`.`loans_on_membership` of type `[Loan!]!`
+  """
+  loans_on_membership: Loan_ListFilter
+}
+"""
+✨ Generated first-row input type for table 'Membership'. This input selects the first row matching the filter criteria, ordered according to the specified conditions.
+"""
+input Membership_FirstRow {
+  """
+  Order the result by the specified fields.
+  """
+  orderBy: [Membership_Order!]
+  """
+  Filters rows based on the specified conditions.
+  """
+  where: Membership_Filter
+}
+"""
+✨ Generated having input type for table 'Membership'. This input allows you to filter groups during aggregate queries using various conditions. Use `_or`, `_and`, and `_not` to compose complex filters.
+"""
+input Membership_Having {
+  """
+  Apply multiple Having conditions using `AND` logic.
+  """
+  _and: [Membership_Having!]
+  """
+  Whether to apply DISTINCT to the aggregate function.
+  """
+  _distinct: Boolean
+  """
+  Negate the result of the provided Having condition.
+  """
+  _not: Membership_Having
+  """
+  Apply multiple Having conditions using `OR` logic.
+  """
+  _or: [Membership_Having!]
+  """
+  ✨ Generated from Field `Membership`.`_count` of type `Int!`
+  """
+  _count: Int_Filter
+  """
+  ✨ Generated from Field `Membership`.`groupId_count` of type `Int!`
+  """
+  groupId_count: Int_Filter
+  """
+  ✨ Generated from Field `Membership`.`id_count` of type `Int!`
+  """
+  id_count: Int_Filter
+  """
+  ✨ Generated from Field `Membership`.`joinDate_count` of type `Int!`
+  """
+  joinDate_count: Int_Filter
+  """
+  ✨ Generated from Field `Membership`.`status_count` of type `Int!`
+  """
+  status_count: Int_Filter
+  """
+  ✨ Generated from Field `Membership`.`userId_count` of type `Int!`
+  """
+  userId_count: Int_Filter
+  """
+  ✨ Generated from Field `Membership`.`joinDate_min` of type `Timestamp`
+  """
+  joinDate_min: Timestamp_Filter
+  """
+  ✨ Generated from Field `Membership`.`joinDate_max` of type `Timestamp`
+  """
+  joinDate_max: Timestamp_Filter
+}
+"""
+✨ Generated key input type for table 'Membership'. It represents the primary key fields used to uniquely identify a row in the table.
+"""
+input Membership_Key {
+  """
+  ✨ Generated from Field `Membership`.`id` of type `UUID!`
+  """
+  id: UUID
+  """
+  ✨ `_expr` server value variant of `id` (✨ Generated from Field `Membership`.`id` of type `UUID!`)
+  """
+  id_expr: UUID_Expr @fdc_forbiddenInVariables
+}
+"""
+✨ Generated list filter input type for table 'Membership'. This input applies filtering logic based on the count or existence of related objects that matches certain criteria.
+"""
+input Membership_ListFilter {
+  """
+  The desired number of objects that match the condition (defaults to at least one).
+  """
+  count: Int_Filter = {gt:0}
+  """
+  Condition of the related objects to filter for.
+  """
+  exist: Membership_Filter
+}
+"""
+✨ Generated order input type for table 'Membership'. This input defines the sorting order of rows in query results based on one or more fields.
+"""
+input Membership_Order {
+  """
+  ✨ Generated from Field `Membership`.`id` of type `UUID!`
+  """
+  id: OrderDirection
+  """
+  ✨ Generated from Field `Membership`.`groupId` of type `UUID!`
+  """
+  groupId: OrderDirection
+  """
+  ✨ Generated from Field `Membership`.`userId` of type `UUID!`
+  """
+  userId: OrderDirection
+  """
+  ✨ Generated from Field `Membership`.`group` of type `Group!`
+  """
+  group: Group_Order
+  """
+  ✨ Generated from Field `Membership`.`user` of type `User!`
+  """
+  user: User_Order
+  """
+  ✨ Generated from Field `Membership`.`joinDate` of type `Timestamp!`
+  """
+  joinDate: OrderDirection
+  """
+  ✨ Generated from Field `Membership`.`status` of type `String!`
+  """
+  status: OrderDirection
+  """
+  ✨ Generated from Field `Membership`.`_count` of type `Int!`
+  """
+  _count: OrderDirection
+  """
+  ✨ Generated from Field `Membership`.`groupId_count` of type `Int!`
+  """
+  groupId_count: OrderDirection
+  """
+  ✨ Generated from Field `Membership`.`id_count` of type `Int!`
+  """
+  id_count: OrderDirection
+  """
+  ✨ Generated from Field `Membership`.`joinDate_count` of type `Int!`
+  """
+  joinDate_count: OrderDirection
+  """
+  ✨ Generated from Field `Membership`.`status_count` of type `Int!`
+  """
+  status_count: OrderDirection
+  """
+  ✨ Generated from Field `Membership`.`userId_count` of type `Int!`
+  """
+  userId_count: OrderDirection
+  """
+  ✨ Generated from Field `Membership`.`joinDate_min` of type `Timestamp`
+  """
+  joinDate_min: OrderDirection
+  """
+  ✨ Generated from Field `Membership`.`joinDate_max` of type `Timestamp`
+  """
+  joinDate_max: OrderDirection
+}
+"""
+✨ Generated data input type for table 'User'. It includes all necessary fields for creating or upserting rows into table.
+"""
+input User_Data {
+  """
+  ✨ Generated from Field `User`.`id` of type `UUID!`
+  """
+  id: UUID
+  """
+  ✨ `_expr` server value variant of `id` (✨ Generated from Field `User`.`id` of type `UUID!`)
+  """
+  id_expr: UUID_Expr @fdc_forbiddenInVariables
+  """
+  ✨ Generated from Field `User`.`email` of type `String!`
+  """
+  email: String
+  """
+  ✨ `_expr` server value variant of `email` (✨ Generated from Field `User`.`email` of type `String!`)
+  """
+  email_expr: String_Expr @fdc_forbiddenInVariables
+  """
+  ✨ Generated from Field `User`.`fullName` of type `String!`
+  """
+  fullName: String
+  """
+  ✨ `_expr` server value variant of `fullName` (✨ Generated from Field `User`.`fullName` of type `String!`)
+  """
+  fullName_expr: String_Expr @fdc_forbiddenInVariables
+  """
+  ✨ Generated from Field `User`.`phoneNumber` of type `String`
+  """
+  phoneNumber: String
+  """
+  ✨ `_expr` server value variant of `phoneNumber` (✨ Generated from Field `User`.`phoneNumber` of type `String`)
+  """
+  phoneNumber_expr: String_Expr @fdc_forbiddenInVariables
+  """
+  ✨ Generated from Field `User`.`profileImageUrl` of type `String`
+  """
+  profileImageUrl: String
+  """
+  ✨ `_expr` server value variant of `profileImageUrl` (✨ Generated from Field `User`.`profileImageUrl` of type `String`)
+  """
+  profileImageUrl_expr: String_Expr @fdc_forbiddenInVariables
+  """
+  ✨ Generated from Field `User`.`role` of type `String!`
+  """
+  role: String
+  """
+  ✨ `_expr` server value variant of `role` (✨ Generated from Field `User`.`role` of type `String!`)
+  """
+  role_expr: String_Expr @fdc_forbiddenInVariables
+  """
+  ✨ Generated from Field `User`.`groups_on_adminUser` of type `[Group!]!`
+  """
+  groups_on_adminUser: [Group_Data!]
+  """
+  ✨ Generated from Field `User`.`memberships_on_user` of type `[Membership!]!`
+  """
+  memberships_on_user: [Membership_Data!]
+}
+"""
+✨ Generated filter input type for table 'User'. This input allows filtering objects using various conditions. Use `_or`, `_and`, and `_not` to compose complex filters.
+"""
+input User_Filter {
+  """
+  Apply multiple filter conditions using `AND` logic.
+  """
+  _and: [User_Filter!]
+  """
+  Negate the result of the provided filter condition.
+  """
+  _not: User_Filter
+  """
+  Apply multiple filter conditions using `OR` logic.
+  """
+  _or: [User_Filter!]
+  """
+  ✨ Generated from Field `User`.`id` of type `UUID!`
+  """
+  id: UUID_Filter
+  """
+  ✨ Generated from Field `User`.`email` of type `String!`
+  """
+  email: String_Filter
+  """
+  ✨ Generated from Field `User`.`fullName` of type `String!`
+  """
+  fullName: String_Filter
+  """
+  ✨ Generated from Field `User`.`phoneNumber` of type `String`
+  """
+  phoneNumber: String_Filter
+  """
+  ✨ Generated from Field `User`.`profileImageUrl` of type `String`
+  """
+  profileImageUrl: String_Filter
+  """
+  ✨ Generated from Field `User`.`role` of type `String!`
+  """
+  role: String_Filter
+  """
+  ✨ Generated from Field `User`.`groups_on_adminUser` of type `[Group!]!`
+  """
+  groups_on_adminUser: Group_ListFilter
+  """
+  ✨ Generated from Field `User`.`memberships_on_user` of type `[Membership!]!`
+  """
+  memberships_on_user: Membership_ListFilter
+}
+"""
+✨ Generated first-row input type for table 'User'. This input selects the first row matching the filter criteria, ordered according to the specified conditions.
+"""
+input User_FirstRow {
+  """
+  Order the result by the specified fields.
+  """
+  orderBy: [User_Order!]
+  """
+  Filters rows based on the specified conditions.
+  """
+  where: User_Filter
+}
+"""
+✨ Generated having input type for table 'User'. This input allows you to filter groups during aggregate queries using various conditions. Use `_or`, `_and`, and `_not` to compose complex filters.
+"""
+input User_Having {
+  """
+  Apply multiple Having conditions using `AND` logic.
+  """
+  _and: [User_Having!]
+  """
+  Whether to apply DISTINCT to the aggregate function.
+  """
+  _distinct: Boolean
+  """
+  Negate the result of the provided Having condition.
+  """
+  _not: User_Having
+  """
+  Apply multiple Having conditions using `OR` logic.
+  """
+  _or: [User_Having!]
+  """
+  ✨ Generated from Field `User`.`_count` of type `Int!`
+  """
+  _count: Int_Filter
+  """
+  ✨ Generated from Field `User`.`email_count` of type `Int!`
+  """
+  email_count: Int_Filter
+  """
+  ✨ Generated from Field `User`.`fullName_count` of type `Int!`
+  """
+  fullName_count: Int_Filter
+  """
+  ✨ Generated from Field `User`.`id_count` of type `Int!`
+  """
+  id_count: Int_Filter
+  """
+  ✨ Generated from Field `User`.`phoneNumber_count` of type `Int!`
+  """
+  phoneNumber_count: Int_Filter
+  """
+  ✨ Generated from Field `User`.`profileImageUrl_count` of type `Int!`
+  """
+  profileImageUrl_count: Int_Filter
+  """
+  ✨ Generated from Field `User`.`role_count` of type `Int!`
+  """
+  role_count: Int_Filter
+}
+"""
+✨ Generated key input type for table 'User'. It represents the primary key fields used to uniquely identify a row in the table.
+"""
+input User_Key {
+  """
+  ✨ Generated from Field `User`.`id` of type `UUID!`
+  """
+  id: UUID
+  """
+  ✨ `_expr` server value variant of `id` (✨ Generated from Field `User`.`id` of type `UUID!`)
+  """
+  id_expr: UUID_Expr @fdc_forbiddenInVariables
+}
+"""
+✨ Generated list filter input type for table 'User'. This input applies filtering logic based on the count or existence of related objects that matches certain criteria.
+"""
+input User_ListFilter {
+  """
+  The desired number of objects that match the condition (defaults to at least one).
+  """
+  count: Int_Filter = {gt:0}
+  """
+  Condition of the related objects to filter for.
+  """
+  exist: User_Filter
+}
+"""
+✨ Generated order input type for table 'User'. This input defines the sorting order of rows in query results based on one or more fields.
+"""
+input User_Order {
+  """
+  ✨ Generated from Field `User`.`id` of type `UUID!`
+  """
+  id: OrderDirection
+  """
+  ✨ Generated from Field `User`.`email` of type `String!`
+  """
+  email: OrderDirection
+  """
+  ✨ Generated from Field `User`.`fullName` of type `String!`
+  """
+  fullName: OrderDirection
+  """
+  ✨ Generated from Field `User`.`phoneNumber` of type `String`
+  """
+  phoneNumber: OrderDirection
+  """
+  ✨ Generated from Field `User`.`profileImageUrl` of type `String`
+  """
+  profileImageUrl: OrderDirection
+  """
+  ✨ Generated from Field `User`.`role` of type `String!`
+  """
+  role: OrderDirection
+  """
+  ✨ Generated from Field `User`.`_count` of type `Int!`
+  """
+  _count: OrderDirection
+  """
+  ✨ Generated from Field `User`.`email_count` of type `Int!`
+  """
+  email_count: OrderDirection
+  """
+  ✨ Generated from Field `User`.`fullName_count` of type `Int!`
+  """
+  fullName_count: OrderDirection
+  """
+  ✨ Generated from Field `User`.`id_count` of type `Int!`
+  """
+  id_count: OrderDirection
+  """
+  ✨ Generated from Field `User`.`phoneNumber_count` of type `Int!`
+  """
+  phoneNumber_count: OrderDirection
+  """
+  ✨ Generated from Field `User`.`profileImageUrl_count` of type `Int!`
+  """
+  profileImageUrl_count: OrderDirection
+  """
+  ✨ Generated from Field `User`.`role_count` of type `Int!`
+  """
+  role_count: OrderDirection
+}

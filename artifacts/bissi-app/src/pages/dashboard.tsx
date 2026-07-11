@@ -56,56 +56,56 @@ export default function DashboardPage() {
       </div>
 
       {/* KPI Cards — 2-col on mobile, 4-col on desktop */}
-      <div className="grid grid-cols-2 md:grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 md:gap-4">
         <Card>
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">Today's Collection</CardTitle>
-            <Wallet className="h-4 w-4 text-primary" />
+          <CardHeader className="flex flex-row items-center justify-between p-3 pb-1 md:p-6 md:pb-2">
+            <CardTitle className="text-[10px] md:text-sm font-medium text-muted-foreground leading-tight">Today's Collection</CardTitle>
+            <Wallet className="h-3 w-3 md:h-4 md:w-4 text-primary shrink-0" />
           </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{formatCurrency(stats?.todayCollection || 0)}</div>
-            <p className="text-xs text-muted-foreground mt-1 flex items-center gap-1">
-              <TrendingUp className="h-3 w-3 text-emerald-500" />
-              <span className="text-emerald-500 font-medium">On track</span> vs yesterday
+          <CardContent className="p-3 pt-0 md:p-6 md:pt-0">
+            <div className="text-lg md:text-2xl font-bold">{formatCurrency(stats?.todayCollection || 0)}</div>
+            <p className="text-[10px] md:text-xs text-muted-foreground mt-1 flex items-center gap-1">
+              <TrendingUp className="h-3 w-3 text-emerald-500 shrink-0" />
+              <span className="text-emerald-500 font-medium">On track</span>
             </p>
           </CardContent>
         </Card>
         
         <Card>
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">Total Active Loans</CardTitle>
-            <CreditCard className="h-4 w-4 text-primary" />
+          <CardHeader className="flex flex-row items-center justify-between p-3 pb-1 md:p-6 md:pb-2">
+            <CardTitle className="text-[10px] md:text-sm font-medium text-muted-foreground leading-tight">Active Loans</CardTitle>
+            <CreditCard className="h-3 w-3 md:h-4 md:w-4 text-primary shrink-0" />
           </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{stats?.totalActiveLoans || 0}</div>
-            <p className="text-xs text-muted-foreground mt-1">
-              Outstanding: {formatCurrency(stats?.outstandingLoanAmount || 0)}
+          <CardContent className="p-3 pt-0 md:p-6 md:pt-0">
+            <div className="text-lg md:text-2xl font-bold">{stats?.totalActiveLoans || 0}</div>
+            <p className="text-[10px] md:text-xs text-muted-foreground mt-1 truncate">
+              {formatCurrency(stats?.outstandingLoanAmount || 0)}
             </p>
           </CardContent>
         </Card>
         
         <Card>
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">Active Customers</CardTitle>
-            <Users className="h-4 w-4 text-primary" />
+          <CardHeader className="flex flex-row items-center justify-between p-3 pb-1 md:p-6 md:pb-2">
+            <CardTitle className="text-[10px] md:text-sm font-medium text-muted-foreground leading-tight">Customers</CardTitle>
+            <Users className="h-3 w-3 md:h-4 md:w-4 text-primary shrink-0" />
           </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{stats?.totalCustomers || 0}</div>
-            <p className="text-xs text-muted-foreground mt-1">
-              Across {stats?.totalBranches || 0} branches
+          <CardContent className="p-3 pt-0 md:p-6 md:pt-0">
+            <div className="text-lg md:text-2xl font-bold">{stats?.totalCustomers || 0}</div>
+            <p className="text-[10px] md:text-xs text-muted-foreground mt-1">
+              {stats?.totalBranches || 0} branches
             </p>
           </CardContent>
         </Card>
         
         <Card>
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">Active Committees</CardTitle>
-            <ShieldAlert className="h-4 w-4 text-primary" />
+          <CardHeader className="flex flex-row items-center justify-between p-3 pb-1 md:p-6 md:pb-2">
+            <CardTitle className="text-[10px] md:text-sm font-medium text-muted-foreground leading-tight">Committees</CardTitle>
+            <ShieldAlert className="h-3 w-3 md:h-4 md:w-4 text-primary shrink-0" />
           </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{stats?.totalActiveCommittees || 0}</div>
-            <p className="text-xs text-muted-foreground mt-1">
-              Managed by {stats?.totalCollectors || 0} collectors
+          <CardContent className="p-3 pt-0 md:p-6 md:pt-0">
+            <div className="text-lg md:text-2xl font-bold">{stats?.totalActiveCommittees || 0}</div>
+            <p className="text-[10px] md:text-xs text-muted-foreground mt-1">
+              {stats?.totalCollectors || 0} collectors
             </p>
           </CardContent>
         </Card>

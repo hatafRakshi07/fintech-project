@@ -291,25 +291,25 @@ export function Shell({ children }: { children: React.ReactNode }) {
         {bottomNavItems.map((item) => {
           const active = isActive(item.href);
           return (
-            <Link key={item.href} href={item.href} className="flex-1">
-              <div className={`flex flex-col items-center justify-center gap-0.5 py-2 px-1 min-h-14 transition-colors ${
+            <Link key={item.href} href={item.href} className="flex-1 min-w-0">
+              <div className={`flex flex-col items-center justify-center gap-0.5 py-2 px-0.5 min-h-14 transition-colors relative ${
                 active ? "text-primary" : "text-muted-foreground"
               }`}>
-                <item.icon className={`h-5 w-5 ${active ? "text-primary" : ""}`} />
-                <span className={`text-[10px] leading-tight text-center truncate w-full ${active ? "text-primary font-medium" : ""}`}>
+                {active && <div className="absolute top-0 left-1/2 -translate-x-1/2 w-8 h-0.5 bg-primary rounded-b" />}
+                <item.icon className={`h-5 w-5 shrink-0 ${active ? "text-primary" : ""}`} />
+                <span className={`text-[9px] leading-tight text-center truncate w-full ${active ? "text-primary font-medium" : ""}`}>
                   {item.label}
                 </span>
-                {active && <div className="absolute top-0 left-1/2 -translate-x-1/2 w-8 h-0.5 bg-primary rounded-b" />}
               </div>
             </Link>
           );
         })}
         {/* "More" button opens the full sheet */}
         <Sheet open={sheetOpen} onOpenChange={setSheetOpen}>
-          <SheetTrigger className="flex-1">
-            <div className="flex flex-col items-center justify-center gap-0.5 py-2 px-1 min-h-14 text-muted-foreground">
-              <Menu className="h-5 w-5" />
-              <span className="text-[10px] leading-tight">More</span>
+          <SheetTrigger className="flex-1 min-w-0">
+            <div className="flex flex-col items-center justify-center gap-0.5 py-2 px-0.5 min-h-14 text-muted-foreground">
+              <Menu className="h-5 w-5 shrink-0" />
+              <span className="text-[9px] leading-tight">More</span>
             </div>
           </SheetTrigger>
         </Sheet>

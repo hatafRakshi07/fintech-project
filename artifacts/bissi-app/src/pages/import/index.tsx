@@ -26,18 +26,21 @@ type ImportResult = {
 type ParsedRow = Record<string, string>;
 
 const REQUIRED_COLUMNS = ["name", "mobile"];
-const OPTIONAL_COLUMNS = ["email", "address", "city", "aadhaar", "pan", "alternateMobile", "nomineeName", "nomineeRelation"];
+const OPTIONAL_COLUMNS = ["email", "address", "city", "aadhaar", "pan", "alternateMobile", "nomineeName", "nomineeRelation", "referenceName", "recoveryNotes", "status"];
 const COLUMN_ALIASES: Record<string, string[]> = {
   name: ["Name", "Full Name", "Customer Name", "नाम"],
-  mobile: ["Mobile", "Phone", "Mobile No", "मोबाइल"],
-  email: ["Email", "Email ID"],
+  mobile: ["Mobile", "Phone", "Mobile No", "Mobile Number", "मोबाइल"],
+  email: ["Email", "Email ID", "ईमेल"],
   address: ["Address", "पता"],
   city: ["City", "शहर"],
-  aadhaar: ["Aadhaar", "Aadhaar No", "आधार"],
-  pan: ["PAN", "PAN No"],
-  alternateMobile: ["Alternate Mobile", "Alt Phone", "Alt Mobile"],
-  nomineeName: ["Nominee", "Nominee Name"],
-  nomineeRelation: ["Nominee Relation", "Relation"],
+  aadhaar: ["Aadhaar", "Aadhaar No", "Aadhaar Number", "आधार"],
+  pan: ["PAN", "PAN No", "PAN Card"],
+  alternateMobile: ["Alternate Mobile", "Alt Phone", "Alt Mobile", "Alternate Phone", "दूसरा मोबाइल"],
+  nomineeName: ["Nominee", "Nominee Name", "नॉमिनी"],
+  nomineeRelation: ["Nominee Relation", "Relation", "रिश्ता"],
+  referenceName: ["Reference", "Reference Name", "Referred By", "रेफरेंस"],
+  recoveryNotes: ["Recovery Notes", "Notes", "Remarks", "नोट्स"],
+  status: ["Status", "स्थिति"],
 };
 
 function parseCSV(text: string): ParsedRow[] {

@@ -53,8 +53,12 @@ export default defineConfig({
     allowedHosts: true,
     proxy: {
       '/api': {
-        target: `http://localhost:${process.env.API_PORT ?? 5001}`,
+        target: 'http://localhost:5001',
         changeOrigin: true,
+        configure: (proxy) => {
+          proxy.on('error', (err) => { console.error('[proxy error]', err.message); });
+          proxy.on('proxyReq', (_, req) => { console.log('[proxy]', req.method, req.url); });
+        },
       },
     },
     fs: {

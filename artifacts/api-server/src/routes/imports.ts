@@ -14,14 +14,17 @@ const router: IRouter = Router();
 interface ImportRow {
   name?: string;
   mobile?: string;
+  alternateMobile?: string;
   email?: string;
-  address?: string;
-  city?: string;
   aadhaar?: string;
   pan?: string;
-  alternateMobile?: string;
+  address?: string;
+  city?: string;
   nomineeName?: string;
   nomineeRelation?: string;
+  referenceName?: string;
+  recoveryNotes?: string;
+  status?: string;
   branchCode?: string;
   branchId?: string | number;
   [key: string]: unknown;
@@ -105,6 +108,8 @@ router.post("/import/customers", async (req, res): Promise<void> => {
           alternateMobile: (row.alternateMobile as string) || existing.alternateMobile || undefined,
           nomineeName: (row.nomineeName as string) || existing.nomineeName || undefined,
           nomineeRelation: (row.nomineeRelation as string) || existing.nomineeRelation || undefined,
+          referenceName: (row.referenceName as string) || existing.referenceName || undefined,
+          recoveryNotes: (row.recoveryNotes as string) || existing.recoveryNotes || undefined,
         }).where(eq(customersTable.id, existing.id));
         result.updated++;
         result.log.push(`Row ${i + 1}: Updated customer ${name} (${mobile})`);
@@ -112,6 +117,12 @@ router.post("/import/customers", async (req, res): Promise<void> => {
         // Generate reference number
         const count = await db.$count(customersTable);
         const refNum = `REF${String(count + result.created + 1).padStart(6, "0")}`;
+
+        const validStatuses = ["active", "inactive", "blocked"] as const;
+        const statusVal = (row.status as string)?.toLowerCase();
+        const status = validStatuses.includes(statusVal as typeof validStatuses[number])
+          ? (statusVal as typeof validStatuses[number])
+          : "active";
 
         await db.insert(customersTable).values({
           name,
@@ -125,8 +136,10 @@ router.post("/import/customers", async (req, res): Promise<void> => {
           alternateMobile: (row.alternateMobile as string) || undefined,
           nomineeName: (row.nomineeName as string) || undefined,
           nomineeRelation: (row.nomineeRelation as string) || undefined,
+          referenceName: (row.referenceName as string) || undefined,
+          recoveryNotes: (row.recoveryNotes as string) || undefined,
           branchId: resolvedBranchId,
-          status: "active",
+          status,
         });
         result.created++;
         result.log.push(`Row ${i + 1}: Created customer ${name} (${mobile})`);

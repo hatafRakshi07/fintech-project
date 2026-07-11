@@ -210,6 +210,9 @@
   [data-radix-dialog-content] {
     max-height: 90dvh !important;
     overflow-y: auto;
+    margin: 0 8px !important;
+    width: calc(100vw - 16px) !important;
+    max-width: 100% !important;
   }
 }
 

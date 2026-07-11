@@ -190,7 +190,9 @@ export default function CommitteeDetailPage() {
 
       <Tabs defaultValue="members">
         <TabsList>
-          <TabsTrigger value="members">Members ({members?.length ?? 0})</TabsTrigger>
+          <TabsTrigger value="members">
+            Members ({new Set(members?.map(m => m.customerId) ?? []).size})
+          </TabsTrigger>
           <TabsTrigger value="collections">Collections ({collections?.total ?? 0})</TabsTrigger>
         </TabsList>
 
@@ -200,31 +202,56 @@ export default function CommitteeDetailPage() {
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead className="pl-4">Token</TableHead>
+                    <TableHead className="pl-4">Ref No.</TableHead>
                     <TableHead>Customer</TableHead>
                     <TableHead>Mobile</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead className="pr-4">Joined</TableHead>
+                    <TableHead>Token(s)</TableHead>
+                    <TableHead className="pr-4">Status</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {!members?.length ? (
                     <TableRow><TableCell colSpan={5} className="text-center py-8 text-muted-foreground">No members yet</TableCell></TableRow>
-                  ) : members.map((m) => (
-                    <TableRow key={m.id} className="hover:bg-muted/50">
-                      <TableCell className="pl-4 font-mono font-semibold text-sm">{m.tokenNumber}</TableCell>
-                      <TableCell>
-                        <Link href={`/customers/${m.customerId}`}>
-                          <span className="font-medium hover:underline cursor-pointer text-primary">{m.customerName}</span>
-                        </Link>
-                      </TableCell>
-                      <TableCell className="text-muted-foreground text-sm">{m.customerMobile ?? "—"}</TableCell>
-                      <TableCell><Badge variant={m.status === "active" ? "default" : "secondary"}>{m.status ?? "active"}</Badge></TableCell>
-                      <TableCell className="pr-4 text-sm text-muted-foreground">
-                        {new Date(m.joinedAt).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })}
-                      </TableCell>
-                    </TableRow>
-                  ))}
+                  ) : (() => {
+                    // Group by customerId — one row per customer, show all tokens
+                    const grouped = new Map<number, { name: string; mobile: string | null; ref: string; tokens: string[]; status: string; customerId: number }>();
+                    for (const m of members) {
+                      if (!grouped.has(m.customerId)) {
+                        grouped.set(m.customerId, {
+                          customerId: m.customerId,
+                          name: m.customerName,
+                          mobile: m.customerMobile ?? null,
+                          ref: (m as typeof m & { referenceNumber?: string }).referenceNumber ?? "",
+                          tokens: [],
+                          status: m.status ?? "active",
+                        });
+                      }
+                      grouped.get(m.customerId)!.tokens.push(m.tokenNumber);
+                    }
+                    return [...grouped.values()].map((g) => (
+                      <TableRow key={g.customerId} className="hover:bg-muted/50">
+                        <TableCell className="pl-4 font-mono text-xs text-muted-foreground">{g.ref || "—"}</TableCell>
+                        <TableCell>
+                          <Link href={`/customers/${g.customerId}`}>
+                            <span className="font-medium hover:underline cursor-pointer text-primary">{g.name}</span>
+                          </Link>
+                        </TableCell>
+                        <TableCell className="text-muted-foreground text-sm">{g.mobile ?? "—"}</TableCell>
+                        <TableCell>
+                          <div className="flex flex-wrap gap-1">
+                            {g.tokens.sort((a, b) => parseInt(a) - parseInt(b)).map(t => (
+                              <span key={t} className="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-mono font-semibold bg-primary/10 text-primary border border-primary/20">
+                                {t}
+                              </span>
+                            ))}
+                          </div>
+                        </TableCell>
+                        <TableCell className="pr-4">
+                          <Badge variant={g.status === "active" ? "default" : "secondary"}>{g.status}</Badge>
+                        </TableCell>
+                      </TableRow>
+                    ));
+                  })()}
                 </TableBody>
               </Table>
             </CardContent>

@@ -46,8 +46,8 @@ router.get("/dashboard/collection-trend", async (req, res): Promise<void> => {
     GROUP BY date_trunc('day', collected_at)::date
     ORDER BY date asc
   `);
-  const rows = (result as unknown as Array<Record<string, unknown>>);
-  res.json(rows.map((r) => ({
+  const rows = Array.isArray(result) ? result : (result as { rows?: unknown[] }).rows ?? [];
+  res.json((rows as Array<Record<string, unknown>>).map((r) => ({
     date: new Date(r["date"] as string).toISOString().split("T")[0],
     amount: parseFloat(r["amount"] as string),
     count: parseInt(r["count"] as string, 10),

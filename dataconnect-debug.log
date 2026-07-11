@@ -1,0 +1,24 @@
+I0711 14:57:00.767712   23288 load.go:31] Reloading schema and connectors...
+I0711 14:57:00.785153   23288 control.go:100] [projects/emulator/locations/emulator/services/file-processor c541] UpdateResources(): done
+Main schema: sources: schema\schema.gql [827B] 
+Connector "example": sources: example\queries.gql [769B] 
+I0711 14:57:00.801180   23288 codegen.go:101] [connector "example" javascriptSdk] Generating sources into "C:\\Users\\iSN_kota_T52\\Desktop\\File-Processor\\src\\dataconnect-generated"
+I0711 14:57:00.875196   23288 collector.go:107] schema extensions wrote into "C:\\Users\\iSN_kota_T52\\Desktop\\File-Processor\\dataconnect\\.dataconnect\\schema"
+Generated sources: main\mutation.gql [20110B] prelude.gql [84995B] main\implicit.gql [3275B] main\input.gql [61766B] main\relation.gql [30307B] main\query.gql [7487B] 
+I0711 14:57:01.206785   23288 collector.go:107] connector "example" javascriptSdk wrote into "C:\\Users\\iSN_kota_T52\\Desktop\\File-Processor\\src\\dataconnect-generated"
+Generated sources: esm\index.esm.js [2439B] README.md [20959B] .guides/config.json [236B] index.d.ts [4028B] esm\package.json [17B] index.cjs.js [2716B] package.json [615B] .guides/usage.md [1005B] .guides/setup.md [584B] 
+I0711 14:57:01.219362   23288 installsdk.go:86] Running command: C:\nvm4w\nodejs\pnpm.cmd link src\dataconnect-generated
+E0711 14:57:03.302989   23288 installsdk.go:88] Failed to install package: exit status 1
+I0711 14:57:03.302989   23288 load.go:109] Finished reloading
+I0711 14:57:03.305211   23288 dev.go:104] Listening on address (HTTP + gRPC): 127.0.0.1:9399
+I0711 14:57:03.305717   23288 dev.go:104] Listening on address (HTTP + gRPC): [::1]:9399
+E0711 14:57:43.104671   23288 service.go:130] [projects/emulator/locations/emulator/services/file-processor 2801] failed to migrate schema: SQL migration error: failed to plan diffs: failed to generate diff: postgres: querying schemas: pq: unexpected message 'E'; expected ReadyForQuery
+I0711 14:57:43.123492   23288 control.go:100] [projects/emulator/locations/emulator/services/file-processor 2f41] UpdateResources(): done
+Main schema: sources: schema\schema.gql [827B] 
+Connector "example": sources: example\queries.gql [769B] 
+I0711 14:57:43.130552   23288 configure_emulator.go:21] ConfigureEmulator successed
+Request: service_id:  "file-processor"
+connection_string:  "postgres://127.0.0.1:5433/fdcdb?sslmode=disable"
+database:  "fdcdb"
+
+Response: 

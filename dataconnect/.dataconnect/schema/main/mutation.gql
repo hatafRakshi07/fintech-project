@@ -1,0 +1,674 @@
+extend type Mutation {
+  """
+  ✨ Insert a single `Collection` into the table and return its key. Columns not specified in `data` will receive defaults (e.g. `null`).
+  """
+  collection_insert(
+    """
+    Data object to insert into the table.
+    """
+    data: Collection_Data!
+  ): Collection_KeyOutput! @fdc_generated(from: "Collection", purpose: INSERT_SINGLE)
+  """
+  ✨ Insert a single `Draw` into the table and return its key. Columns not specified in `data` will receive defaults (e.g. `null`).
+  """
+  draw_insert(
+    """
+    Data object to insert into the table.
+    """
+    data: Draw_Data!
+  ): Draw_KeyOutput! @fdc_generated(from: "Draw", purpose: INSERT_SINGLE)
+  """
+  ✨ Insert a single `Group` into the table and return its key. Columns not specified in `data` will receive defaults (e.g. `null`).
+  """
+  group_insert(
+    """
+    Data object to insert into the table.
+    """
+    data: Group_Data!
+  ): Group_KeyOutput! @fdc_generated(from: "Group", purpose: INSERT_SINGLE)
+  """
+  ✨ Insert a single `Loan` into the table and return its key. Columns not specified in `data` will receive defaults (e.g. `null`).
+  """
+  loan_insert(
+    """
+    Data object to insert into the table.
+    """
+    data: Loan_Data!
+  ): Loan_KeyOutput! @fdc_generated(from: "Loan", purpose: INSERT_SINGLE)
+  """
+  ✨ Insert a single `Membership` into the table and return its key. Columns not specified in `data` will receive defaults (e.g. `null`).
+  """
+  membership_insert(
+    """
+    Data object to insert into the table.
+    """
+    data: Membership_Data!
+  ): Membership_KeyOutput! @fdc_generated(from: "Membership", purpose: INSERT_SINGLE)
+  """
+  ✨ Insert a single `User` into the table and return its key. Columns not specified in `data` will receive defaults (e.g. `null`).
+  """
+  user_insert(
+    """
+    Data object to insert into the table.
+    """
+    data: User_Data!
+  ): User_KeyOutput! @fdc_generated(from: "User", purpose: INSERT_SINGLE)
+  """
+  ✨ Insert `Collection` objects into the table and return their keys. Columns not specified in `data` will receive defaults (e.g. `null`).
+  """
+  collection_insertMany(
+    """
+    List of data objects to insert into the table.
+    """
+    data: [Collection_Data!]!
+  ): [Collection_KeyOutput!]! @fdc_generated(from: "Collection", purpose: INSERT_MULTIPLE)
+  """
+  ✨ Insert `Draw` objects into the table and return their keys. Columns not specified in `data` will receive defaults (e.g. `null`).
+  """
+  draw_insertMany(
+    """
+    List of data objects to insert into the table.
+    """
+    data: [Draw_Data!]!
+  ): [Draw_KeyOutput!]! @fdc_generated(from: "Draw", purpose: INSERT_MULTIPLE)
+  """
+  ✨ Insert `Group` objects into the table and return their keys. Columns not specified in `data` will receive defaults (e.g. `null`).
+  """
+  group_insertMany(
+    """
+    List of data objects to insert into the table.
+    """
+    data: [Group_Data!]!
+  ): [Group_KeyOutput!]! @fdc_generated(from: "Group", purpose: INSERT_MULTIPLE)
+  """
+  ✨ Insert `Loan` objects into the table and return their keys. Columns not specified in `data` will receive defaults (e.g. `null`).
+  """
+  loan_insertMany(
+    """
+    List of data objects to insert into the table.
+    """
+    data: [Loan_Data!]!
+  ): [Loan_KeyOutput!]! @fdc_generated(from: "Loan", purpose: INSERT_MULTIPLE)
+  """
+  ✨ Insert `Membership` objects into the table and return their keys. Columns not specified in `data` will receive defaults (e.g. `null`).
+  """
+  membership_insertMany(
+    """
+    List of data objects to insert into the table.
+    """
+    data: [Membership_Data!]!
+  ): [Membership_KeyOutput!]! @fdc_generated(from: "Membership", purpose: INSERT_MULTIPLE)
+  """
+  ✨ Insert `User` objects into the table and return their keys. Columns not specified in `data` will receive defaults (e.g. `null`).
+  """
+  user_insertMany(
+    """
+    List of data objects to insert into the table.
+    """
+    data: [User_Data!]!
+  ): [User_KeyOutput!]! @fdc_generated(from: "User", purpose: INSERT_MULTIPLE)
+  """
+  ✨ Insert or update a single `Collection` into the table, based on the primary key. Returns the key of the newly inserted or existing updated `Collection`.
+  """
+  collection_upsert(
+    """
+    Data object to insert or update if it already exists.
+    """
+    data: Collection_Data!
+  ): Collection_KeyOutput! @fdc_generated(from: "Collection", purpose: UPSERT_SINGLE)
+  """
+  ✨ Insert or update a single `Draw` into the table, based on the primary key. Returns the key of the newly inserted or existing updated `Draw`.
+  """
+  draw_upsert(
+    """
+    Data object to insert or update if it already exists.
+    """
+    data: Draw_Data!
+  ): Draw_KeyOutput! @fdc_generated(from: "Draw", purpose: UPSERT_SINGLE)
+  """
+  ✨ Insert or update a single `Group` into the table, based on the primary key. Returns the key of the newly inserted or existing updated `Group`.
+  """
+  group_upsert(
+    """
+    Data object to insert or update if it already exists.
+    """
+    data: Group_Data!
+  ): Group_KeyOutput! @fdc_generated(from: "Group", purpose: UPSERT_SINGLE)
+  """
+  ✨ Insert or update a single `Loan` into the table, based on the primary key. Returns the key of the newly inserted or existing updated `Loan`.
+  """
+  loan_upsert(
+    """
+    Data object to insert or update if it already exists.
+    """
+    data: Loan_Data!
+  ): Loan_KeyOutput! @fdc_generated(from: "Loan", purpose: UPSERT_SINGLE)
+  """
+  ✨ Insert or update a single `Membership` into the table, based on the primary key. Returns the key of the newly inserted or existing updated `Membership`.
+  """
+  membership_upsert(
+    """
+    Data object to insert or update if it already exists.
+    """
+    data: Membership_Data!
+  ): Membership_KeyOutput! @fdc_generated(from: "Membership", purpose: UPSERT_SINGLE)
+  """
+  ✨ Insert or update a single `User` into the table, based on the primary key. Returns the key of the newly inserted or existing updated `User`.
+  """
+  user_upsert(
+    """
+    Data object to insert or update if it already exists.
+    """
+    data: User_Data!
+  ): User_KeyOutput! @fdc_generated(from: "User", purpose: UPSERT_SINGLE)
+  """
+  ✨ Insert or update `Collection` objects into the table, based on the primary key. Returns the key of the newly inserted or existing updated `Collection`.
+  """
+  collection_upsertMany(
+    """
+    List of data objects to insert or update if it already exists.
+    """
+    data: [Collection_Data!]!
+  ): [Collection_KeyOutput!]! @fdc_generated(from: "Collection", purpose: UPSERT_MULTIPLE)
+  """
+  ✨ Insert or update `Draw` objects into the table, based on the primary key. Returns the key of the newly inserted or existing updated `Draw`.
+  """
+  draw_upsertMany(
+    """
+    List of data objects to insert or update if it already exists.
+    """
+    data: [Draw_Data!]!
+  ): [Draw_KeyOutput!]! @fdc_generated(from: "Draw", purpose: UPSERT_MULTIPLE)
+  """
+  ✨ Insert or update `Group` objects into the table, based on the primary key. Returns the key of the newly inserted or existing updated `Group`.
+  """
+  group_upsertMany(
+    """
+    List of data objects to insert or update if it already exists.
+    """
+    data: [Group_Data!]!
+  ): [Group_KeyOutput!]! @fdc_generated(from: "Group", purpose: UPSERT_MULTIPLE)
+  """
+  ✨ Insert or update `Loan` objects into the table, based on the primary key. Returns the key of the newly inserted or existing updated `Loan`.
+  """
+  loan_upsertMany(
+    """
+    List of data objects to insert or update if it already exists.
+    """
+    data: [Loan_Data!]!
+  ): [Loan_KeyOutput!]! @fdc_generated(from: "Loan", purpose: UPSERT_MULTIPLE)
+  """
+  ✨ Insert or update `Membership` objects into the table, based on the primary key. Returns the key of the newly inserted or existing updated `Membership`.
+  """
+  membership_upsertMany(
+    """
+    List of data objects to insert or update if it already exists.
+    """
+    data: [Membership_Data!]!
+  ): [Membership_KeyOutput!]! @fdc_generated(from: "Membership", purpose: UPSERT_MULTIPLE)
+  """
+  ✨ Insert or update `User` objects into the table, based on the primary key. Returns the key of the newly inserted or existing updated `User`.
+  """
+  user_upsertMany(
+    """
+    List of data objects to insert or update if it already exists.
+    """
+    data: [User_Data!]!
+  ): [User_KeyOutput!]! @fdc_generated(from: "User", purpose: UPSERT_MULTIPLE)
+  """
+  ✨ Update a single `Collection` based on `id`, `key` or `first`, setting columns specified in `data`. Returns the key of the updated `Collection` or `null` if not found.
+  """
+  collection_update(
+    """
+    The unique ID of the object.
+    """
+    id: UUID
+
+    """
+    The key used to identify the object.
+    """
+    key: Collection_Key
+
+    """
+    Fetch the first row based on the filters and ordering.
+    """
+    first: Collection_FirstRow
+
+    """
+    Data object containing fields to be updated.
+    """
+    data: Collection_Data!
+  ): Collection_KeyOutput @fdc_generated(from: "Collection", purpose: UPDATE_SINGLE)
+  """
+  ✨ Update a single `Draw` based on `id`, `key` or `first`, setting columns specified in `data`. Returns the key of the updated `Draw` or `null` if not found.
+  """
+  draw_update(
+    """
+    The unique ID of the object.
+    """
+    id: UUID
+
+    """
+    The key used to identify the object.
+    """
+    key: Draw_Key
+
+    """
+    Fetch the first row based on the filters and ordering.
+    """
+    first: Draw_FirstRow
+
+    """
+    Data object containing fields to be updated.
+    """
+    data: Draw_Data!
+  ): Draw_KeyOutput @fdc_generated(from: "Draw", purpose: UPDATE_SINGLE)
+  """
+  ✨ Update a single `Group` based on `id`, `key` or `first`, setting columns specified in `data`. Returns the key of the updated `Group` or `null` if not found.
+  """
+  group_update(
+    """
+    The unique ID of the object.
+    """
+    id: UUID
+
+    """
+    The key used to identify the object.
+    """
+    key: Group_Key
+
+    """
+    Fetch the first row based on the filters and ordering.
+    """
+    first: Group_FirstRow
+
+    """
+    Data object containing fields to be updated.
+    """
+    data: Group_Data!
+  ): Group_KeyOutput @fdc_generated(from: "Group", purpose: UPDATE_SINGLE)
+  """
+  ✨ Update a single `Loan` based on `id`, `key` or `first`, setting columns specified in `data`. Returns the key of the updated `Loan` or `null` if not found.
+  """
+  loan_update(
+    """
+    The unique ID of the object.
+    """
+    id: UUID
+
+    """
+    The key used to identify the object.
+    """
+    key: Loan_Key
+
+    """
+    Fetch the first row based on the filters and ordering.
+    """
+    first: Loan_FirstRow
+
+    """
+    Data object containing fields to be updated.
+    """
+    data: Loan_Data!
+  ): Loan_KeyOutput @fdc_generated(from: "Loan", purpose: UPDATE_SINGLE)
+  """
+  ✨ Update a single `Membership` based on `id`, `key` or `first`, setting columns specified in `data`. Returns the key of the updated `Membership` or `null` if not found.
+  """
+  membership_update(
+    """
+    The unique ID of the object.
+    """
+    id: UUID
+
+    """
+    The key used to identify the object.
+    """
+    key: Membership_Key
+
+    """
+    Fetch the first row based on the filters and ordering.
+    """
+    first: Membership_FirstRow
+
+    """
+    Data object containing fields to be updated.
+    """
+    data: Membership_Data!
+  ): Membership_KeyOutput @fdc_generated(from: "Membership", purpose: UPDATE_SINGLE)
+  """
+  ✨ Update a single `User` based on `id`, `key` or `first`, setting columns specified in `data`. Returns the key of the updated `User` or `null` if not found.
+  """
+  user_update(
+    """
+    The unique ID of the object.
+    """
+    id: UUID
+
+    """
+    The key used to identify the object.
+    """
+    key: User_Key
+
+    """
+    Fetch the first row based on the filters and ordering.
+    """
+    first: User_FirstRow
+
+    """
+    Data object containing fields to be updated.
+    """
+    data: User_Data!
+  ): User_KeyOutput @fdc_generated(from: "User", purpose: UPDATE_SINGLE)
+  """
+  ✨ Update `Collection` objects matching `where` conditions (or `all`, if true) according to `data`. Returns the number of rows updated.
+  """
+  collection_updateMany(
+    """
+    Filter condition to specify which rows to update.
+    """
+    where: Collection_Filter
+
+    """
+    Set to true to update all rows.
+    """
+    all: Boolean = false
+
+    """
+    Data object containing fields to update.
+    """
+    data: Collection_Data!
+  ): Int! @fdc_generated(from: "Collection", purpose: UPDATE_MULTIPLE)
+  """
+  ✨ Update `Draw` objects matching `where` conditions (or `all`, if true) according to `data`. Returns the number of rows updated.
+  """
+  draw_updateMany(
+    """
+    Filter condition to specify which rows to update.
+    """
+    where: Draw_Filter
+
+    """
+    Set to true to update all rows.
+    """
+    all: Boolean = false
+
+    """
+    Data object containing fields to update.
+    """
+    data: Draw_Data!
+  ): Int! @fdc_generated(from: "Draw", purpose: UPDATE_MULTIPLE)
+  """
+  ✨ Update `Group` objects matching `where` conditions (or `all`, if true) according to `data`. Returns the number of rows updated.
+  """
+  group_updateMany(
+    """
+    Filter condition to specify which rows to update.
+    """
+    where: Group_Filter
+
+    """
+    Set to true to update all rows.
+    """
+    all: Boolean = false
+
+    """
+    Data object containing fields to update.
+    """
+    data: Group_Data!
+  ): Int! @fdc_generated(from: "Group", purpose: UPDATE_MULTIPLE)
+  """
+  ✨ Update `Loan` objects matching `where` conditions (or `all`, if true) according to `data`. Returns the number of rows updated.
+  """
+  loan_updateMany(
+    """
+    Filter condition to specify which rows to update.
+    """
+    where: Loan_Filter
+
+    """
+    Set to true to update all rows.
+    """
+    all: Boolean = false
+
+    """
+    Data object containing fields to update.
+    """
+    data: Loan_Data!
+  ): Int! @fdc_generated(from: "Loan", purpose: UPDATE_MULTIPLE)
+  """
+  ✨ Update `Membership` objects matching `where` conditions (or `all`, if true) according to `data`. Returns the number of rows updated.
+  """
+  membership_updateMany(
+    """
+    Filter condition to specify which rows to update.
+    """
+    where: Membership_Filter
+
+    """
+    Set to true to update all rows.
+    """
+    all: Boolean = false
+
+    """
+    Data object containing fields to update.
+    """
+    data: Membership_Data!
+  ): Int! @fdc_generated(from: "Membership", purpose: UPDATE_MULTIPLE)
+  """
+  ✨ Update `User` objects matching `where` conditions (or `all`, if true) according to `data`. Returns the number of rows updated.
+  """
+  user_updateMany(
+    """
+    Filter condition to specify which rows to update.
+    """
+    where: User_Filter
+
+    """
+    Set to true to update all rows.
+    """
+    all: Boolean = false
+
+    """
+    Data object containing fields to update.
+    """
+    data: User_Data!
+  ): Int! @fdc_generated(from: "User", purpose: UPDATE_MULTIPLE)
+  """
+  ✨ Delete a single `Collection` based on `id`, `key` or `first` and return its key (or `null` if not found).
+  """
+  collection_delete(
+    """
+    The unique ID of the object.
+    """
+    id: UUID
+
+    """
+    The key used to identify the object.
+    """
+    key: Collection_Key
+
+    """
+    Fetch the first row based on the filters and ordering.
+    """
+    first: Collection_FirstRow
+  ): Collection_KeyOutput @fdc_generated(from: "Collection", purpose: DELETE_SINGLE)
+  """
+  ✨ Delete a single `Draw` based on `id`, `key` or `first` and return its key (or `null` if not found).
+  """
+  draw_delete(
+    """
+    The unique ID of the object.
+    """
+    id: UUID
+
+    """
+    The key used to identify the object.
+    """
+    key: Draw_Key
+
+    """
+    Fetch the first row based on the filters and ordering.
+    """
+    first: Draw_FirstRow
+  ): Draw_KeyOutput @fdc_generated(from: "Draw", purpose: DELETE_SINGLE)
+  """
+  ✨ Delete a single `Group` based on `id`, `key` or `first` and return its key (or `null` if not found).
+  """
+  group_delete(
+    """
+    The unique ID of the object.
+    """
+    id: UUID
+
+    """
+    The key used to identify the object.
+    """
+    key: Group_Key
+
+    """
+    Fetch the first row based on the filters and ordering.
+    """
+    first: Group_FirstRow
+  ): Group_KeyOutput @fdc_generated(from: "Group", purpose: DELETE_SINGLE)
+  """
+  ✨ Delete a single `Loan` based on `id`, `key` or `first` and return its key (or `null` if not found).
+  """
+  loan_delete(
+    """
+    The unique ID of the object.
+    """
+    id: UUID
+
+    """
+    The key used to identify the object.
+    """
+    key: Loan_Key
+
+    """
+    Fetch the first row based on the filters and ordering.
+    """
+    first: Loan_FirstRow
+  ): Loan_KeyOutput @fdc_generated(from: "Loan", purpose: DELETE_SINGLE)
+  """
+  ✨ Delete a single `Membership` based on `id`, `key` or `first` and return its key (or `null` if not found).
+  """
+  membership_delete(
+    """
+    The unique ID of the object.
+    """
+    id: UUID
+
+    """
+    The key used to identify the object.
+    """
+    key: Membership_Key
+
+    """
+    Fetch the first row based on the filters and ordering.
+    """
+    first: Membership_FirstRow
+  ): Membership_KeyOutput @fdc_generated(from: "Membership", purpose: DELETE_SINGLE)
+  """
+  ✨ Delete a single `User` based on `id`, `key` or `first` and return its key (or `null` if not found).
+  """
+  user_delete(
+    """
+    The unique ID of the object.
+    """
+    id: UUID
+
+    """
+    The key used to identify the object.
+    """
+    key: User_Key
+
+    """
+    Fetch the first row based on the filters and ordering.
+    """
+    first: User_FirstRow
+  ): User_KeyOutput @fdc_generated(from: "User", purpose: DELETE_SINGLE)
+  """
+  ✨ Delete `Collection` objects matching `where` conditions (or `all`, if true). Returns the number of rows deleted.
+  """
+  collection_deleteMany(
+    """
+    Filter condition to specify which rows to delete.
+    """
+    where: Collection_Filter
+
+    """
+    Set to true to delete all rows.
+    """
+    all: Boolean = false
+  ): Int! @fdc_generated(from: "Collection", purpose: DELETE_MULTIPLE)
+  """
+  ✨ Delete `Draw` objects matching `where` conditions (or `all`, if true). Returns the number of rows deleted.
+  """
+  draw_deleteMany(
+    """
+    Filter condition to specify which rows to delete.
+    """
+    where: Draw_Filter
+
+    """
+    Set to true to delete all rows.
+    """
+    all: Boolean = false
+  ): Int! @fdc_generated(from: "Draw", purpose: DELETE_MULTIPLE)
+  """
+  ✨ Delete `Group` objects matching `where` conditions (or `all`, if true). Returns the number of rows deleted.
+  """
+  group_deleteMany(
+    """
+    Filter condition to specify which rows to delete.
+    """
+    where: Group_Filter
+
+    """
+    Set to true to delete all rows.
+    """
+    all: Boolean = false
+  ): Int! @fdc_generated(from: "Group", purpose: DELETE_MULTIPLE)
+  """
+  ✨ Delete `Loan` objects matching `where` conditions (or `all`, if true). Returns the number of rows deleted.
+  """
+  loan_deleteMany(
+    """
+    Filter condition to specify which rows to delete.
+    """
+    where: Loan_Filter
+
+    """
+    Set to true to delete all rows.
+    """
+    all: Boolean = false
+  ): Int! @fdc_generated(from: "Loan", purpose: DELETE_MULTIPLE)
+  """
+  ✨ Delete `Membership` objects matching `where` conditions (or `all`, if true). Returns the number of rows deleted.
+  """
+  membership_deleteMany(
+    """
+    Filter condition to specify which rows to delete.
+    """
+    where: Membership_Filter
+
+    """
+    Set to true to delete all rows.
+    """
+    all: Boolean = false
+  ): Int! @fdc_generated(from: "Membership", purpose: DELETE_MULTIPLE)
+  """
+  ✨ Delete `User` objects matching `where` conditions (or `all`, if true). Returns the number of rows deleted.
+  """
+  user_deleteMany(
+    """
+    Filter condition to specify which rows to delete.
+    """
+    where: User_Filter
+
+    """
+    Set to true to delete all rows.
+    """
+    all: Boolean = false
+  ): Int! @fdc_generated(from: "User", purpose: DELETE_MULTIPLE)
+}

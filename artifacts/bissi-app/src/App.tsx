@@ -70,13 +70,17 @@ const queryClient = new QueryClient({
 });
 
 function AppRoutes() {
+  const [location] = useLocation();
+
+  // Login page renders outside Shell
+  if (location === "/login") {
+    return <LoginPage />;
+  }
+
   return (
-    <Switch>
-      <Route path="/login" component={LoginPage} />
-      <Route path="/">
-        <Shell>
-          <Switch>
-            <Route path="/" component={DashboardPage} />
+    <Shell>
+      <Switch>
+        <Route path="/" component={DashboardPage} />
 
             {/* Customers — all except pure customer role */}
             <Route path="/customers">
@@ -205,12 +209,9 @@ function AppRoutes() {
               </RoleGate>
             </Route>
 
-            <Route component={NotFound} />
-          </Switch>
-        </Shell>
-      </Route>
-      <Route component={NotFound} />
-    </Switch>
+        <Route component={NotFound} />
+      </Switch>
+    </Shell>
   );
 }
 

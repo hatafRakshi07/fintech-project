@@ -505,7 +505,7 @@ export interface TokenUpdate {
 export type LoanInterestType = typeof LoanInterestType[keyof typeof LoanInterestType];
 
 
-export const LoanInterestType = {
+export const LoanInterestType = { 
   flat: 'flat',
   reducing: 'reducing',
 } as const;
