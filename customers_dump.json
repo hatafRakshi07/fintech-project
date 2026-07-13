@@ -1,0 +1,80 @@
+[
+  {
+    "id": 34,
+    "mobile": "9820001111",
+    "name": "Amit Kumar",
+    "branch_id": 35
+  },
+  {
+    "id": 35,
+    "mobile": "9821002222",
+    "name": "Sunita Patil",
+    "branch_id": 35
+  },
+  {
+    "id": 36,
+    "mobile": "9822003333",
+    "name": "Deepak Joshi",
+    "branch_id": 35
+  },
+  {
+    "id": 37,
+    "mobile": "9823004444",
+    "name": "Kavita Mehta",
+    "branch_id": 35
+  },
+  {
+    "id": 38,
+    "mobile": "9824005555",
+    "name": "Rohit Nair",
+    "branch_id": 35
+  },
+  {
+    "id": 39,
+    "mobile": "9910001111",
+    "name": "Pooja Sharma",
+    "branch_id": 36
+  },
+  {
+    "id": 40,
+    "mobile": "9911002222",
+    "name": "Manoj Gupta",
+    "branch_id": 36
+  },
+  {
+    "id": 41,
+    "mobile": "9912003333",
+    "name": "Anita Singh",
+    "branch_id": 36
+  },
+  {
+    "id": 42,
+    "mobile": "9913004444",
+    "name": "Rahul Verma",
+    "branch_id": 36
+  },
+  {
+    "id": 43,
+    "mobile": "9980001111",
+    "name": "Suresh Reddy",
+    "branch_id": 37
+  },
+  {
+    "id": 44,
+    "mobile": "9981002222",
+    "name": "Meera Rao",
+    "branch_id": 37
+  },
+  {
+    "id": 45,
+    "mobile": "9982003333",
+    "name": "Kiran Kumar",
+    "branch_id": 37
+  },
+  {
+    "id": 46,
+    "mobile": "9983004444",
+    "name": "Priya Nair",
+    "branch_id": 37
+  }
+]

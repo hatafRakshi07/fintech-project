@@ -3,7 +3,7 @@ Import BYAJ KI LIST (Interest Accounts) → Neon DB
 """
 import re, datetime, psycopg2, psycopg2.extras, openpyxl
 
-DB_URL    = "postgresql://neondb_owner:npg_qSQN29ZxTKzt@ep-frosty-cloud-at51tjed-pooler.c-9.us-east-1.aws.neon.tech/neondb?sslmode=require"
+DB_URL    = "postgresql://postgres@127.0.0.1:5432/bissi_db"
 XLSX_FILE = r"C:\Users\iSN_kota_T52\Downloads\Bissi folder.xlsx"
 
 def clean_name(v):
