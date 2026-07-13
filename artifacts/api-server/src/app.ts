@@ -1,7 +1,7 @@
 import express, { type Express, type Request, type Response, type NextFunction } from "express";
 import cors from "cors";
-import helmet from "helmet";
-import pinoHttp from "pino-http";
+import * as helmet from "helmet";
+import * as pinoHttp from "pino-http";
 import { fileURLToPath } from "node:url";
 import { dirname, resolve, join } from "node:path";
 import router from "./routes";
@@ -45,10 +45,10 @@ app.use(
   pinoHttp({
     logger,
     serializers: {
-      req(req) {
+      req(req: Request) {
         return { id: req.id, method: req.method, url: req.url?.split("?")[0] };
       },
-      res(res) {
+      res(res: Response) {
         return { statusCode: res.statusCode };
       },
     },
