@@ -36,7 +36,8 @@ router.get("/customers", async (req, res): Promise<void> => {
       or(
         ilike(customersTable.name, `%${search}%`),
         ilike(customersTable.mobile, `%${search}%`),
-        ilike(customersTable.referenceNumber, `%${search}%`)
+        ilike(customersTable.referenceNumber, `%${search}%`),
+        ilike(customersTable.referenceName, `%${search}%`)
       )!
     );
   }
@@ -238,6 +239,143 @@ router.get("/customers/:id/timeline", async (req, res): Promise<void> => {
   ].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
 
   res.json(entries);
+});
+
+// ─── Full Customer History ──────────────────────────────────────────────────
+router.get("/customers/:id/history", async (req, res): Promise<void> => {
+  const id = parseInt(Array.isArray(req.params.id) ? req.params.id[0] : req.params.id, 10);
+
+  // Get customer
+  const [row] = await db
+    .select({ c: customersTable, branchName: branchesTable.name })
+    .from(customersTable)
+    .leftJoin(branchesTable, eq(customersTable.branchId, branchesTable.id))
+    .where(eq(customersTable.id, id));
+  if (!row) { res.status(404).json({ error: "Customer not found" }); return; }
+
+  // Fetch all related data in parallel
+  const [
+    membershipRows,
+    tokenRows,
+    collectionRows,
+    loanRows,
+    giftRows,
+    interestRows,
+    recoveryRows,
+  ] = await Promise.all([
+    db.select({ cm: committeeMembersTable, commName: committeesTable.name, commType: committeesTable.type, installment: committeesTable.installmentAmount })
+      .from(committeeMembersTable)
+      .leftJoin(committeesTable, eq(committeeMembersTable.committeeId, committeesTable.id))
+      .where(eq(committeeMembersTable.customerId, id)),
+    db.select({ t: tokensTable, commName: committeesTable.name })
+      .from(tokensTable)
+      .leftJoin(committeesTable, eq(tokensTable.committeeId, committeesTable.id))
+      .where(eq(tokensTable.customerId, id)),
+    db.select()
+      .from(collectionsTable)
+      .where(eq(collectionsTable.customerId, id))
+      .orderBy(sql`collected_at DESC`)
+      .limit(200),
+    db.select().from(loansTable).where(eq(loansTable.customerId, id)),
+    db.select({ gd: giftDistributionsTable, giftName: giftInventoryTable.name })
+      .from(giftDistributionsTable)
+      .leftJoin(giftInventoryTable, eq(giftDistributionsTable.giftId, giftInventoryTable.id))
+      .where(eq(giftDistributionsTable.customerId, id))
+      .orderBy(sql`distribution_date DESC`),
+    db.select().from(interestAccountsTable).where(eq(interestAccountsTable.customerId, id)),
+    db.select().from(recoveryTasksTable).where(eq(recoveryTasksTable.customerId, id)),
+  ]);
+
+  // Process memberships
+  const memberships = Object.values(
+    membershipRows.reduce((acc, m) => {
+      const key = m.cm.committeeId;
+      if (!acc[key]) acc[key] = {
+        committeeId: key,
+        committeeName: m.commName ?? "",
+        type: m.commType ?? "",
+        installment: m.installment ? parseFloat(m.installment) : 0,
+        tokens: [],
+      };
+      acc[key].tokens.push(m.cm.tokenNumber);
+      return acc;
+    }, {} as Record<number, any>)
+  );
+
+  // Process tokens
+  const tokens = tokenRows.map(t => ({
+    id: t.t.id,
+    tokenNumber: t.t.tokenNumber,
+    committeeName: t.commName ?? "",
+    status: t.t.status,
+  }));
+
+  // Process collections
+  const collections = collectionRows.map(c => ({
+    id: c.id,
+    amount: parseFloat(c.amount),
+    paymentMode: c.paymentMode,
+    date: c.collectedAt.toISOString(),
+    notes: c.notes,
+    committeeId: c.committeeId,
+  }));
+
+  // Summary stats
+  const totalPaid = collectionRows.reduce((s, c) => s + parseFloat(c.amount), 0);
+  const totalLoanAmount = loanRows.reduce((s, l) => s + parseFloat(l.principalAmount), 0);
+  const totalLoanPaid = loanRows.reduce((s, l) => s + parseFloat(l.paidAmount), 0);
+
+  res.json({
+    customer: {
+      ...row.c,
+      branchName: row.branchName,
+      createdAt: row.c.createdAt.toISOString(),
+    },
+    summary: {
+      totalPaid,
+      totalCollections: collectionRows.length,
+      totalTokens: tokenRows.length,
+      totalLoans: loanRows.length,
+      totalLoanAmount,
+      totalLoanPaid,
+      totalGifts: giftRows.length,
+      totalInterestAccounts: interestRows.length,
+      totalRecoveryTasks: recoveryRows.length,
+      committeesJoined: memberships.length,
+    },
+    memberships,
+    tokens,
+    collections,
+    loans: loanRows.map(l => ({
+      ...l,
+      principalAmount: parseFloat(l.principalAmount),
+      interestRate: parseFloat(l.interestRate),
+      paidAmount: parseFloat(l.paidAmount),
+      emiAmount: l.emiAmount ? parseFloat(l.emiAmount) : null,
+      totalAmount: l.totalAmount ? parseFloat(l.totalAmount) : null,
+      createdAt: l.createdAt.toISOString(),
+    })),
+    gifts: giftRows.map(g => ({
+      id: g.gd.id,
+      giftName: g.giftName ?? "Item",
+      quantity: g.gd.quantity,
+      date: g.gd.distributionDate,
+      status: g.gd.status,
+    })),
+    interestAccounts: interestRows.map(a => ({
+      ...a,
+      principalAmount: parseFloat(a.principalAmount),
+      interestRate: parseFloat(a.interestRate),
+      monthlyInterest: parseFloat(a.monthlyInterest ?? "0"),
+      totalInterestPaid: parseFloat(a.totalInterestPaid),
+      pendingInterest: parseFloat(a.pendingInterest),
+      createdAt: a.createdAt.toISOString(),
+    })),
+    recoveryTasks: recoveryRows.map(r => ({
+      ...r,
+      createdAt: r.createdAt.toISOString(),
+    })),
+  });
 });
 
 export default router;

@@ -1,14 +1,15 @@
-import React from "react";
+import React, { useState } from "react";
 import { useParams, Link } from "wouter";
 import { 
   useGetCustomer, 
   useGetCustomerPassbook, 
-  useGetCustomerTimeline 
+  useGetCustomerHistory 
 } from "@workspace/api-client-react";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Input } from "@/components/ui/input";
 import { 
   ArrowLeft, 
   User, 
@@ -16,25 +17,28 @@ import {
   MapPin, 
   CreditCard, 
   Briefcase, 
-  Clock, 
   Wallet,
-  ArrowUpRight,
-  ArrowDownRight,
   Sparkles,
   Gift,
   FileText,
   ShieldCheck,
-  AlertTriangle
+  AlertTriangle,
+  Search,
+  Users,
+  Banknote,
+  TrendingUp,
+  Calendar
 } from "lucide-react";
 import { format } from "date-fns";
 
 export default function CustomerDetailPage() {
   const params = useParams();
   const customerId = parseInt(params.id || "0");
+  const [collectionFilter, setCollectionFilter] = useState("");
 
   const { data: customer, isLoading: customerLoading } = useGetCustomer(customerId);
-  const { data: passbook, isLoading: passbookLoading } = useGetCustomerPassbook(customerId);
-  const { data: timeline, isLoading: timelineLoading } = useGetCustomerTimeline(customerId);
+  const { data: passbook } = useGetCustomerPassbook(customerId);
+  const { data: history, isLoading: historyLoading } = useGetCustomerHistory(customerId);
 
   if (customerLoading) return <div className="p-8">Loading customer details...</div>;
   if (!customer) return <div className="p-8">Customer not found</div>;
@@ -47,8 +51,27 @@ export default function CustomerDetailPage() {
     }).format(amount);
   };
 
+  const summary = (history as any)?.summary;
+  const memberships = (history as any)?.memberships || [];
+  const tokens = (history as any)?.tokens || [];
+  const collections = (history as any)?.collections || [];
+  const loans = (history as any)?.loans || [];
+  const gifts = (history as any)?.gifts || [];
+  const interestAccounts = (history as any)?.interestAccounts || [];
+  const recoveryTasks = (history as any)?.recoveryTasks || [];
+
+  // Filter collections by search
+  const filteredCollections = collections.filter((c: any) => {
+    if (!collectionFilter) return true;
+    const q = collectionFilter.toLowerCase();
+    return (c.notes?.toLowerCase().includes(q)) || 
+           (c.date?.includes(q)) ||
+           (String(c.amount).includes(q));
+  });
+
   return (
     <div className="space-y-6">
+      {/* Header */}
       <div className="flex items-center gap-4">
         <Link href="/customers">
           <Button variant="outline" size="icon">
@@ -75,12 +98,14 @@ export default function CustomerDetailPage() {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+      {/* Personal Details + Summary Cards Row */}
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        {/* Personal Details - Left column */}
         <Card className="md:col-span-1">
-          <CardHeader>
-            <CardTitle>Personal Details</CardTitle>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm">Personal Details</CardTitle>
           </CardHeader>
-          <CardContent className="space-y-4">
+          <CardContent className="space-y-3">
             <div className="flex items-center gap-3 text-sm">
               <Phone className="h-4 w-4 text-muted-foreground" />
               <span>{customer.mobile}</span>
@@ -91,177 +116,145 @@ export default function CustomerDetailPage() {
                 <span>Alt: {customer.alternateMobile}</span>
               </div>
             )}
-            {customer.email && (
-              <div className="flex items-center gap-3 text-sm">
-                <User className="h-4 w-4 text-muted-foreground" />
-                <span>{customer.email}</span>
-              </div>
-            )}
             {(customer.address || customer.city) && (
               <div className="flex items-center gap-3 text-sm">
                 <MapPin className="h-4 w-4 text-muted-foreground" />
                 <span>{[customer.address, customer.city].filter(Boolean).join(", ")}</span>
               </div>
             )}
+            {customer.referenceName && (
+              <div className="flex items-center gap-3 text-sm">
+                <ShieldCheck className="h-4 w-4 text-muted-foreground" />
+                <span>Ref: {customer.referenceName}</span>
+              </div>
+            )}
             <div className="flex items-center gap-3 text-sm">
               <Briefcase className="h-4 w-4 text-muted-foreground" />
               <span>Branch: {customer.branchName}</span>
             </div>
-            {customer.referenceName && (
-              <div className="flex items-center gap-3 text-sm">
-                <ShieldCheck className="h-4 w-4 text-muted-foreground" />
-                <span>Reference: {customer.referenceName}</span>
-              </div>
-            )}
-            {customer.aadhaar && (
-              <div className="flex items-center gap-3 text-sm">
-                <CreditCard className="h-4 w-4 text-muted-foreground" />
-                <span>Aadhaar: {customer.aadhaar}</span>
-              </div>
-            )}
-            {customer.pan && (
-              <div className="flex items-center gap-3 text-sm">
-                <CreditCard className="h-4 w-4 text-muted-foreground" />
-                <span>PAN: {customer.pan}</span>
-              </div>
-            )}
-          </CardContent>
-        </Card>
-
-        <Card className="md:col-span-2">
-          <CardHeader>
-            <CardTitle>Financial Summary</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-              <div className="space-y-1">
-                <p className="text-xs text-muted-foreground">Active Tokens</p>
-                <p className="text-2xl font-bold">{(customer as any).totalTokens || 0}</p>
-              </div>
-              <div className="space-y-1">
-                <p className="text-xs text-muted-foreground">Total Paid</p>
-                <p className="text-xl font-bold text-emerald-600">{formatCurrency((customer as any).totalPaid || 0)}</p>
-              </div>
-              <div className="space-y-1">
-                <p className="text-xs text-muted-foreground">Gifts Received</p>
-                <p className="text-2xl font-bold text-amber-600">{(customer as any).totalGifts || 0}</p>
-              </div>
-              <div className="space-y-1">
-                <p className="text-xs text-muted-foreground">Byaj / Month</p>
-                <p className="text-xl font-bold text-blue-600">{(customer as any).interestMonthly ? formatCurrency((customer as any).interestMonthly) : "—"}</p>
-              </div>
-            </div>
-            {(customer as any).pendingRecovery > 0 && (
-              <div className="mt-4 p-3 rounded-lg bg-red-50 border border-red-200 flex items-center gap-3">
-                <AlertTriangle className="h-5 w-5 text-red-600 shrink-0" />
-                <p className="text-sm text-red-700">{(customer as any).pendingRecovery} pending recovery task(s)</p>
-              </div>
-            )}
             {customer.recoveryNotes && (
-              <div className="mt-3 p-3 rounded-lg bg-orange-50 border border-orange-200">
-                <p className="text-xs font-semibold text-orange-800 uppercase">Notes</p>
-                <p className="text-sm text-orange-700 mt-0.5">{customer.recoveryNotes}</p>
+              <div className="mt-2 p-2 rounded-lg bg-orange-50 border border-orange-200">
+                <p className="text-xs text-orange-700">{customer.recoveryNotes}</p>
               </div>
             )}
           </CardContent>
         </Card>
-      </div>
 
-      <Tabs defaultValue="history" className="w-full">
-        <TabsList className="flex-wrap h-auto">
-          <TabsTrigger value="history">Full History</TabsTrigger>
-          <TabsTrigger value="committees">Committees</TabsTrigger>
-          <TabsTrigger value="gifts">Gifts</TabsTrigger>
-          <TabsTrigger value="documents">Documents</TabsTrigger>
-        </TabsList>
-
-        {/* ─── FULL HISTORY ─────────────────────────────── */}
-        <TabsContent value="history" className="mt-4 space-y-4">
-          {/* Interest account */}
-          {(passbook as any)?.interestAccounts?.length > 0 && (
-            <Card>
-              <CardHeader className="pb-2"><CardTitle className="text-sm flex items-center gap-2"><Sparkles className="h-4 w-4 text-amber-500" /> Interest Account (BYAJ)</CardTitle></CardHeader>
-              <CardContent>
-                {(passbook as any).interestAccounts.map((acc: any) => (
-                  <div key={acc.id} className="flex flex-wrap gap-4 text-sm">
-                    <div><span className="text-muted-foreground">Monthly Interest:</span> <span className="font-bold text-amber-600">₹{acc.monthlyInterest?.toLocaleString("en-IN")}</span></div>
-                    <div><span className="text-muted-foreground">Principal:</span> <span className="font-semibold">₹{acc.principalAmount?.toLocaleString("en-IN")}</span></div>
-                    <div><span className="text-muted-foreground">Rate:</span> <span>{acc.interestRate}% / month</span></div>
-                    <div><span className="text-muted-foreground">Status:</span> <Badge variant={acc.status === "active" ? "default" : "secondary"}>{acc.status}</Badge></div>
-                    {acc.notes && <div className="w-full text-muted-foreground text-xs">{acc.notes}</div>}
-                  </div>
-                ))}
-              </CardContent>
-            </Card>
-          )}
-
-          {/* Recovery alerts */}
-          {(passbook as any)?.recoveryTasks?.filter((r: any) => r.status === "pending").length > 0 && (
-            <Card className="border-red-200">
-              <CardHeader className="pb-2"><CardTitle className="text-sm flex items-center gap-2 text-red-600"><AlertTriangle className="h-4 w-4" /> Pending Recovery</CardTitle></CardHeader>
-              <CardContent className="space-y-2">
-                {(passbook as any).recoveryTasks.filter((r: any) => r.status === "pending").map((r: any) => (
-                  <div key={r.id} className="flex justify-between text-sm p-2 bg-red-50 rounded">
-                    <span className="text-red-700">{r.notes}</span>
-                    {r.overdueAmount && <span className="font-bold text-red-800">₹{parseFloat(r.overdueAmount).toLocaleString("en-IN")}</span>}
-                  </div>
-                ))}
-              </CardContent>
-            </Card>
-          )}
-
-          {/* All transactions timeline */}
+        {/* Summary Stats - 3 columns of cards */}
+        <div className="md:col-span-3 grid grid-cols-2 md:grid-cols-4 gap-3">
           <Card>
-            <CardHeader><CardTitle className="text-sm">Transaction History</CardTitle></CardHeader>
-            <CardContent>
-              {passbookLoading ? (
-                <div className="py-4 text-center text-muted-foreground text-sm">Loading...</div>
-              ) : (
-                <div className="relative border-l border-muted ml-3 space-y-4 pb-2">
-                  {passbook?.entries.map((entry: any, idx: number) => (
-                    <div key={idx} className="relative pl-5">
-                      <span className={`absolute -left-2.5 flex h-5 w-5 items-center justify-center rounded-full ring-2 ring-background text-[10px] ${
-                        entry.type==='payment' ? 'bg-emerald-100 text-emerald-700' :
-                        entry.type==='loan'    ? 'bg-blue-100 text-blue-700' :
-                        entry.type==='gift'    ? 'bg-amber-100 text-amber-700' :
-                        'bg-red-100 text-red-700'
-                      }`}>
-                        {entry.type==='payment'?'₹':entry.type==='loan'?'L':entry.type==='gift'?'G':'R'}
-                      </span>
-                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
-                        <div>
-                          <p className="text-xs font-medium">{entry.description}</p>
-                          <p className="text-[10px] text-muted-foreground">{format(new Date(entry.date), 'dd MMM yyyy')}</p>
-                        </div>
-                        {entry.amount > 0 && (
-                          <span className={`text-xs font-bold ${entry.type==='payment'?'text-emerald-600':entry.type==='recovery'?'text-red-600':'text-foreground'}`}>
-                            {entry.type==='payment'?'+':''}{entry.type==='recovery'?'-':''}₹{entry.amount.toLocaleString("en-IN")}
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                  ))}
-                  {!passbook?.entries.length && <p className="pl-5 text-muted-foreground text-sm py-4">No transactions found.</p>}
-                </div>
-              )}
+            <CardContent className="pt-4 pb-3">
+              <div className="flex items-center gap-2 mb-1">
+                <Wallet className="h-4 w-4 text-emerald-500" />
+                <p className="text-xs text-muted-foreground">Total Paid</p>
+              </div>
+              <p className="text-xl font-bold text-emerald-600">{formatCurrency(summary?.totalPaid || 0)}</p>
+              <p className="text-[10px] text-muted-foreground">{summary?.totalCollections || 0} transactions</p>
             </CardContent>
           </Card>
-        </TabsContent>
+          <Card>
+            <CardContent className="pt-4 pb-3">
+              <div className="flex items-center gap-2 mb-1">
+                <Users className="h-4 w-4 text-blue-500" />
+                <p className="text-xs text-muted-foreground">Committees</p>
+              </div>
+              <p className="text-xl font-bold text-blue-600">{summary?.committeesJoined || 0}</p>
+              <p className="text-[10px] text-muted-foreground">{summary?.totalTokens || 0} tokens</p>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardContent className="pt-4 pb-3">
+              <div className="flex items-center gap-2 mb-1">
+                <Gift className="h-4 w-4 text-amber-500" />
+                <p className="text-xs text-muted-foreground">Gifts</p>
+              </div>
+              <p className="text-xl font-bold text-amber-600">{summary?.totalGifts || 0}</p>
+              <p className="text-[10px] text-muted-foreground">received</p>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardContent className="pt-4 pb-3">
+              <div className="flex items-center gap-2 mb-1">
+                <Banknote className="h-4 w-4 text-purple-500" />
+                <p className="text-xs text-muted-foreground">Loans</p>
+              </div>
+              <p className="text-xl font-bold text-purple-600">{summary?.totalLoans || 0}</p>
+              <p className="text-[10px] text-muted-foreground">{formatCurrency(summary?.totalLoanAmount || 0)}</p>
+            </CardContent>
+          </Card>
+          {interestAccounts.length > 0 && (
+            <Card className="col-span-2">
+              <CardContent className="pt-4 pb-3">
+                <div className="flex items-center gap-2 mb-1">
+                  <TrendingUp className="h-4 w-4 text-rose-500" />
+                  <p className="text-xs text-muted-foreground">Byaj (Interest) Account</p>
+                </div>
+                <div className="flex gap-4">
+                  <div>
+                    <p className="text-lg font-bold text-rose-600">{formatCurrency(interestAccounts[0].monthlyInterest)}/mo</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-muted-foreground">Principal</p>
+                    <p className="text-sm font-semibold">{formatCurrency(interestAccounts[0].principalAmount)}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-muted-foreground">Rate</p>
+                    <p className="text-sm font-semibold">{interestAccounts[0].interestRate}%/mo</p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+          {recoveryTasks.filter((r: any) => r.status === "pending").length > 0 && (
+            <Card className="col-span-2 border-red-200">
+              <CardContent className="pt-4 pb-3">
+                <div className="flex items-center gap-2 text-red-600">
+                  <AlertTriangle className="h-4 w-4" />
+                  <p className="text-sm font-semibold">{recoveryTasks.filter((r: any) => r.status === "pending").length} Pending Recovery Tasks</p>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+        </div>
+      </div>
 
-        {/* ─── COMMITTEE MEMBERSHIPS ──────────────────────── */}
+      {/* Tabs */}
+      <Tabs defaultValue="committees" className="w-full">
+        <TabsList className="flex-wrap h-auto">
+          <TabsTrigger value="committees">
+            <Users className="h-3.5 w-3.5 mr-1.5" />Committees ({memberships.length})
+          </TabsTrigger>
+          <TabsTrigger value="payments">
+            <Wallet className="h-3.5 w-3.5 mr-1.5" />Payments ({collections.length})
+          </TabsTrigger>
+          <TabsTrigger value="loans">
+            <Banknote className="h-3.5 w-3.5 mr-1.5" />Loans ({loans.length})
+          </TabsTrigger>
+          <TabsTrigger value="gifts">
+            <Gift className="h-3.5 w-3.5 mr-1.5" />Gifts ({gifts.length})
+          </TabsTrigger>
+          <TabsTrigger value="interest">
+            <TrendingUp className="h-3.5 w-3.5 mr-1.5" />Interest ({interestAccounts.length})
+          </TabsTrigger>
+          <TabsTrigger value="documents">
+            <FileText className="h-3.5 w-3.5 mr-1.5" />Documents
+          </TabsTrigger>
+        </TabsList>
+
+        {/* ─── COMMITTEES TAB ────────────────────────────── */}
         <TabsContent value="committees" className="mt-4">
           <Card>
             <CardHeader><CardTitle className="text-sm">Committee Memberships & Tokens</CardTitle></CardHeader>
             <CardContent>
-              {!(customer as any).committeeMemberships?.length ? (
+              {!memberships.length ? (
                 <p className="text-sm text-muted-foreground py-4">Not a member of any committee.</p>
               ) : (
                 <div className="space-y-3">
-                  {(customer as any).committeeMemberships.map((m: any) => (
+                  {memberships.map((m: any) => (
                     <div key={m.committeeId} className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 p-3 rounded-lg border bg-muted/30">
                       <div>
                         <p className="font-semibold text-sm">{m.committeeName}</p>
-                        <p className="text-xs text-muted-foreground capitalize">{m.type}</p>
+                        <p className="text-xs text-muted-foreground capitalize">{m.type} · ₹{m.installment?.toLocaleString("en-IN")}/month</p>
                       </div>
                       <div className="flex flex-wrap gap-1">
                         {m.tokens.sort((a: string, b: string) => parseInt(a)-parseInt(b)).map((t: string) => (
@@ -276,22 +269,126 @@ export default function CustomerDetailPage() {
           </Card>
         </TabsContent>
 
-        {/* ─── GIFTS ────────────────────────────────────────── */}
+        {/* ─── PAYMENTS TAB ──────────────────────────────── */}
+        <TabsContent value="payments" className="mt-4 space-y-4">
+          <div className="flex items-center gap-2">
+            <div className="relative flex-1">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input 
+                placeholder="Search payments by date, amount, notes..." 
+                value={collectionFilter}
+                onChange={(e) => setCollectionFilter(e.target.value)}
+                className="pl-9"
+              />
+            </div>
+            <Badge variant="secondary">{filteredCollections.length} records</Badge>
+          </div>
+          <Card>
+            <CardContent className="p-0">
+              <div className="max-h-[500px] overflow-auto">
+                <table className="w-full text-sm">
+                  <thead className="sticky top-0 bg-muted/80 backdrop-blur-sm">
+                    <tr>
+                      <th className="text-left p-3 font-medium">Date</th>
+                      <th className="text-right p-3 font-medium">Amount</th>
+                      <th className="text-left p-3 font-medium">Mode</th>
+                      <th className="text-left p-3 font-medium">Notes</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y">
+                    {filteredCollections.slice(0, 100).map((c: any) => (
+                      <tr key={c.id} className="hover:bg-muted/30">
+                        <td className="p-3 text-xs whitespace-nowrap">
+                          <div className="flex items-center gap-1.5">
+                            <Calendar className="h-3 w-3 text-muted-foreground" />
+                            {c.date ? format(new Date(c.date), 'dd MMM yyyy') : '—'}
+                          </div>
+                        </td>
+                        <td className="p-3 text-right font-semibold text-emerald-600 whitespace-nowrap">
+                          ₹{c.amount.toLocaleString("en-IN")}
+                        </td>
+                        <td className="p-3">
+                          <Badge variant="outline" className="text-[10px] uppercase">{c.paymentMode}</Badge>
+                        </td>
+                        <td className="p-3 text-xs text-muted-foreground max-w-[200px] truncate">{c.notes || '—'}</td>
+                      </tr>
+                    ))}
+                    {!filteredCollections.length && (
+                      <tr><td colSpan={4} className="p-8 text-center text-muted-foreground">No payment records found.</td></tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* ─── LOANS TAB ─────────────────────────────────── */}
+        <TabsContent value="loans" className="mt-4">
+          <Card>
+            <CardHeader><CardTitle className="text-sm">Loan History</CardTitle></CardHeader>
+            <CardContent>
+              {!loans.length ? (
+                <p className="text-sm text-muted-foreground py-4">No loan records.</p>
+              ) : (
+                <div className="space-y-3">
+                  {loans.map((l: any) => (
+                    <div key={l.id} className="p-4 rounded-lg border bg-muted/30 space-y-2">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <Banknote className="h-4 w-4 text-purple-500" />
+                          <span className="font-bold text-lg">{formatCurrency(l.principalAmount)}</span>
+                        </div>
+                        <Badge variant={l.status === 'active' ? 'default' : l.status === 'closed' ? 'secondary' : 'destructive'}>
+                          {l.status}
+                        </Badge>
+                      </div>
+                      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-xs">
+                        <div>
+                          <p className="text-muted-foreground">Interest Rate</p>
+                          <p className="font-semibold">{l.interestRate}% ({l.interestType})</p>
+                        </div>
+                        <div>
+                          <p className="text-muted-foreground">Tenure</p>
+                          <p className="font-semibold">{l.tenure} months</p>
+                        </div>
+                        <div>
+                          <p className="text-muted-foreground">Paid</p>
+                          <p className="font-semibold text-emerald-600">{formatCurrency(l.paidAmount)}</p>
+                        </div>
+                        {l.purpose && (
+                          <div>
+                            <p className="text-muted-foreground">Purpose</p>
+                            <p className="font-semibold">{l.purpose}</p>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* ─── GIFTS TAB ─────────────────────────────────── */}
         <TabsContent value="gifts" className="mt-4">
           <Card>
             <CardHeader><CardTitle className="text-sm flex items-center gap-2"><Gift className="h-4 w-4" /> Gift History</CardTitle></CardHeader>
             <CardContent>
-              {!(passbook as any)?.gifts?.length ? (
+              {!gifts.length ? (
                 <div className="text-center py-8 text-muted-foreground text-sm">No gifts recorded yet.</div>
               ) : (
                 <div className="space-y-2">
-                  {(passbook as any).gifts.map((g: any) => (
+                  {gifts.map((g: any) => (
                     <div key={g.id} className="flex items-center justify-between p-3 rounded-lg border">
                       <div className="flex items-center gap-2">
                         <span className="text-lg">🎁</span>
                         <div>
-                          <p className="text-sm font-medium">{g.giftName ?? "Gift"}</p>
-                          <p className="text-xs text-muted-foreground">Qty: {g.quantity} · {g.distributionDate ? format(new Date(g.distributionDate), 'dd MMM yyyy') : '—'}</p>
+                          <p className="text-sm font-medium">{g.giftName}</p>
+                          <p className="text-xs text-muted-foreground">
+                            Qty: {g.quantity} · {g.date ? format(new Date(g.date), 'dd MMM yyyy') : '—'}
+                          </p>
                         </div>
                       </div>
                       <Badge variant={g.status === "given" ? "default" : "secondary"}>{g.status}</Badge>
@@ -303,7 +400,52 @@ export default function CustomerDetailPage() {
           </Card>
         </TabsContent>
 
-        {/* ─── DOCUMENTS ────────────────────────────────────── */}
+        {/* ─── INTEREST TAB ──────────────────────────────── */}
+        <TabsContent value="interest" className="mt-4">
+          <Card>
+            <CardHeader><CardTitle className="text-sm flex items-center gap-2"><Sparkles className="h-4 w-4 text-amber-500" /> Interest (Byaj) Accounts</CardTitle></CardHeader>
+            <CardContent>
+              {!interestAccounts.length ? (
+                <div className="text-center py-8 text-muted-foreground text-sm">No interest accounts.</div>
+              ) : (
+                <div className="space-y-4">
+                  {interestAccounts.map((acc: any) => (
+                    <div key={acc.id} className="p-4 rounded-lg border bg-amber-50/50 space-y-3">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <p className="text-sm text-muted-foreground">Monthly Interest</p>
+                          <p className="text-2xl font-bold text-amber-600">{formatCurrency(acc.monthlyInterest)}</p>
+                        </div>
+                        <Badge variant={acc.status === "active" ? "default" : "secondary"}>{acc.status}</Badge>
+                      </div>
+                      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-xs">
+                        <div>
+                          <p className="text-muted-foreground">Principal</p>
+                          <p className="font-semibold">{formatCurrency(acc.principalAmount)}</p>
+                        </div>
+                        <div>
+                          <p className="text-muted-foreground">Rate</p>
+                          <p className="font-semibold">{acc.interestRate}% / month</p>
+                        </div>
+                        <div>
+                          <p className="text-muted-foreground">Total Paid</p>
+                          <p className="font-semibold text-emerald-600">{formatCurrency(acc.totalInterestPaid)}</p>
+                        </div>
+                        <div>
+                          <p className="text-muted-foreground">Pending</p>
+                          <p className="font-semibold text-red-600">{formatCurrency(acc.pendingInterest)}</p>
+                        </div>
+                      </div>
+                      {acc.notes && <p className="text-xs text-muted-foreground">{acc.notes}</p>}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* ─── DOCUMENTS TAB ─────────────────────────────── */}
         <TabsContent value="documents" className="mt-4">
           <Card>
             <CardHeader><CardTitle className="text-sm">KYC & Documents</CardTitle></CardHeader>
@@ -321,11 +463,6 @@ export default function CustomerDetailPage() {
                   </div>
                 ))}
               </div>
-              {customer.documents && (
-                <Button variant="outline" size="sm" onClick={() => window.open(customer.documents!)}>
-                  <FileText className="h-4 w-4 mr-2" /> View Documents
-                </Button>
-              )}
             </CardContent>
           </Card>
         </TabsContent>

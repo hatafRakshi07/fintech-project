@@ -1,0 +1,30 @@
+[
+  {
+    "idx": 0,
+    "name": "Sawariya Seth Bissi",
+    "installment": 3000,
+    "draw_day": 5,
+    "type": "monthly"
+  },
+  {
+    "idx": 1,
+    "name": "Pyare Mohan Bissi",
+    "installment": 3000,
+    "draw_day": 15,
+    "type": "monthly"
+  },
+  {
+    "idx": 2,
+    "name": "Hare Ka Sahara Bissi",
+    "installment": 2500,
+    "draw_day": 20,
+    "type": "monthly"
+  },
+  {
+    "idx": 3,
+    "name": "Shree Krishna Associates",
+    "installment": 3000,
+    "draw_day": 25,
+    "type": "monthly"
+  }
+]
