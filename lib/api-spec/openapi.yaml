@@ -390,6 +390,25 @@ paths:
                 items:
                   $ref: "#/components/schemas/TimelineEntry"
 
+  /customers/{id}/history:
+    get:
+      operationId: getCustomerHistory
+      tags: [customers]
+      summary: Get customer full history with all related records
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Customer full history
+          content:
+            application/json:
+              schema:
+                type: object
+
   # Collectors
   /collectors:
     get:
@@ -1365,7 +1384,7 @@ components:
           type: ["string", "null"]
         city:
           type: ["string", "null"]
-        nomineeNname:
+        nomineeName:
           type: ["string", "null"]
         nomineeRelation:
           type: ["string", "null"]

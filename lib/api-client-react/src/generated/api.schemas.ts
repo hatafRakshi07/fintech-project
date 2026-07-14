@@ -172,7 +172,7 @@ export interface Customer {
   /** @nullable */
   city?: string | null;
   /** @nullable */
-  nomineeNname?: string | null;
+  nomineeName?: string | null;
   /** @nullable */
   nomineeRelation?: string | null;
   branchId: number;
@@ -505,7 +505,7 @@ export interface TokenUpdate {
 export type LoanInterestType = typeof LoanInterestType[keyof typeof LoanInterestType];
 
 
-export const LoanInterestType = { 
+export const LoanInterestType = {
   flat: 'flat',
   reducing: 'reducing',
 } as const;
@@ -814,6 +814,8 @@ status?: string;
 page?: number;
 limit?: number;
 };
+
+export type GetCustomerHistory200 = { [key: string]: unknown };
 
 export type ListCollectorsParams = {
 branchId?: number;

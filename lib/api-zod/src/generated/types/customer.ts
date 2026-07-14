@@ -25,7 +25,7 @@ export interface Customer {
   /** @nullable */
   city?: string | null;
   /** @nullable */
-  nomineeNname?: string | null;
+  nomineeName?: string | null;
   /** @nullable */
   nomineeRelation?: string | null;
   branchId: number;

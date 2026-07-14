@@ -253,7 +253,7 @@ export const ListCustomersResponse = zod.object({
   "pan": zod.string().nullish(),
   "address": zod.string().nullish(),
   "city": zod.string().nullish(),
-  "nomineeNname": zod.string().nullish(),
+  "nomineeName": zod.string().nullish(),
   "nomineeRelation": zod.string().nullish(),
   "branchId": zod.number(),
   "branchName": zod.string().nullish(),
@@ -306,7 +306,7 @@ export const CreateCustomerResponse = zod.object({
   "pan": zod.string().nullish(),
   "address": zod.string().nullish(),
   "city": zod.string().nullish(),
-  "nomineeNname": zod.string().nullish(),
+  "nomineeName": zod.string().nullish(),
   "nomineeRelation": zod.string().nullish(),
   "branchId": zod.number(),
   "branchName": zod.string().nullish(),
@@ -340,7 +340,7 @@ export const GetCustomerResponse = zod.object({
   "pan": zod.string().nullish(),
   "address": zod.string().nullish(),
   "city": zod.string().nullish(),
-  "nomineeNname": zod.string().nullish(),
+  "nomineeName": zod.string().nullish(),
   "nomineeRelation": zod.string().nullish(),
   "branchId": zod.number(),
   "branchName": zod.string().nullish(),
@@ -393,7 +393,7 @@ export const UpdateCustomerResponse = zod.object({
   "pan": zod.string().nullish(),
   "address": zod.string().nullish(),
   "city": zod.string().nullish(),
-  "nomineeNname": zod.string().nullish(),
+  "nomineeName": zod.string().nullish(),
   "nomineeRelation": zod.string().nullish(),
   "branchId": zod.number(),
   "branchName": zod.string().nullish(),
@@ -438,7 +438,7 @@ export const GetCustomerPassbookResponse = zod.object({
   "pan": zod.string().nullish(),
   "address": zod.string().nullish(),
   "city": zod.string().nullish(),
-  "nomineeNname": zod.string().nullish(),
+  "nomineeName": zod.string().nullish(),
   "nomineeRelation": zod.string().nullish(),
   "branchId": zod.number(),
   "branchName": zod.string().nullish(),
@@ -481,6 +481,18 @@ export const GetCustomerTimelineResponseItem = zod.object({
   "date": zod.string()
 })
 export const GetCustomerTimelineResponse = zod.array(GetCustomerTimelineResponseItem)
+
+
+/**
+ * @summary Get customer full history with all related records
+ */
+export const GetCustomerHistoryParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const GetCustomerHistoryResponse = zod.object({
+
+}).passthrough()
 
 
 /**
@@ -1350,7 +1362,7 @@ export const FetchCustomerStatementResponse = zod.object({
   "pan": zod.string().nullish(),
   "address": zod.string().nullish(),
   "city": zod.string().nullish(),
-  "nomineeNname": zod.string().nullish(),
+  "nomineeName": zod.string().nullish(),
   "nomineeRelation": zod.string().nullish(),
   "branchId": zod.number(),
   "branchName": zod.string().nullish(),

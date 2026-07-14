@@ -52,6 +52,7 @@ export * from './emiEntry';
 export * from './emiEntryStatus';
 export * from './fetchCustomerStatementParams';
 export * from './getCollectionReportParams';
+export * from './getCustomerHistory200';
 export * from './getLoanReportParams';
 export * from './healthStatus';
 export * from './listBranchesParams';
