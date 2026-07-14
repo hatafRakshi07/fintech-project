@@ -1930,6 +1930,14 @@ components:
           type: string
         createdAt:
           type: string
+        billingName:
+          type: ["string", "null"]
+        billingPhone:
+          type: ["string", "null"]
+        billingAddress:
+          type: ["string", "null"]
+        billingGstin:
+          type: ["string", "null"]
 
     CollectionInput:
       type: object
@@ -1951,6 +1959,14 @@ components:
         notes:
           type: string
         collectedAt:
+          type: string
+        billingName:
+          type: string
+        billingPhone:
+          type: string
+        billingAddress:
+          type: string
+        billingGstin:
           type: string
 
     CollectionListResponse:

@@ -60,7 +60,7 @@ router.get("/collections", async (req, res): Promise<void> => {
 });
 
 router.post("/collections", async (req, res): Promise<void> => {
-  const { customerId, collectorId, committeeId, loanId, amount, paymentMode, notes, collectedAt } = req.body;
+  const { customerId, collectorId, committeeId, loanId, amount, paymentMode, notes, collectedAt, billingName, billingPhone, billingAddress, billingGstin } = req.body;
   if (!customerId || !amount || !paymentMode) {
     res.status(400).json({ error: "customerId, amount, paymentMode required" });
     return;
@@ -82,6 +82,10 @@ router.post("/collections", async (req, res): Promise<void> => {
       receiptNumber: genReceipt(),
       notes,
       collectedAt: collectedAt ? new Date(collectedAt) : new Date(),
+      billingName: billingName ?? null,
+      billingPhone: billingPhone ?? null,
+      billingAddress: billingAddress ?? null,
+      billingGstin: billingGstin ?? null,
     })
     .returning();
 

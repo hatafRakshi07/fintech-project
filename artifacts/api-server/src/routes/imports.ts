@@ -53,6 +53,8 @@ router.post("/import/customers", async (req, res): Promise<void> => {
   const branchByCode = Object.fromEntries(branches.map((b) => [b.code.toLowerCase(), b.id]));
   const branchById = Object.fromEntries(branches.map((b) => [String(b.id), b.id]));
 
+  const initialCount = await db.$count(customersTable);
+
   const result: ImportResult = {
     total: rows.length,
     created: 0,
@@ -115,8 +117,7 @@ router.post("/import/customers", async (req, res): Promise<void> => {
         result.log.push(`Row ${i + 1}: Updated customer ${name} (${mobile})`);
       } else {
         // Generate reference number
-        const count = await db.$count(customersTable);
-        const refNum = `REF${String(count + result.created + 1).padStart(6, "0")}`;
+        const refNum = `REF${String(initialCount + result.created + 1).padStart(6, "0")}`;
 
         const validStatuses = ["active", "inactive", "blocked"] as const;
         const statusVal = (row.status as string)?.toLowerCase();

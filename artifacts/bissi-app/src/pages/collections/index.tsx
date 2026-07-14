@@ -27,7 +27,8 @@ import {
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
-import { Plus, Wallet, Banknote, Smartphone, Building2, CreditCard, AlertCircle, CheckCircle2, XCircle, Clock } from "lucide-react";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Plus, Wallet, Banknote, Smartphone, Building2, CreditCard, AlertCircle, CheckCircle2, XCircle, Clock, Printer } from "lucide-react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
@@ -41,6 +42,10 @@ const collectionSchema = z.object({
   collectorId: z.coerce.number().optional(),
   committeeId: z.coerce.number().optional(),
   notes: z.string().optional(),
+  billingName: z.string().optional(),
+  billingPhone: z.string().optional(),
+  billingAddress: z.string().optional(),
+  billingGstin: z.string().optional(),
 });
 
 const paymentModeIcon: Record<string, React.ReactNode> = {
@@ -65,6 +70,8 @@ export default function CollectionsPage() {
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [verifyDialogId, setVerifyDialogId] = useState<number | null>(null);
   const [verifyNotes, setVerifyNotes] = useState("");
+  const [selectedBillCollection, setSelectedBillCollection] = useState<any | null>(null);
+  const [showBillingDetails, setShowBillingDetails] = useState(false);
   const { role } = useRole();
   const isManager = ["super_admin", "owner", "branch_manager"].includes(role ?? "");
 
@@ -118,6 +125,10 @@ export default function CollectionsPage() {
       collectorId: undefined,
       committeeId: undefined,
       notes: "",
+      billingName: "",
+      billingPhone: "",
+      billingAddress: "",
+      billingGstin: "",
     },
   });
 
@@ -129,6 +140,10 @@ export default function CollectionsPage() {
       collectorId: values.collectorId || undefined,
       committeeId: values.committeeId || undefined,
       notes: values.notes || undefined,
+      billingName: values.billingName || undefined,
+      billingPhone: values.billingPhone || undefined,
+      billingAddress: values.billingAddress || undefined,
+      billingGstin: values.billingGstin || undefined,
     };
     createCollection.mutate(
       { data: payload },
@@ -277,6 +292,90 @@ export default function CollectionsPage() {
                     </FormItem>
                   )}
                 />
+
+                <div className="flex items-center space-x-2 py-1">
+                  <Checkbox
+                    id="add-billing-details"
+                    checked={showBillingDetails}
+                    onCheckedChange={(checked) => setShowBillingDetails(!!checked)}
+                  />
+                  <label
+                    htmlFor="add-billing-details"
+                    className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer"
+                  >
+                    Add Billing Recipient Details
+                  </label>
+                </div>
+
+                {showBillingDetails && (
+                  <div className="space-y-3 p-3 bg-muted/40 rounded-lg border">
+                    <div className="flex justify-between items-center pb-1 border-b">
+                      <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Recipient Details</span>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        className="h-6 text-xs px-2"
+                        onClick={() => {
+                          const customerId = form.getValues("customerId");
+                          const cust = customers?.data?.find(c => c.id === Number(customerId));
+                          if (cust) {
+                            form.setValue("billingName", cust.name);
+                            form.setValue("billingPhone", cust.mobile);
+                            form.setValue("billingAddress", cust.address || "");
+                          } else {
+                            toast({ title: "Please select a customer first", variant: "destructive" });
+                          }
+                        }}
+                      >
+                        Copy Customer Info
+                      </Button>
+                    </div>
+                    <FormField
+                      control={form.control}
+                      name="billingName"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel className="text-xs">Recipient Name</FormLabel>
+                          <FormControl><Input placeholder="Recipient Full Name" className="h-8 text-sm" {...field} /></FormControl>
+                        </FormItem>
+                      )}
+                    />
+                    <div className="grid grid-cols-2 gap-2">
+                      <FormField
+                        control={form.control}
+                        name="billingPhone"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel className="text-xs">Phone Number</FormLabel>
+                            <FormControl><Input placeholder="10-digit mobile" className="h-8 text-sm" {...field} /></FormControl>
+                          </FormItem>
+                        )}
+                      />
+                      <FormField
+                        control={form.control}
+                        name="billingGstin"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel className="text-xs">GSTIN (Optional)</FormLabel>
+                            <FormControl><Input placeholder="22AAAAA0000A1Z5" className="h-8 text-sm uppercase" {...field} /></FormControl>
+                          </FormItem>
+                        )}
+                      />
+                    </div>
+                    <FormField
+                      control={form.control}
+                      name="billingAddress"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel className="text-xs">Address</FormLabel>
+                          <FormControl><Input placeholder="Recipient Address" className="h-8 text-sm" {...field} /></FormControl>
+                        </FormItem>
+                      )}
+                    />
+                  </div>
+                )}
+
                 <div className="flex justify-end pt-4">
                   <Button type="submit" disabled={createCollection.isPending}>
                     {createCollection.isPending ? "Saving..." : "Record Payment"}
@@ -381,17 +480,18 @@ export default function CollectionsPage() {
                 <TableHead className="text-right">Amount</TableHead>
                 <TableHead>Receipt</TableHead>
                 <TableHead>Date</TableHead>
-                <TableHead className="pr-4">Status</TableHead>
+                <TableHead>Status</TableHead>
+                <TableHead className="pr-4 text-right">Bill</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {isLoading ? (
                 <TableRow>
-                  <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">Loading collections...</TableCell>
+                  <TableCell colSpan={9} className="text-center py-8 text-muted-foreground">Loading collections...</TableCell>
                 </TableRow>
               ) : !collections?.data?.length ? (
                 <TableRow>
-                  <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">No collections found</TableCell>
+                  <TableCell colSpan={9} className="text-center py-8 text-muted-foreground">No collections found</TableCell>
                 </TableRow>
               ) : (
                 collections.data.map((col) => (
@@ -413,7 +513,17 @@ export default function CollectionsPage() {
                     <TableCell className="text-sm text-muted-foreground">
                       {new Date(col.collectedAt).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })}
                     </TableCell>
-                    <TableCell className="pr-4">{verificationBadge((col as any).verificationStatus ?? "pending")}</TableCell>
+                    <TableCell>{verificationBadge((col as any).verificationStatus ?? "pending")}</TableCell>
+                    <TableCell className="pr-4 text-right">
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        className="h-8 w-8 text-muted-foreground hover:text-primary"
+                        onClick={() => setSelectedBillCollection(col)}
+                      >
+                        <Printer className="h-4 w-4" />
+                      </Button>
+                    </TableCell>
                   </TableRow>
                 ))
               )}
@@ -533,6 +643,151 @@ export default function CollectionsPage() {
               </Button>
             </div>
           </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* ── Printable Invoice/Bill Dialog ── */}
+      <Dialog open={selectedBillCollection !== null} onOpenChange={(o) => { if (!o) setSelectedBillCollection(null); }}>
+        <DialogContent className="max-w-xl p-6 bg-white text-black dark:bg-zinc-950 dark:text-zinc-50 border">
+          <DialogHeader className="print:hidden">
+            <DialogTitle>Receipt / Bill Preview</DialogTitle>
+          </DialogHeader>
+          {selectedBillCollection && (
+            <div className="space-y-6">
+              {/* Receipt Template */}
+              <div id="printable-receipt" className="p-4 bg-white text-black rounded border border-zinc-200 space-y-4">
+                {/* Header */}
+                <div className="flex justify-between items-start border-b pb-4">
+                  <div>
+                    <h2 className="text-xl font-bold tracking-tight text-zinc-900">RECEIPT / INVOICE</h2>
+                    <p className="text-xs text-zinc-500">Bissi Fund Management System</p>
+                    <p className="text-xs text-zinc-500 mt-1">Receipt No: <span className="font-mono font-semibold">{selectedBillCollection.receiptNumber || `RCP${selectedBillCollection.id}`}</span></p>
+                    <p className="text-xs text-zinc-500">Date: {new Date(selectedBillCollection.collectedAt).toLocaleDateString("en-IN", { day: "2-digit", month: "long", year: "numeric" })}</p>
+                  </div>
+                  <div className="text-right">
+                    <h3 className="font-bold text-zinc-800">OFFICE RECEIPT</h3>
+                    <span className="text-xs px-2 py-0.5 rounded bg-green-100 text-green-800 border border-green-200 font-semibold uppercase">{selectedBillCollection.verificationStatus}</span>
+                  </div>
+                </div>
+
+                {/* Recipient details */}
+                <div className="grid grid-cols-2 gap-4 text-xs">
+                  <div>
+                    <h4 className="font-semibold text-zinc-500 uppercase tracking-wider mb-1">Billing Recipient</h4>
+                    <p className="font-semibold text-zinc-900">{selectedBillCollection.billingName || selectedBillCollection.customerName}</p>
+                    <p className="text-zinc-600">{selectedBillCollection.billingPhone || selectedBillCollection.customerMobile || "—"}</p>
+                    {selectedBillCollection.billingAddress && <p className="text-zinc-600">{selectedBillCollection.billingAddress}</p>}
+                    {selectedBillCollection.billingGstin && <p className="text-zinc-600 font-semibold mt-1">GSTIN: <span className="font-mono">{selectedBillCollection.billingGstin.toUpperCase()}</span></p>}
+                  </div>
+                  <div className="text-right">
+                    <h4 className="font-semibold text-zinc-500 uppercase tracking-wider mb-1">Customer Info</h4>
+                    <p className="font-semibold text-zinc-900">{selectedBillCollection.customerName}</p>
+                    <p className="text-zinc-600">{selectedBillCollection.customerMobile || "—"}</p>
+                  </div>
+                </div>
+
+                {/* Transaction details table */}
+                <Table className="border rounded mt-4">
+                  <TableHeader className="bg-zinc-50">
+                    <TableRow>
+                      <TableHead className="text-xs font-semibold py-2">Description</TableHead>
+                      <TableHead className="text-xs font-semibold text-center py-2">Payment Mode</TableHead>
+                      <TableHead className="text-xs font-semibold text-right py-2 pr-4">Amount</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    <TableRow>
+                      <TableCell className="py-3">
+                        <div className="font-medium text-zinc-900">
+                          {selectedBillCollection.committeeName ? `Committee Payment - ${selectedBillCollection.committeeName}` : "General Deposit / Repayment"}
+                        </div>
+                        {selectedBillCollection.notes && <div className="text-xs text-zinc-500 mt-0.5">{selectedBillCollection.notes}</div>}
+                      </TableCell>
+                      <TableCell className="text-center py-3 capitalize text-zinc-800 font-medium">{selectedBillCollection.paymentMode}</TableCell>
+                      <TableCell className="text-right py-3 pr-4 font-bold text-zinc-900">{formatCurrency(selectedBillCollection.amount)}</TableCell>
+                    </TableRow>
+                    {/* Total */}
+                    <TableRow className="border-t bg-zinc-50/50">
+                      <TableCell colSpan={2} className="text-right font-semibold py-2 text-zinc-600">Total Paid Amount:</TableCell>
+                      <TableCell className="text-right font-bold py-2 pr-4 text-zinc-900 text-sm">{formatCurrency(selectedBillCollection.amount)}</TableCell>
+                    </TableRow>
+                  </TableBody>
+                </Table>
+
+                {/* Footer notes */}
+                <div className="pt-4 border-t flex justify-between items-end text-[10px] text-zinc-400">
+                  <p>This is a computer-generated receipt and does not require a physical signature.</p>
+                  <p className="font-semibold">Thank you for your payment!</p>
+                </div>
+              </div>
+
+              {/* Actions */}
+              <div className="flex justify-end gap-2 pt-2 print:hidden">
+                <Button variant="ghost" onClick={() => setSelectedBillCollection(null)}>Close</Button>
+                <Button className="gap-2" onClick={() => {
+                  const printContent = document.getElementById("printable-receipt")?.outerHTML || "";
+                  const win = window.open("", "_blank");
+                  if (win) {
+                    win.document.write(`
+                      <html>
+                        <head>
+                          <title>Receipt_${selectedBillCollection.receiptNumber || selectedBillCollection.id}</title>
+                          <style>
+                            body { font-family: system-ui, sans-serif; padding: 20px; color: black; background: white; }
+                            .p-4 { padding: 1rem; }
+                            .rounded { border-radius: 0.375rem; }
+                            .border { border: 1px solid #e4e4e7; }
+                            .space-y-4 > * + * { margin-top: 1rem; }
+                            .space-y-6 > * + * { margin-top: 1.5rem; }
+                            .flex { display: flex; }
+                            .justify-between { justify-content: space-between; }
+                            .items-start { align-items: flex-start; }
+                            .items-end { align-items: flex-end; }
+                            .border-b { border-bottom: 1px solid #e4e4e7; }
+                            .pb-4 { padding-bottom: 1rem; }
+                            .pt-4 { padding-top: 1rem; }
+                            .border-t { border-top: 1px solid #e4e4e7; }
+                            .text-xl { font-size: 1.25rem; line-height: 1.75rem; }
+                            .font-bold { font-weight: 700; }
+                            .tracking-tight { letter-spacing: -0.025em; }
+                            .text-xs { font-size: 0.75rem; }
+                            .text-sm { font-size: 0.875rem; }
+                            .text-zinc-500 { color: #71717a; }
+                            .text-zinc-600 { color: #52525b; }
+                            .text-zinc-900 { color: #18181b; }
+                            .text-right { text-align: right; }
+                            .font-semibold { font-weight: 600; }
+                            .font-mono { font-family: monospace; }
+                            .grid { display: grid; }
+                            .grid-cols-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+                            .gap-4 { gap: 1rem; }
+                            .mb-1 { margin-bottom: 0.25rem; }
+                            .mt-1 { margin-top: 0.25rem; }
+                            .mt-4 { margin-top: 1rem; }
+                            table { width: 100%; border-collapse: collapse; margin-top: 1rem; }
+                            th, td { border: 1px solid #e4e4e7; padding: 8px; text-align: left; font-size: 12px; }
+                            th { background-color: #f4f4f5; }
+                            .text-center { text-align: center; }
+                            .capitalize { text-transform: capitalize; }
+                            .bg-green-100 { background-color: #dcfce7; }
+                            .text-green-800 { color: #166534; }
+                            .px-2 { padding-left: 0.5rem; padding-right: 0.5rem; }
+                            .py-0.5 { padding-top: 0.125rem; padding-bottom: 0.125rem; }
+                          </style>
+                        </head>
+                        <body onload="window.print(); window.close();">
+                          \${printContent}
+                        </body>
+                      </html>
+                    `);
+                    win.document.close();
+                  }
+                }}>
+                  <Printer className="h-4 w-4 mr-2" /> Print Bill
+                </Button>
+              </div>
+            </div>
+          )}
         </DialogContent>
       </Dialog>
     </div>

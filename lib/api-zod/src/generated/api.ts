@@ -1064,7 +1064,11 @@ export const ListCollectionsResponse = zod.object({
   "receiptNumber": zod.string().nullish(),
   "notes": zod.string().nullish(),
   "collectedAt": zod.string(),
-  "createdAt": zod.string()
+  "createdAt": zod.string(),
+  "billingName": zod.string().nullish(),
+  "billingPhone": zod.string().nullish(),
+  "billingAddress": zod.string().nullish(),
+  "billingGstin": zod.string().nullish()
 })),
   "total": zod.number(),
   "page": zod.number(),
@@ -1083,7 +1087,11 @@ export const CreateCollectionBody = zod.object({
   "amount": zod.number(),
   "paymentMode": zod.enum(['cash', 'upi', 'bank', 'card']),
   "notes": zod.string().optional(),
-  "collectedAt": zod.string().optional()
+  "collectedAt": zod.string().optional(),
+  "billingName": zod.string().optional(),
+  "billingPhone": zod.string().optional(),
+  "billingAddress": zod.string().optional(),
+  "billingGstin": zod.string().optional()
 })
 
 export const CreateCollectionResponse = zod.object({
@@ -1102,7 +1110,11 @@ export const CreateCollectionResponse = zod.object({
   "receiptNumber": zod.string().nullish(),
   "notes": zod.string().nullish(),
   "collectedAt": zod.string(),
-  "createdAt": zod.string()
+  "createdAt": zod.string(),
+  "billingName": zod.string().nullish(),
+  "billingPhone": zod.string().nullish(),
+  "billingAddress": zod.string().nullish(),
+  "billingGstin": zod.string().nullish()
 })
 
 
@@ -1129,7 +1141,11 @@ export const GetCollectionResponse = zod.object({
   "receiptNumber": zod.string().nullish(),
   "notes": zod.string().nullish(),
   "collectedAt": zod.string(),
-  "createdAt": zod.string()
+  "createdAt": zod.string(),
+  "billingName": zod.string().nullish(),
+  "billingPhone": zod.string().nullish(),
+  "billingAddress": zod.string().nullish(),
+  "billingGstin": zod.string().nullish()
 })
 
 

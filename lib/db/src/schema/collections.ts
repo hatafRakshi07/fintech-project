@@ -23,6 +23,11 @@ export const collectionsTable = pgTable("collections", {
   verifiedById: integer("verified_by_id"),
   verifiedAt: timestamp("verified_at", { withTimezone: true }),
   verificationNotes: text("verification_notes"),
+  // Billing recipient details
+  billingName: text("billing_name"),
+  billingPhone: text("billing_phone"),
+  billingAddress: text("billing_address"),
+  billingGstin: text("billing_gstin"),
 });
 
 export const insertCollectionSchema = createInsertSchema(collectionsTable).omit({ id: true, createdAt: true });

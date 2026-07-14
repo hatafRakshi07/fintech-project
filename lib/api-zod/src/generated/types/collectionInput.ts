@@ -16,4 +16,8 @@ export interface CollectionInput {
   paymentMode: CollectionInputPaymentMode;
   notes?: string;
   collectedAt?: string;
+  billingName?: string;
+  billingPhone?: string;
+  billingAddress?: string;
+  billingGstin?: string;
 }

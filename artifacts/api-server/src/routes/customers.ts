@@ -15,8 +15,11 @@ async function getNextRef(): Promise<string> {
 
 router.get("/customers", async (req, res): Promise<void> => {
   const { search, branchId, status, page = "1", limit = "20" } = req.query;
-  const pageNum = parseInt(page as string, 10);
-  const limitNum = Math.min(parseInt(limit as string, 10), 100);
+  let pageNum = parseInt(page as string, 10);
+  if (isNaN(pageNum) || pageNum <= 0) pageNum = 1;
+  let limitNum = parseInt(limit as string, 10);
+  if (isNaN(limitNum) || limitNum <= 0) limitNum = 20;
+  limitNum = Math.min(limitNum, 100);
   const offset = (pageNum - 1) * limitNum;
 
   let query = db

@@ -34,4 +34,12 @@ export interface Collection {
   notes?: string | null;
   collectedAt: string;
   createdAt: string;
+  /** @nullable */
+  billingName?: string | null;
+  /** @nullable */
+  billingPhone?: string | null;
+  /** @nullable */
+  billingAddress?: string | null;
+  /** @nullable */
+  billingGstin?: string | null;
 }

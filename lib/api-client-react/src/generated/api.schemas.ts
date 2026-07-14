@@ -659,6 +659,14 @@ export interface Collection {
   notes?: string | null;
   collectedAt: string;
   createdAt: string;
+  /** @nullable */
+  billingName?: string | null;
+  /** @nullable */
+  billingPhone?: string | null;
+  /** @nullable */
+  billingAddress?: string | null;
+  /** @nullable */
+  billingGstin?: string | null;
 }
 
 export type CollectionInputPaymentMode = typeof CollectionInputPaymentMode[keyof typeof CollectionInputPaymentMode];
@@ -680,6 +688,10 @@ export interface CollectionInput {
   paymentMode: CollectionInputPaymentMode;
   notes?: string;
   collectedAt?: string;
+  billingName?: string;
+  billingPhone?: string;
+  billingAddress?: string;
+  billingGstin?: string;
 }
 
 export interface CollectionListResponse {

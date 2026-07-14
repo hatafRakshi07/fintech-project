@@ -6,16 +6,17 @@ const router: IRouter = Router();
 
 router.get("/branches", async (req, res): Promise<void> => {
   const { search } = req.query;
-  let rows = await db.select().from(branchesTable).orderBy(branchesTable.name);
-
+  let query = db.select().from(branchesTable).$dynamic();
   if (search && typeof search === "string") {
-    rows = rows.filter(
-      (b) =>
-        b.name.toLowerCase().includes(search.toLowerCase()) ||
-        b.city.toLowerCase().includes(search.toLowerCase()) ||
-        b.code.toLowerCase().includes(search.toLowerCase())
+    query = (query as any).where(
+      or(
+        ilike(branchesTable.name, `%${search}%`),
+        ilike(branchesTable.city, `%${search}%`),
+        ilike(branchesTable.code, `%${search}%`)
+      )
     );
   }
+  const rows = await (query as any).orderBy(branchesTable.name) as Array<typeof branchesTable.$inferSelect>;
 
   const customerCounts = await db
     .select({ branchId: customersTable.branchId, count: sql<number>`count(*)::int` })
