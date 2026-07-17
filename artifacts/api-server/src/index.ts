@@ -1,4 +1,5 @@
 import app from "./app";
+// Trigger fresh redeploy
 import { logger } from "./lib/logger";
 import { closePool } from "@workspace/db";
 import { startScheduler, stopScheduler } from "./lib/scheduler";
