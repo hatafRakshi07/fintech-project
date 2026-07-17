@@ -1,7 +1,6 @@
 {
   "version": 2,
   "buildCommand": "pnpm run build",
-  "outputDirectory": "artifacts/api-server/dist",
   "builds": [
     {
       "src": "artifacts/api-server/api/index.mjs",
