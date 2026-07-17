@@ -22,11 +22,8 @@ function run(cmd, opts = {}) {
 
 console.log('🚀 Starting Vercel build...\n');
 
-// 1. Build shared libraries first
-console.log('📦 Building shared libraries...');
-run('pnpm --filter @workspace/db build');
-run('pnpm --filter @workspace/api-zod build');
-run('pnpm --filter @workspace/api-client-react build');
+// 1. Shared libraries do not need separate compilation (they are resolved from TS directly)
+console.log('📦 Skipping shared libraries compilation...');
 
 // 2. Build frontend apps
 console.log('\n🎨 Building frontend apps...');
