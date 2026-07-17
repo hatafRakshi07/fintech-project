@@ -48,12 +48,12 @@ REM Step 3: Start API Server (port 5001)
 echo [3/4] Starting API Server on port 5001...
 set DATABASE_URL=postgres://postgres:postgres123@localhost:5432/bissi_db
 set PORT=5001
-start "Bissi API Server" cmd /k "cd /d C:\Users\iSN_kota_T52\Desktop\File-Processor\artifacts\api-server && node --enable-source-maps --env-file=.env .\dist\index.mjs"
+start "Bissi API Server" cmd /k "cd /d "%~dp0artifacts\api-server" && node --enable-source-maps --env-file=.env .\dist\index.mjs"
 timeout /t 2 /nobreak >nul
 
 REM Step 4: Start Frontend (port 5000)
 echo [4/4] Starting Frontend on port 5000...
-start "Bissi Frontend" cmd /k "cd /d C:\Users\iSN_kota_T52\Desktop\File-Processor && set PORT=5000 && pnpm --filter @workspace/bissi-app run dev"
+start "Bissi Frontend" cmd /k "cd /d "%~dp0" && set PORT=5000 && pnpm --filter @workspace/bissi-app run dev"
 
 echo.
 echo ============================================

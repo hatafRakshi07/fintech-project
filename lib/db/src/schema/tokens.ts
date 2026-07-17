@@ -1,6 +1,6 @@
 import { pgTable, serial, text, integer, timestamp, pgEnum } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
-import { z } from "zod/v4";
+import { z } from "zod";
 
 export const tokenStatusEnum = pgEnum("token_status", ["active", "lucky", "completed", "pending", "cancelled", "reserved", "blocked", "transferred", "closed"]);
 

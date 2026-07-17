@@ -1,10 +1,12 @@
+﻿"""
+import os
+Import BYAJ KI LIST (Interest Accounts) â†’ Neon DB
 """
-Import BYAJ KI LIST (Interest Accounts) → Neon DB
-"""
+import os
 import re, datetime, psycopg2, psycopg2.extras, openpyxl
 
 DB_URL    = "postgresql://postgres@127.0.0.1:5432/bissi_db"
-XLSX_FILE = r"C:\Users\iSN_kota_T52\Downloads\Bissi folder.xlsx"
+XLSX_FILE = os.path.join(os.path.expanduser("~"), "Downloads", "Bissi folder.xlsx")
 
 def clean_name(v):
     if not v: return None
@@ -33,7 +35,7 @@ cur.execute("SELECT id FROM branches WHERE code = 'SKA001'")
 row = cur.fetchone()
 BRANCH_ID = row[0] if row else 4
 
-# Get customer mobile → id map
+# Get customer mobile â†’ id map
 cur.execute("SELECT id, mobile, name FROM customers WHERE branch_id = %s", (BRANCH_ID,))
 mobile_to_id = {}
 name_to_id   = {}
@@ -74,7 +76,7 @@ for row in ws.iter_rows(min_row=2, values_only=True):
         continue
 
     # principal_amount: store monthly_interest * 50 as rough estimate if unknown
-    # Rate default: 2% per month → principal = monthly_amt / 2 * 100
+    # Rate default: 2% per month â†’ principal = monthly_amt / 2 * 100
     principal = round(monthly_amt * 50, 2)
 
     accounts.append((
@@ -109,3 +111,4 @@ print("Open app -> Interests to see them")
 print("="*50)
 
 cur.close(); conn.close()
+

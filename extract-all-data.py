@@ -1,4 +1,4 @@
-# -*- coding: utf-8 -*-
+﻿# -*- coding: utf-8 -*-
 """
 Extract ALL real data from Bissi folder.xlsx into JSON files.
 Outputs:
@@ -22,12 +22,12 @@ from datetime import datetime
 
 sys.stdout.reconfigure(encoding='utf-8')
 
-EXCEL_PATH = r"C:\Users\iSN_kota_T52\Downloads\Bissi folder.xlsx"
-OUTPUT_DIR = r"C:\Users\iSN_kota_T52\Desktop\File-Processor"
+EXCEL_PATH = os.path.join(os.path.expanduser("~"), "Downloads", "Bissi folder.xlsx")
+OUTPUT_DIR = os.path.dirname(os.path.abspath(__file__))
 
 wb = openpyxl.load_workbook(EXCEL_PATH, data_only=True)
 
-# ─── Helpers ──────────────────────────────────────────────────────────────────
+# â”€â”€â”€ Helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 def clean_str(v):
     """Clean cell value to string or None."""
@@ -90,7 +90,7 @@ def make_customer_key(name, mobile):
     m = clean_mobile(mobile) or ''
     return f"{n}|{m}"
 
-# ─── 1. Extract Committee Members (Customers + Tokens) ──────────────────────
+# â”€â”€â”€ 1. Extract Committee Members (Customers + Tokens) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 print("=== Phase 1: Extracting committee members ===")
 
@@ -255,7 +255,7 @@ print(f"\n  Total unique customers (from committees): {len(all_customers)}")
 print(f"  Total tokens: {len(all_tokens)}")
 print(f"  Total collection records: {len(all_collections)}")
 
-# ─── 2. Extract BYAJ KI LIST (Interest Accounts) ───────────────────────────
+# â”€â”€â”€ 2. Extract BYAJ KI LIST (Interest Accounts) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 print("\n=== Phase 2: Extracting interest accounts (BYAJ KI LIST) ===")
 
@@ -299,7 +299,7 @@ for r in range(2, ws.max_row + 1):
 
 print(f"  Interest accounts extracted: {len(interests)}")
 
-# ─── 3. Extract Loans (nikku ji loan) ──────────────────────────────────────
+# â”€â”€â”€ 3. Extract Loans (nikku ji loan) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 print("\n=== Phase 3: Extracting loans (nikku ji loan) ===")
 
@@ -354,7 +354,7 @@ for r in range(2, ws.max_row + 1):
 
 print(f"  Loan records extracted: {len(loans)}")
 
-# ─── 4. Extract Daily Collections ──────────────────────────────────────────
+# â”€â”€â”€ 4. Extract Daily Collections â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 print("\n=== Phase 4: Extracting daily collections ===")
 
@@ -411,7 +411,7 @@ for sname in ['Daily collection', 'COLLECTION office 2', 'recovery collection']:
 
 print(f"  Total daily collection records: {len(daily_collections)}")
 
-# ─── 5. Extract Gift Records ────────────────────────────────────────────────
+# â”€â”€â”€ 5. Extract Gift Records â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 print("\n=== Phase 5: Extracting gift records ===")
 
@@ -471,7 +471,7 @@ for sname in GIFT_RECORD_SHEETS:
 
 print(f"  Total gift records: {len(gifts)}")
 
-# ─── 6. Extract Lucky Draw (Lucky Token list + gift sheets) ─────────────────
+# â”€â”€â”€ 6. Extract Lucky Draw (Lucky Token list + gift sheets) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 print("\n=== Phase 6: Extracting lucky draw data ===")
 
@@ -536,7 +536,7 @@ for sname in GIFT_SHEET_NAMES:
 
 print(f"  Total lucky draw entries: {len(lotteries)}")
 
-# ─── 7. Also check Manager collection + monthly installment ────────────────
+# â”€â”€â”€ 7. Also check Manager collection + monthly installment â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 print("\n=== Phase 7: Extracting manager & monthly installment data ===")
 
@@ -584,7 +584,7 @@ for sname in ['Manager collection', 'nikku ji online']:
             count += 1
         print(f"    Records: {count}")
 
-# ─── Final: Save all JSON ───────────────────────────────────────────────────
+# â”€â”€â”€ Final: Save all JSON â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 print(f"\n=== Final Stats ===")
 print(f"  Total unique customers: {len(all_customers)}")
@@ -623,4 +623,5 @@ save_json('extracted_daily_collections.json', daily_collections)
 save_json('extracted_gifts.json', gifts)
 save_json('extracted_lotteries.json', lotteries)
 
-print("\n✅ All data extracted successfully!")
+print("\nâœ… All data extracted successfully!")
+

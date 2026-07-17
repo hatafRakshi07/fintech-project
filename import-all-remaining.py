@@ -1,14 +1,17 @@
-"""
+﻿"""
+import os
 Import ALL remaining data from Bissi folder.xlsx:
 1. Gift categories & inventory (gift stock maintain)
 2. Gift distributions (per committee gift records)
 3. Collections (Daily collection + COLLECTION office 2)
 """
+import os
 import re, datetime, psycopg2, psycopg2.extras, openpyxl
+import os
 from collections import defaultdict
 
 DB_URL    = "postgresql://neondb_owner:npg_qSQN29ZxTKzt@ep-frosty-cloud-at51tjed-pooler.c-9.us-east-1.aws.neon.tech/neondb?sslmode=require"
-XLSX_FILE = r"C:\Users\iSN_kota_T52\Downloads\Bissi folder.xlsx"
+XLSX_FILE = os.path.join(os.path.expanduser("~"), "Downloads", "Bissi folder.xlsx")
 
 def cn(v): return str(v).strip()[:200] if v and str(v).strip() != 'None' else None
 def mob(v):
@@ -53,12 +56,12 @@ token_cid = {(r[0], str(int(float(r[1])))): r[2] for r in cur.fetchall()}
 
 wb = openpyxl.load_workbook(XLSX_FILE)
 
-# ═══════════════════════════════════════════════════════════════════════
+# â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 # 1. GIFT CATEGORIES & INVENTORY
-# ═══════════════════════════════════════════════════════════════════════
+# â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 print("--- Gift Categories & Inventory ---")
 ws = wb['gift stock maintain']
-gift_name_to_id = {}  # gift_name (lower) → gift_inventory.id
+gift_name_to_id = {}  # gift_name (lower) â†’ gift_inventory.id
 
 cur.execute("SELECT COUNT(*) FROM gift_categories WHERE branch_id=%s", (BRANCH_ID,))
 if cur.fetchone()[0] == 0:
@@ -88,9 +91,9 @@ else:
         gift_name_to_id[gn.lower().strip()] = gid
     print(f"  {len(gift_name_to_id)} gift items already exist")
 
-# ═══════════════════════════════════════════════════════════════════════
+# â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 # 2. GIFT DISTRIBUTIONS  
-# ═══════════════════════════════════════════════════════════════════════
+# â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 print("\n--- Gift Distributions ---")
 GIFT_SHEETS = [
     ('Sawariya seth bissi gift record', 'Sawariya Seth Bissi',       0, 1, 3),
@@ -153,9 +156,9 @@ if cur.fetchone()[0] == 0:
 else:
     print("  Gift distributions already exist, skipping")
 
-# ═══════════════════════════════════════════════════════════════════════
+# â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 # 3. COLLECTIONS
-# ═══════════════════════════════════════════════════════════════════════
+# â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 print("\n--- Collections (Daily collection + office 2) ---")
 COLL_SHEETS = ['Daily collection', 'COLLECTION office 2', 'nikku ji online', 'Manager collection']
 
@@ -198,7 +201,8 @@ if cur.fetchone()[0] == 0:
 else:
     print("  Collections already exist, skipping")
 
-# ═══════════════════════════════════════════════════════════════════════
+# â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 print("\n" + "="*50)
 print("ALL DATA IMPORTED!")
 cur.close(); conn.close()
+

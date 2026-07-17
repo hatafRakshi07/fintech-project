@@ -1,6 +1,6 @@
 import { pgTable, serial, text, integer, timestamp, pgEnum, numeric, date, boolean } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
-import { z } from "zod/v4";
+import { z } from "zod";
 
 export const giftStatusEnum = pgEnum("gift_status", ["available", "reserved", "distributed", "returned", "damaged"]);
 export const giftDistributionStatusEnum = pgEnum("gift_distribution_status", ["pending", "given", "returned"]);

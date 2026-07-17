@@ -1,6 +1,6 @@
 import { pgTable, serial, text, integer, timestamp, pgEnum, numeric, date } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
-import { z } from "zod/v4";
+import { z } from "zod";
 
 export const loanInterestTypeEnum = pgEnum("loan_interest_type", ["flat", "reducing"]);
 export const loanStatusEnum = pgEnum("loan_status", ["pending", "approved", "active", "closed", "rejected", "overdue"]);

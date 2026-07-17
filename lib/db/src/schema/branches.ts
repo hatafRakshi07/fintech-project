@@ -1,6 +1,6 @@
 import { pgTable, serial, text, timestamp, pgEnum } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
-import { z } from "zod/v4";
+import { z } from "zod";
 
 export const branchStatusEnum = pgEnum("branch_status", ["active", "inactive"]);
 

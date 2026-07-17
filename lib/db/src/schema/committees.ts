@@ -1,6 +1,6 @@
 import { pgTable, serial, text, integer, timestamp, pgEnum, numeric, date } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
-import { z } from "zod/v4";
+import { z } from "zod";
 
 export const committeeTypeEnum = pgEnum("committee_type", ["daily", "weekly", "monthly", "festival", "special"]);
 export const committeeStatusEnum = pgEnum("committee_status", ["active", "completed", "cancelled"]);

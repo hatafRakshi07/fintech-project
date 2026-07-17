@@ -1,6 +1,6 @@
 import { pgTable, serial, text, integer, timestamp, pgEnum, numeric, date } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
-import { z } from "zod/v4";
+import { z } from "zod";
 
 export const lotteryStatusEnum = pgEnum("lottery_status", ["scheduled", "completed", "cancelled"]);
 export const lotteryRewardTypeEnum = pgEnum("lottery_reward_type", ["cash", "gift"]);

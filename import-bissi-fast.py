@@ -1,15 +1,19 @@
-"""
-Fast bulk import: Bissi folder.xlsx → Neon PostgreSQL
+﻿"""
+Fast bulk import: Bissi folder.xlsx â†’ Neon PostgreSQL
 Direct DB insert (bypasses API for speed)
 Run: python import-bissi-fast.py
 """
+import os
 import re, datetime
+import os
 import psycopg2
+import os
 import psycopg2.extras
+import os
 import openpyxl
 
 DB_URL    = "postgresql://neondb_owner:npg_qSQN29ZxTKzt@ep-frosty-cloud-at51tjed-pooler.c-9.us-east-1.aws.neon.tech/neondb?sslmode=require"
-XLSX_FILE = r"C:\Users\iSN_kota_T52\Downloads\Bissi folder.xlsx"
+XLSX_FILE = os.path.join(os.path.expanduser("~"), "Downloads", "Bissi folder.xlsx")
 
 def clean_mobile(val):
     if not val: return None
@@ -27,7 +31,7 @@ conn = psycopg2.connect(DB_URL)
 cur  = conn.cursor()
 print("  Connected!\n")
 
-# ── Branch ─────────────────────────────────────────────────────────────────
+# â”€â”€ Branch â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 cur.execute("SELECT id FROM branches WHERE code = 'SKA001'")
 row = cur.fetchone()
 if row:
@@ -43,7 +47,7 @@ else:
     conn.commit()
     print(f"Created branch ID: {BRANCH_ID}")
 
-# ── Read Excel ─────────────────────────────────────────────────────────────
+# â”€â”€ Read Excel â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 print("\nReading Excel...")
 wb = openpyxl.load_workbook(XLSX_FILE)
 
@@ -81,7 +85,7 @@ for sheet_name, comm_name, amount, col_tok, col_name, col_mob, col_addr, col_ref
 
 print(f"\n  Unique customers: {len(customers)}")
 
-# ── Bulk insert customers ──────────────────────────────────────────────────
+# â”€â”€ Bulk insert customers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 print("\nInserting customers (skipping already imported)...")
 cur.execute("SELECT COUNT(*) FROM customers WHERE branch_id = %s", (BRANCH_ID,))
 existing_count = cur.fetchone()[0]
@@ -103,15 +107,15 @@ else:
     conn.commit()
     print(f"  Inserted {len(cust_data)} customers")
 
-# Build mobile → DB id map
+# Build mobile â†’ DB id map
 cur.execute("SELECT id, mobile FROM customers WHERE branch_id = %s", (BRANCH_ID,))
 db_customers = cur.fetchall()
 mobile_to_id = {row[1]: row[0] for row in db_customers if row[1]}
 
-# ── Create Committees ──────────────────────────────────────────────────────
+# â”€â”€ Create Committees â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 print("\nCreating committees...")
 today = datetime.date.today()
-comm_id_map = {}  # sheet_name → committee_id
+comm_id_map = {}  # sheet_name â†’ committee_id
 for sheet_name, comm_name, amount, *_ in SHEETS:
     cur.execute("SELECT id FROM committees WHERE name = %s AND branch_id = %s", (comm_name, BRANCH_ID))
     existing = cur.fetchone()
@@ -129,7 +133,7 @@ for sheet_name, comm_name, amount, *_ in SHEETS:
         print(f"  Created: {comm_name} (ID: {comm_id})")
     comm_id_map[sheet_name] = comm_id
 
-# ── Import Tokens (one per customer-per-token slot) ────────────────────────
+# â”€â”€ Import Tokens (one per customer-per-token slot) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 print("\nImporting tokens...")
 total_tokens = 0
 
@@ -148,7 +152,7 @@ for sheet_name, comm_name, amount, col_tok, col_name, col_mob, col_addr, col_ref
     token_data = []
     name_to_cust_id = {}
 
-    # Build name → customer_id map for this sheet (fallback for missing mobile)
+    # Build name â†’ customer_id map for this sheet (fallback for missing mobile)
     cur.execute("""
         SELECT id, name, mobile FROM customers WHERE branch_id = %s
     """, (BRANCH_ID,))
@@ -198,3 +202,4 @@ print(f"  Committees: {len(comm_id_map)} created")
 print(f"  Tokens:     {total_tokens} imported")
 print("="*50)
 print("\nOpen the app and check Customers + Committees + Tokens tabs!")
+

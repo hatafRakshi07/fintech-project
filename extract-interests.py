@@ -1,6 +1,7 @@
+﻿import os
 import re, datetime, json, openpyxl
 
-XLSX_FILE = r"C:\Users\iSN_kota_T52\Downloads\Bissi folder.xlsx"
+XLSX_FILE = os.path.join(os.path.expanduser("~"), "Downloads", "Bissi folder.xlsx")
 CUSTOMERS_JSON = "customers_dump.json"
 OUTPUT_JSON = "interests_dump.json"
 
@@ -92,3 +93,4 @@ with open(OUTPUT_JSON, "w", encoding="utf-8") as f:
     json.dump(accounts, f, indent=2)
 
 print("Done! Saved to interests_dump.json")
+

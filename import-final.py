@@ -1,14 +1,16 @@
-"""
+﻿"""
+import os
 Import ALL remaining data:
 1. Loan payments (nikku ji loan)
 2. Recovery/pending amounts (other pending amounts)
 3. Monthly installments  
 4. Update customer addresses from bissi sheets
 """
+import os
 import re, datetime, psycopg2, psycopg2.extras, openpyxl
 
 DB_URL    = "postgresql://neondb_owner:npg_qSQN29ZxTKzt@ep-frosty-cloud-at51tjed-pooler.c-9.us-east-1.aws.neon.tech/neondb?sslmode=require"
-XLSX_FILE = r"C:\Users\iSN_kota_T52\Downloads\Bissi folder.xlsx"
+XLSX_FILE = os.path.join(os.path.expanduser("~"), "Downloads", "Bissi folder.xlsx")
 
 def cn(v): return str(v).strip()[:500] if v and str(v).strip() not in ('None','nan','') else None
 def mob(v):
@@ -49,9 +51,9 @@ for cid, m, n, addr in cur.fetchall():
 
 wb = openpyxl.load_workbook(XLSX_FILE)
 
-# ══════════════════════════════════════════════════════════════════════
+# â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 # 1. UPDATE CUSTOMER ADDRESSES from all bissi sheets
-# ══════════════════════════════════════════════════════════════════════
+# â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 print("--- Updating customer addresses ---")
 SHEETS_WITH_ADDR = [
     ('Sawariya seth 5 date',           1, 3, 5),   # col_name, col_mob, col_addr
@@ -78,9 +80,9 @@ if addr_updates:
 else:
     print("  No new addresses to update")
 
-# ══════════════════════════════════════════════════════════════════════
-# 2. LOAN RECORDS (nikku ji loan — debit = loan disbursed)
-# ══════════════════════════════════════════════════════════════════════
+# â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+# 2. LOAN RECORDS (nikku ji loan â€” debit = loan disbursed)
+# â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 print("\n--- Loan records (nikku ji loan) ---")
 ws = wb['nikku ji loan']
 cur.execute("SELECT COUNT(*) FROM loans WHERE branch_id=%s", (BRANCH_ID,))
@@ -117,9 +119,9 @@ if loan_count == 0:
 else:
     print(f"  {loan_count} loans already exist, skipping")
 
-# ══════════════════════════════════════════════════════════════════════
+# â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 # 3. RECOVERY TASKS (other pending amounts)
-# ══════════════════════════════════════════════════════════════════════
+# â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 print("\n--- Recovery tasks (other pending amounts) ---")
 ws = wb['other pending amounts']
 cur.execute("SELECT COUNT(*) FROM recovery_tasks WHERE branch_id=%s", (BRANCH_ID,))
@@ -154,9 +156,9 @@ if rec_count == 0:
 else:
     print(f"  {rec_count} recovery tasks already exist, skipping")
 
-# ══════════════════════════════════════════════════════════════════════
+# â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 # 4. MONTHLY INSTALLMENT collections
-# ══════════════════════════════════════════════════════════════════════
+# â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 print("\n--- Monthly installments ---")
 ws = wb['MONTHLY INSTALLMENT']
 coll_rows = []
@@ -188,3 +190,4 @@ print("ALL REMAINING DATA IMPORTED!")
 print(f"  Addresses updated: {len(addr_updates)}")
 print("="*50)
 cur.close(); conn.close()
+

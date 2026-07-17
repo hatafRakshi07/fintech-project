@@ -1,5 +1,5 @@
-"""
-Bissi folder.xlsx → Database importer
+﻿"""
+Bissi folder.xlsx â†’ Database importer
 Reads all 4 Bissi group sheets, extracts unique customers,
 creates branches, committees, and committee memberships.
 Run: python import-bissi-data.py
@@ -9,17 +9,17 @@ import openpyxl
 import requests
 import json
 
-EXCEL_FILE = r"C:\Users\iSN_kota_T52\Downloads\Bissi folder.xlsx"
+EXCEL_FILE = os.path.join(os.path.expanduser("~"), "Downloads", "Bissi folder.xlsx")
 API_BASE   = "http://localhost:5100/api"
 
-# ── 1. Get auth token ──────────────────────────────────────────────────────
+# â”€â”€ 1. Get auth token â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 print("Logging in...")
 resp = requests.post(f"{API_BASE}/auth/login", json={"username": "admin", "password": "admin123"})
 if not resp.ok:
     print("Login failed:", resp.text); sys.exit(1)
 TOKEN = resp.json()["token"]
 HEADERS = {"Authorization": f"Bearer {TOKEN}", "Content-Type": "application/json"}
-print(f"  ✔ Logged in\n")
+print(f"  âœ” Logged in\n")
 
 def api(method, path, **kw):
     r = getattr(requests, method)(f"{API_BASE}{path}", headers=HEADERS, **kw)
@@ -34,20 +34,20 @@ def clean_name(val):
     if not val: return ""
     return str(val).strip()[:200]
 
-# ── 2. Create Branch ───────────────────────────────────────────────────────
+# â”€â”€ 2. Create Branch â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 print("Creating branch...")
 r = api("post", "/branches", json={"name": "Shree Krishna Associate", "code": "SKA001", "city": "Jaipur", "status": "active"})
 if r.ok:
     branch = r.json()
-    print(f"  ✔ Branch created: {branch['name']} (ID: {branch['id']})")
+    print(f"  âœ” Branch created: {branch['name']} (ID: {branch['id']})")
 else:
     # Get existing
     r2 = api("get", "/branches")
     branch = r2.json()[0]
-    print(f"  ℹ Using existing branch: {branch['name']} (ID: {branch['id']})")
+    print(f"  â„¹ Using existing branch: {branch['name']} (ID: {branch['id']})")
 BRANCH_ID = branch["id"]
 
-# ── 3. Load Excel ──────────────────────────────────────────────────────────
+# â”€â”€ 3. Load Excel â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 print("\nReading Excel file...")
 wb = openpyxl.load_workbook(EXCEL_FILE)
 
@@ -59,9 +59,9 @@ SHEETS = [
     ("Shree Krishna associate lottery","Shree Krishna Bissi",       3000,  1,  0, 1, 3, 5, 2),
 ]
 
-# ── 4. Extract unique customers ────────────────────────────────────────────
-customers_by_mobile = {}  # mobile → customer dict
-sheet_customers = {}  # sheet → list of (token, name, mobile)
+# â”€â”€ 4. Extract unique customers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+customers_by_mobile = {}  # mobile â†’ customer dict
+sheet_customers = {}  # sheet â†’ list of (token, name, mobile)
 
 for sheet_name, comm_name, amount, day, col_tok, col_name, col_mob, col_addr, col_ref in SHEETS:
     ws = wb[sheet_name]
@@ -92,7 +92,7 @@ for sheet_name, comm_name, amount, day, col_tok, col_name, col_mob, col_addr, co
 
 print(f"\n  Total unique customers: {len(customers_by_mobile)}")
 
-# ── 5. Import customers ────────────────────────────────────────────────────
+# â”€â”€ 5. Import customers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 print("\nImporting customers to database...")
 customer_mobile_to_id = {}
 created = 0; failed = 0
@@ -114,9 +114,9 @@ for i, (key, cust) in enumerate(customers_by_mobile.items()):
         if failed <= 3:
             print(f"  FAIL: {cust['name']} - {r.text[:100]}")
 
-print(f"  ✔ Customers: {created} created, {failed} failed\n")
+print(f"  âœ” Customers: {created} created, {failed} failed\n")
 
-# ── 6. Create Committees ───────────────────────────────────────────────────
+# â”€â”€ 6. Create Committees â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 print("Creating committees...")
 comm_id_map = {}
 for sheet_name, comm_name, amount, day, *_ in SHEETS:
@@ -133,18 +133,19 @@ for sheet_name, comm_name, amount, day, *_ in SHEETS:
     if r.ok:
         comm = r.json()
         comm_id_map[sheet_name] = comm["id"]
-        print(f"  ✔ {comm_name} (ID: {comm['id']})")
+        print(f"  âœ” {comm_name} (ID: {comm['id']})")
     else:
         print(f"  FAIL committee {comm_name}: {r.text[:80]}")
 
 print()
 
-# ── 7. Summary ─────────────────────────────────────────────────────────────
+# â”€â”€ 7. Summary â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 print("=" * 50)
 print("IMPORT COMPLETE!")
 print(f"  Branch:     1 (ID: {BRANCH_ID})")
 print(f"  Customers:  {created} imported")
 print(f"  Committees: {len(comm_id_map)} created")
 print("=" * 50)
-print("\nNow go to the app → Committees to see your groups!")
-print("Customers are at → Customers tab")
+print("\nNow go to the app â†’ Committees to see your groups!")
+print("Customers are at â†’ Customers tab")
+
