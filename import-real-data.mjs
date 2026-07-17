@@ -48,9 +48,10 @@ console.log(`  Lotteries: ${lotteries.length}`);
 
 // ─── Open Database Connection ────────────────────────────────────────────────
 
-console.log("\n── Connecting to local PostgreSQL server...");
+console.log("\n── Connecting to database server...");
+const connectionString = process.env.DATABASE_URL || "postgresql://postgres@127.0.0.1:5432/bissi_db";
 const pg = new Client({
-  connectionString: "postgresql://postgres@127.0.0.1:5432/bissi_db"
+  connectionString
 });
 await pg.connect();
 pg.exec = (q) => pg.query(q);
