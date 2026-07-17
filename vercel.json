@@ -1,17 +1,11 @@
 {
   "version": 2,
   "buildCommand": "pnpm run build",
-  "builds": [
-    {
-      "src": "artifacts/api-server/api/index.mjs",
-      "use": "@vercel/node",
-      "config": {
-        "includeFiles": [
-          "artifacts/api-server/dist/**"
-        ]
-      }
+  "functions": {
+    "artifacts/api-server/api/index.mjs": {
+      "includeFiles": "artifacts/api-server/dist/**"
     }
-  ],
+  },
   "routes": [
     {
       "src": "/(.*)",
