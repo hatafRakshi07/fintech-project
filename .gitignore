@@ -61,3 +61,7 @@ fix-admin-password.mjs
 artifacts/bissi-app/dist/
 artifacts/collector-app/dist/
 artifacts/api-server/dist/
+
+# Do NOT ignore Vercel config and serverless function
+# vercel.json and api/ are tracked
+

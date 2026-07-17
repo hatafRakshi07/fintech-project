@@ -1,15 +1,33 @@
 {
   "version": 2,
-  "buildCommand": "pnpm run build",
+  "installCommand": "npm install -g pnpm@9 && pnpm install --frozen-lockfile",
+  "buildCommand": "node scripts/vercel-build.mjs",
+  "outputDirectory": "artifacts/api-server/dist/public",
+  "framework": null,
   "functions": {
-    "artifacts/api-server/api/index.mjs": {
-      "includeFiles": "artifacts/api-server/dist/**"
+    "api/index.js": {
+      "runtime": "@vercel/node@3",
+      "maxDuration": 30,
+      "memory": 512
     }
   },
-  "routes": [
+  "rewrites": [
+    { "source": "/api/:path*", "destination": "/api/index.js" },
+    { "source": "/collector/:path*", "destination": "/collector/index.html" },
+    { "source": "/(.*)", "destination": "/index.html" }
+  ],
+  "headers": [
     {
-      "src": "/(.*)",
-      "dest": "artifacts/api-server/api/index.mjs"
+      "source": "/api/(.*)",
+      "headers": [
+        { "key": "Cache-Control", "value": "no-store" }
+      ]
+    },
+    {
+      "source": "/assets/(.*)",
+      "headers": [
+        { "key": "Cache-Control", "value": "public, max-age=31536000, immutable" }
+      ]
     }
   ]
 }
