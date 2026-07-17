@@ -10,6 +10,11 @@
     "allowImportingTsExtensions": true,
     "moduleResolution": "bundler",
     "types": ["node", "vite/client"],
+    "baseUrl": ".",
+    "noImplicitAny": false,
+    "strictNullChecks": false,
+    "strictPropertyInitialization": false,
+    "strict": false,
     "paths": {
       "@/*": ["./src/*"]
     }

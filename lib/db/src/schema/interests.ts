@@ -44,8 +44,8 @@ export const interestTransactionsTable = pgTable("interest_transactions", {
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
-export const insertInterestAccountSchema = createInsertSchema(interestAccountsTable).omit({ id: true, createdAt: true, updatedAt: true });
-export const insertInterestTransactionSchema = createInsertSchema(interestTransactionsTable).omit({ id: true, createdAt: true });
+export const insertInterestAccountSchema = createInsertSchema(interestAccountsTable).omit({ id: true, createdAt: true, updatedAt: true }) as any;
+export const insertInterestTransactionSchema = createInsertSchema(interestTransactionsTable).omit({ id: true, createdAt: true }) as any;
 
 export type InterestAccount = typeof interestAccountsTable.$inferSelect;
 export type InterestTransaction = typeof interestTransactionsTable.$inferSelect;

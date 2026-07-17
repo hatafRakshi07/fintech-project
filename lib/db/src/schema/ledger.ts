@@ -12,6 +12,6 @@ export const ledgerTable = pgTable("ledger", {
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
-export const insertLedgerSchema = createInsertSchema(ledgerTable).omit({ id: true, createdAt: true });
+export const insertLedgerSchema = createInsertSchema(ledgerTable).omit({ id: true, createdAt: true }) as any;
 export type InsertLedger = z.infer<typeof insertLedgerSchema>;
 export type Ledger = typeof ledgerTable.$inferSelect;

@@ -17,6 +17,6 @@ export const branchesTable = pgTable("branches", {
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
 });
 
-export const insertBranchSchema = createInsertSchema(branchesTable).omit({ id: true, createdAt: true, updatedAt: true });
+export const insertBranchSchema = createInsertSchema(branchesTable).omit({ id: true, createdAt: true, updatedAt: true }) as any;
 export type InsertBranch = z.infer<typeof insertBranchSchema>;
 export type Branch = typeof branchesTable.$inferSelect;

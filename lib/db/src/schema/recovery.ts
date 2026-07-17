@@ -45,8 +45,8 @@ export const recoveryCallLogsTable = pgTable("recovery_call_logs", {
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
-export const insertRecoveryTaskSchema = createInsertSchema(recoveryTasksTable).omit({ id: true, createdAt: true, updatedAt: true });
-export const insertRecoveryCallLogSchema = createInsertSchema(recoveryCallLogsTable).omit({ id: true, createdAt: true });
+export const insertRecoveryTaskSchema = createInsertSchema(recoveryTasksTable).omit({ id: true, createdAt: true, updatedAt: true }) as any;
+export const insertRecoveryCallLogSchema = createInsertSchema(recoveryCallLogsTable).omit({ id: true, createdAt: true }) as any;
 
 export type RecoveryTask = typeof recoveryTasksTable.$inferSelect;
 export type RecoveryCallLog = typeof recoveryCallLogsTable.$inferSelect;

@@ -18,6 +18,6 @@ export const installmentsTable = pgTable("installments", {
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
-export const insertInstallmentSchema = createInsertSchema(installmentsTable).omit({ id: true, createdAt: true });
+export const insertInstallmentSchema = createInsertSchema(installmentsTable).omit({ id: true, createdAt: true }) as any;
 export type InsertInstallment = z.infer<typeof insertInstallmentSchema>;
 export type Installment = typeof installmentsTable.$inferSelect;

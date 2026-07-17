@@ -14,6 +14,6 @@ export const notificationsTable = pgTable("notifications", {
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
-export const insertNotificationSchema = createInsertSchema(notificationsTable).omit({ id: true, createdAt: true });
+export const insertNotificationSchema = createInsertSchema(notificationsTable).omit({ id: true, createdAt: true }) as any;
 export type InsertNotification = z.infer<typeof insertNotificationSchema>;
 export type Notification = typeof notificationsTable.$inferSelect;

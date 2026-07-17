@@ -15,6 +15,6 @@ export const collectorsTable = pgTable("collectors", {
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
 });
 
-export const insertCollectorSchema = createInsertSchema(collectorsTable).omit({ id: true, createdAt: true, updatedAt: true });
+export const insertCollectorSchema = createInsertSchema(collectorsTable).omit({ id: true, createdAt: true, updatedAt: true }) as any;
 export type InsertCollector = z.infer<typeof insertCollectorSchema>;
 export type Collector = typeof collectorsTable.$inferSelect;

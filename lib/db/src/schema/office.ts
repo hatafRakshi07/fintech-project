@@ -78,10 +78,10 @@ export const donationsTable = pgTable("donations", {
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
-export const insertOfficeDiarySchema = createInsertSchema(officeDiaryTable).omit({ id: true, createdAt: true, updatedAt: true });
-export const insertOfficeTaskSchema = createInsertSchema(officeTasksTable).omit({ id: true, createdAt: true, updatedAt: true });
-export const insertComplaintSchema = createInsertSchema(complaintsTable).omit({ id: true, createdAt: true, updatedAt: true });
-export const insertDonationSchema = createInsertSchema(donationsTable).omit({ id: true, createdAt: true });
+export const insertOfficeDiarySchema = createInsertSchema(officeDiaryTable).omit({ id: true, createdAt: true, updatedAt: true }) as any;
+export const insertOfficeTaskSchema = createInsertSchema(officeTasksTable).omit({ id: true, createdAt: true, updatedAt: true }) as any;
+export const insertComplaintSchema = createInsertSchema(complaintsTable).omit({ id: true, createdAt: true, updatedAt: true }) as any;
+export const insertDonationSchema = createInsertSchema(donationsTable).omit({ id: true, createdAt: true }) as any;
 
 export type OfficeDiary = typeof officeDiaryTable.$inferSelect;
 export type OfficeTask = typeof officeTasksTable.$inferSelect;

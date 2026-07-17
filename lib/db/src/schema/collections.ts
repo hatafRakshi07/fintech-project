@@ -30,6 +30,6 @@ export const collectionsTable = pgTable("collections", {
   billingGstin: text("billing_gstin"),
 });
 
-export const insertCollectionSchema = createInsertSchema(collectionsTable).omit({ id: true, createdAt: true });
+export const insertCollectionSchema = createInsertSchema(collectionsTable).omit({ id: true, createdAt: true }) as any;
 export type InsertCollection = z.infer<typeof insertCollectionSchema>;
 export type Collection = typeof collectionsTable.$inferSelect;

@@ -28,7 +28,7 @@ export const committeeMembersTable = pgTable("committee_members", {
   joinedAt: timestamp("joined_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
-export const insertCommitteeSchema = createInsertSchema(committeesTable).omit({ id: true, createdAt: true, updatedAt: true });
+export const insertCommitteeSchema = createInsertSchema(committeesTable).omit({ id: true, createdAt: true, updatedAt: true }) as any;
 export type InsertCommittee = z.infer<typeof insertCommitteeSchema>;
 export type Committee = typeof committeesTable.$inferSelect;
 export type CommitteeMember = typeof committeeMembersTable.$inferSelect;

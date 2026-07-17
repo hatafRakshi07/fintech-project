@@ -47,3 +47,17 @@ Thumbs.db
 # Replit
 .cache/
 .local/
+
+# Local database (PGlite binary data — machine-specific, not for VCS)
+pglite-data/
+
+# Portable Node.js runtime (downloaded locally, not for VCS)
+.node/
+
+# Local utility scripts
+fix-admin-password.mjs
+
+# Built output (regenerated via pnpm build)
+artifacts/bissi-app/dist/
+artifacts/collector-app/dist/
+artifacts/api-server/dist/

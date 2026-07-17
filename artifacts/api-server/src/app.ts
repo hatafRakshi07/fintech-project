@@ -123,11 +123,11 @@ if (process.env.NODE_ENV === "production") {
 
   // Collector app — must be registered before the root static handler
   app.use("/collector", express.static(collectorDist));
-  app.get("/collector/*", (_req, res) => res.sendFile(join(collectorDist, "index.html")));
+  app.get(/^\/collector(?:\/(.*))?$/, (_req, res) => res.sendFile(join(collectorDist, "index.html")));
 
   // Bissi main app
   app.use(express.static(bissiDist));
-  app.get("*", (_req, res) => res.sendFile(join(bissiDist, "index.html")));
+  app.get(/^\/(.*)$/, (_req, res) => res.sendFile(join(bissiDist, "index.html")));
 }
 
 // ---------------------------------------------------------------------------

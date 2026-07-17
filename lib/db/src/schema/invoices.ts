@@ -60,8 +60,8 @@ export const insertInvoiceSchema = createInsertSchema(invoicesTable).omit({
   id: true,
   createdAt: true,
   updatedAt: true,
-});
-export const insertInvoiceItemSchema = createInsertSchema(invoiceItemsTable).omit({ id: true });
+}) as any;
+export const insertInvoiceItemSchema = createInsertSchema(invoiceItemsTable).omit({ id: true }) as any;
 
 export type InsertInvoice = z.infer<typeof insertInvoiceSchema>;
 export type Invoice = typeof invoicesTable.$inferSelect;

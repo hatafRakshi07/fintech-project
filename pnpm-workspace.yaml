@@ -35,7 +35,9 @@ minimumReleaseAgeExclude:
   - stripe-replit-sync
 
 packages:
-  - artifacts/*
+  - artifacts/api-server
+  - artifacts/bissi-app
+  - artifacts/collector-app
   - lib/*
   - lib/integrations/*
   - scripts
@@ -154,6 +156,7 @@ overrides:
   # drizzle-kit uses esbuild internally on an older version that's vulnerable, this overrides it
   "@esbuild-kit/esm-loader": "npm:tsx@^4.21.0"
   esbuild: "0.27.3"
+  zod: "3.25.76"
 
 allowBuilds:
   esbuild: true

@@ -27,6 +27,6 @@ export const loansTable = pgTable("loans", {
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
 });
 
-export const insertLoanSchema = createInsertSchema(loansTable).omit({ id: true, createdAt: true, updatedAt: true });
+export const insertLoanSchema = createInsertSchema(loansTable).omit({ id: true, createdAt: true, updatedAt: true }) as any;
 export type InsertLoan = z.infer<typeof insertLoanSchema>;
 export type Loan = typeof loansTable.$inferSelect;

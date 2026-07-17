@@ -10,7 +10,8 @@
  *    gift records, lotteries, daily collections
  */
 
-import { PGlite } from "@electric-sql/pglite";
+import pgPackage from "pg";
+const { Client } = pgPackage;
 import { readFileSync } from "fs";
 import { join } from "path";
 
@@ -45,12 +46,16 @@ console.log(`  Daily Collections: ${dailyCollections.length}`);
 console.log(`  Gifts: ${gifts.length}`);
 console.log(`  Lotteries: ${lotteries.length}`);
 
-// ─── Open PGlite ─────────────────────────────────────────────────────────────
+// ─── Open Database Connection ────────────────────────────────────────────────
 
-console.log("\n── Opening PGlite database...");
-const pg = new PGlite(DATA_DIR);
-await pg.waitReady;
-console.log("  ✓ Database ready");
+console.log("\n── Connecting to local PostgreSQL server...");
+const pg = new Client({
+  connectionString: "postgresql://postgres@127.0.0.1:5432/bissi_db"
+});
+await pg.connect();
+pg.exec = (q) => pg.query(q);
+pg.close = () => pg.end();
+console.log("  ✓ Database connected");
 
 // ─── Helper: escape SQL string ───────────────────────────────────────────────
 
@@ -105,8 +110,8 @@ console.log(`  ✓ Branch created (id=${branchId})`);
 // ─── 2. Create Admin User ───────────────────────────────────────────────────
 
 console.log("\n── Creating admin user...");
-// Pre-hashed password for 'admin123' — we bypass bcrypt in auth.ts anyway
-const fakeHash = "$2a$12$FAKEHASH_FOR_DEV_ONLY_PLEASE_CHANGE_IN_PRODUCTION___";
+// Real bcrypt hash for password 'admin123' (cost=12)
+const fakeHash = "$2b$12$16iWUxslobJbIjLVPSBJFOEI7V1RW9Nig3ESdBFmnUnXOsvMnlsnS";
 await pg.query(`
   INSERT INTO users (username, password_hash, name, role)
   VALUES ('admin', ${esc(fakeHash)}, 'Administrator', 'super_admin');

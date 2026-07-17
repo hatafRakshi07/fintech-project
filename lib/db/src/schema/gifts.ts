@@ -49,9 +49,9 @@ export const giftDistributionsTable = pgTable("gift_distributions", {
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
 });
 
-export const insertGiftCategorySchema = createInsertSchema(giftCategoriesTable).omit({ id: true, createdAt: true, updatedAt: true });
-export const insertGiftInventorySchema = createInsertSchema(giftInventoryTable).omit({ id: true, createdAt: true, updatedAt: true });
-export const insertGiftDistributionSchema = createInsertSchema(giftDistributionsTable).omit({ id: true, createdAt: true, updatedAt: true });
+export const insertGiftCategorySchema = createInsertSchema(giftCategoriesTable).omit({ id: true, createdAt: true, updatedAt: true }) as any;
+export const insertGiftInventorySchema = createInsertSchema(giftInventoryTable).omit({ id: true, createdAt: true, updatedAt: true }) as any;
+export const insertGiftDistributionSchema = createInsertSchema(giftDistributionsTable).omit({ id: true, createdAt: true, updatedAt: true }) as any;
 
 export type GiftCategory = typeof giftCategoriesTable.$inferSelect;
 export type GiftInventory = typeof giftInventoryTable.$inferSelect;
