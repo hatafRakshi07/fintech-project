@@ -1,639 +1,742 @@
-import React, { useState, useRef } from "react";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { api } from "@/lib/api";
-import { Button } from "@/components/ui/button";
+import React, { useRef, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import {
-  Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
-} from "@/components/ui/table";
-import { Badge } from "@/components/ui/badge";
-import {
-  Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger,
-} from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
-import {
-  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
-} from "@/components/ui/select";
+import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import {
-  FileText, Plus, Printer, Trash2, ChevronLeft, ChevronRight,
-  CheckCircle2, Clock, AlertTriangle, XCircle, Send, Eye,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
+import {
+  Printer,
+  Plus,
+  Trash2,
+  FileText,
+  Download,
+  IndianRupee,
+  Building2,
+  User,
+  Hash,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
-// ---------------------------------------------------------------------------
-// Types
-// ---------------------------------------------------------------------------
-type InvoiceItem = { id?: number; description: string; quantity: number; unitPrice: number; amount: number };
-type Invoice = {
-  id: number; invoiceNumber: string; customerId: number; branchId: number;
-  status: string; issueDate: string; dueDate?: string;
-  subtotal: number; taxRate: number; taxAmount: number; discountAmount: number; total: number;
-  notes?: string; terms?: string;
-  customerName?: string; customerMobile?: string; branchName?: string; createdByName?: string;
-  createdAt: string;
-  items?: InvoiceItem[];
-};
-type Customer = { id: number; name: string; mobile?: string; address?: string };
-type Branch = { id: number; name: string };
-type Summary = { total: number; draft: number; sent: number; paid: number; overdue: number; cancelled: number; totalAmount: number; paidAmount: number };
+// ── Types ───────────────────────────────────────────────
+interface LineItem {
+  id: string;
+  description: string;
+  hsn: string;
+  qty: number;
+  unit: string;
+  rate: number;
+  gstRate: number; // e.g. 18 for 18%
+}
 
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
+interface InvoiceData {
+  invoiceNumber: string;
+  invoiceDate: string;
+  dueDate: string;
+  // Seller
+  sellerName: string;
+  sellerAddress: string;
+  sellerGstin: string;
+  sellerState: string;
+  sellerEmail: string;
+  sellerPhone: string;
+  // Buyer
+  buyerName: string;
+  buyerAddress: string;
+  buyerGstin: string;
+  buyerState: string;
+  buyerPhone: string;
+  // Items
+  items: LineItem[];
+  notes: string;
+  bankName: string;
+  accountNo: string;
+  ifsc: string;
+}
+
+// ── Helpers ─────────────────────────────────────────────
 const fmt = (n: number) =>
-  new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 2 }).format(n);
+  new Intl.NumberFormat("en-IN", { maximumFractionDigits: 2, minimumFractionDigits: 2 }).format(n);
 
-const statusVariant: Record<string, "default" | "secondary" | "destructive" | "outline"> = {
-  draft: "outline", sent: "secondary", paid: "default", overdue: "destructive", cancelled: "secondary",
-};
-const statusIcon: Record<string, React.ReactNode> = {
-  draft: <Clock className="h-3 w-3" />,
-  sent: <Send className="h-3 w-3" />,
-  paid: <CheckCircle2 className="h-3 w-3" />,
-  overdue: <AlertTriangle className="h-3 w-3" />,
-  cancelled: <XCircle className="h-3 w-3" />,
+const units = ["Nos", "Hrs", "Days", "Months", "Ltr", "Kg", "Pcs", "Set"];
+const GST_RATES = [0, 5, 12, 18, 28];
+
+const numToWords = (num: number): string => {
+  const ones = ["", "One", "Two", "Three", "Four", "Five", "Six", "Seven", "Eight", "Nine",
+    "Ten", "Eleven", "Twelve", "Thirteen", "Fourteen", "Fifteen", "Sixteen", "Seventeen", "Eighteen", "Nineteen"];
+  const tens = ["", "", "Twenty", "Thirty", "Forty", "Fifty", "Sixty", "Seventy", "Eighty", "Ninety"];
+
+  const convert = (n: number): string => {
+    if (n < 20) return ones[n];
+    if (n < 100) return tens[Math.floor(n / 10)] + (n % 10 ? " " + ones[n % 10] : "");
+    if (n < 1000) return ones[Math.floor(n / 100)] + " Hundred" + (n % 100 ? " " + convert(n % 100) : "");
+    if (n < 100000) return convert(Math.floor(n / 1000)) + " Thousand" + (n % 1000 ? " " + convert(n % 1000) : "");
+    if (n < 10000000) return convert(Math.floor(n / 100000)) + " Lakh" + (n % 100000 ? " " + convert(n % 100000) : "");
+    return convert(Math.floor(n / 10000000)) + " Crore" + (n % 10000000 ? " " + convert(n % 10000000) : "");
+  };
+
+  const rupees = Math.floor(num);
+  const paise = Math.round((num - rupees) * 100);
+  let result = "Rupees " + (rupees === 0 ? "Zero" : convert(rupees));
+  if (paise > 0) result += " and " + convert(paise) + " Paise";
+  return result + " Only";
 };
 
-// ---------------------------------------------------------------------------
-// Invoice print view (rendered in a hidden div, then window.print())
-// ---------------------------------------------------------------------------
-function PrintableInvoice({ invoice }: { invoice: Invoice }) {
+const uid = () => Math.random().toString(36).slice(2, 8).toUpperCase();
+
+const todayISO = () => new Date().toISOString().slice(0, 10);
+
+const defaultItem = (): LineItem => ({
+  id: uid(), description: "", hsn: "", qty: 1, unit: "Nos", rate: 0, gstRate: 18,
+});
+
+const defaultInvoice = (): InvoiceData => ({
+  invoiceNumber: `INV-${new Date().getFullYear()}-${String(Math.floor(Math.random() * 9000) + 1000)}`,
+  invoiceDate: todayISO(),
+  dueDate: "",
+  sellerName: "",
+  sellerAddress: "",
+  sellerGstin: "",
+  sellerState: "Rajasthan",
+  sellerEmail: "",
+  sellerPhone: "",
+  buyerName: "",
+  buyerAddress: "",
+  buyerGstin: "",
+  buyerState: "Rajasthan",
+  buyerPhone: "",
+  items: [defaultItem()],
+  notes: "",
+  bankName: "",
+  accountNo: "",
+  ifsc: "",
+});
+
+// ── Calculation ──────────────────────────────────────────
+function calcTotals(items: LineItem[], sellerState: string, buyerState: string) {
+  let subtotal = 0;
+  let totalCgst = 0;
+  let totalSgst = 0;
+  let totalIgst = 0;
+  const sameState = sellerState === buyerState;
+
+  const rows = items.map((item) => {
+    const taxable = item.qty * item.rate;
+    const gstAmt = (taxable * item.gstRate) / 100;
+    const cgst = sameState ? gstAmt / 2 : 0;
+    const sgst = sameState ? gstAmt / 2 : 0;
+    const igst = sameState ? 0 : gstAmt;
+    const total = taxable + gstAmt;
+    subtotal += taxable;
+    totalCgst += cgst;
+    totalSgst += sgst;
+    totalIgst += igst;
+    return { ...item, taxable, cgst, sgst, igst, total };
+  });
+
+  const grandTotal = subtotal + totalCgst + totalSgst + totalIgst;
+  return { rows, subtotal, totalCgst, totalSgst, totalIgst, grandTotal, sameState };
+}
+
+// ── Saved Invoices list ──────────────────────────────────
+interface SavedInvoice {
+  id: string;
+  invoiceNumber: string;
+  buyerName: string;
+  invoiceDate: string;
+  grandTotal: number;
+  data: InvoiceData;
+}
+
+// ── Print View ───────────────────────────────────────────
+function PrintView({ inv }: { inv: InvoiceData }) {
+  const { rows, subtotal, totalCgst, totalSgst, totalIgst, grandTotal, sameState } = calcTotals(
+    inv.items, inv.sellerState, inv.buyerState
+  );
+
   return (
-    <div id="invoice-print-area" className="hidden print:block p-8 font-sans text-sm text-gray-900 max-w-2xl mx-auto">
+    <div id="invoice-print" className="bg-white text-black font-sans p-8 min-h-screen text-sm">
       {/* Header */}
-      <div className="flex justify-between items-start mb-8">
+      <div className="flex justify-between items-start border-b-2 border-gray-800 pb-4 mb-4">
         <div>
-          <h1 className="text-2xl font-bold">INVOICE</h1>
-          <p className="text-gray-500">#{invoice.invoiceNumber}</p>
+          <h1 className="text-2xl font-bold text-gray-900">{inv.sellerName || "Your Business Name"}</h1>
+          <p className="text-gray-600 text-xs whitespace-pre-line mt-1">{inv.sellerAddress}</p>
+          {inv.sellerGstin && <p className="text-xs mt-1"><strong>GSTIN:</strong> {inv.sellerGstin}</p>}
+          {inv.sellerPhone && <p className="text-xs"><strong>Phone:</strong> {inv.sellerPhone}</p>}
+          {inv.sellerEmail && <p className="text-xs"><strong>Email:</strong> {inv.sellerEmail}</p>}
+          <p className="text-xs"><strong>State:</strong> {inv.sellerState}</p>
         </div>
         <div className="text-right">
-          <p className="font-semibold">{invoice.branchName}</p>
-          <p className="text-gray-500">Bissi Management System</p>
+          <div className="text-2xl font-bold text-blue-700 mb-1">TAX INVOICE</div>
+          <table className="text-xs text-right ml-auto">
+            <tbody>
+              <tr><td className="pr-2 text-gray-500">Invoice No.</td><td className="font-semibold">{inv.invoiceNumber}</td></tr>
+              <tr><td className="pr-2 text-gray-500">Date</td><td className="font-semibold">{new Date(inv.invoiceDate).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })}</td></tr>
+              {inv.dueDate && <tr><td className="pr-2 text-gray-500">Due Date</td><td className="font-semibold">{new Date(inv.dueDate).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })}</td></tr>}
+            </tbody>
+          </table>
         </div>
       </div>
-      {/* Customer + Dates */}
-      <div className="grid grid-cols-2 gap-8 mb-8">
-        <div>
-          <p className="text-xs font-semibold uppercase text-gray-400 mb-1">Bill To</p>
-          <p className="font-semibold">{invoice.customerName}</p>
-          {invoice.customerMobile && <p className="text-gray-600">{invoice.customerMobile}</p>}
-        </div>
-        <div className="text-right">
-          <p><span className="text-gray-500">Issue Date: </span>{invoice.issueDate}</p>
-          {invoice.dueDate && <p><span className="text-gray-500">Due Date: </span>{invoice.dueDate}</p>}
-          <p className="mt-1">
-            <span className={`inline-block px-2 py-0.5 rounded text-xs font-semibold ${invoice.status === "paid" ? "bg-green-100 text-green-700" : invoice.status === "overdue" ? "bg-red-100 text-red-700" : "bg-gray-100 text-gray-700"}`}>
-              {invoice.status.toUpperCase()}
-            </span>
-          </p>
-        </div>
+
+      {/* Bill To */}
+      <div className="mb-4">
+        <p className="text-xs font-bold text-gray-500 uppercase mb-1">Bill To</p>
+        <p className="font-bold text-gray-900">{inv.buyerName || "—"}</p>
+        <p className="text-xs text-gray-600 whitespace-pre-line">{inv.buyerAddress}</p>
+        {inv.buyerGstin && <p className="text-xs"><strong>GSTIN:</strong> {inv.buyerGstin}</p>}
+        {inv.buyerPhone && <p className="text-xs"><strong>Phone:</strong> {inv.buyerPhone}</p>}
+        <p className="text-xs"><strong>State:</strong> {inv.buyerState}</p>
       </div>
-      {/* Items table */}
-      <table className="w-full mb-6 border-collapse">
+
+      {/* Items Table */}
+      <table className="w-full border-collapse mb-4 text-xs">
         <thead>
-          <tr className="border-b-2 border-gray-300">
-            <th className="text-left py-2 font-semibold">Description</th>
-            <th className="text-right py-2 font-semibold">Qty</th>
-            <th className="text-right py-2 font-semibold">Unit Price</th>
-            <th className="text-right py-2 font-semibold">Amount</th>
+          <tr className="bg-gray-800 text-white">
+            <th className="border border-gray-600 px-2 py-1 text-left w-6">#</th>
+            <th className="border border-gray-600 px-2 py-1 text-left">Description</th>
+            <th className="border border-gray-600 px-2 py-1 text-center">HSN</th>
+            <th className="border border-gray-600 px-2 py-1 text-center">Qty</th>
+            <th className="border border-gray-600 px-2 py-1 text-center">Unit</th>
+            <th className="border border-gray-600 px-2 py-1 text-right">Rate (₹)</th>
+            <th className="border border-gray-600 px-2 py-1 text-right">Taxable (₹)</th>
+            <th className="border border-gray-600 px-2 py-1 text-center">GST%</th>
+            {sameState ? (
+              <>
+                <th className="border border-gray-600 px-2 py-1 text-right">CGST (₹)</th>
+                <th className="border border-gray-600 px-2 py-1 text-right">SGST (₹)</th>
+              </>
+            ) : (
+              <th className="border border-gray-600 px-2 py-1 text-right">IGST (₹)</th>
+            )}
+            <th className="border border-gray-600 px-2 py-1 text-right">Total (₹)</th>
           </tr>
         </thead>
         <tbody>
-          {(invoice.items ?? []).map((item, i) => (
-            <tr key={i} className="border-b border-gray-200">
-              <td className="py-2">{item.description}</td>
-              <td className="text-right py-2">{item.quantity}</td>
-              <td className="text-right py-2">{fmt(item.unitPrice)}</td>
-              <td className="text-right py-2">{fmt(item.amount)}</td>
+          {rows.map((row, i) => (
+            <tr key={row.id} className={i % 2 === 0 ? "bg-white" : "bg-gray-50"}>
+              <td className="border border-gray-300 px-2 py-1 text-center">{i + 1}</td>
+              <td className="border border-gray-300 px-2 py-1">{row.description}</td>
+              <td className="border border-gray-300 px-2 py-1 text-center">{row.hsn || "—"}</td>
+              <td className="border border-gray-300 px-2 py-1 text-center">{row.qty}</td>
+              <td className="border border-gray-300 px-2 py-1 text-center">{row.unit}</td>
+              <td className="border border-gray-300 px-2 py-1 text-right">{fmt(row.rate)}</td>
+              <td className="border border-gray-300 px-2 py-1 text-right">{fmt(row.taxable)}</td>
+              <td className="border border-gray-300 px-2 py-1 text-center">{row.gstRate}%</td>
+              {sameState ? (
+                <>
+                  <td className="border border-gray-300 px-2 py-1 text-right">{fmt(row.cgst)}</td>
+                  <td className="border border-gray-300 px-2 py-1 text-right">{fmt(row.sgst)}</td>
+                </>
+              ) : (
+                <td className="border border-gray-300 px-2 py-1 text-right">{fmt(row.igst)}</td>
+              )}
+              <td className="border border-gray-300 px-2 py-1 text-right font-semibold">{fmt(row.total)}</td>
             </tr>
           ))}
         </tbody>
+        <tfoot>
+          <tr className="bg-gray-100 font-semibold">
+            <td colSpan={6} className="border border-gray-300 px-2 py-1 text-right">Subtotal</td>
+            <td className="border border-gray-300 px-2 py-1 text-right">{fmt(subtotal)}</td>
+            <td className="border border-gray-300 px-2 py-1"></td>
+            {sameState ? (
+              <>
+                <td className="border border-gray-300 px-2 py-1 text-right">{fmt(totalCgst)}</td>
+                <td className="border border-gray-300 px-2 py-1 text-right">{fmt(totalSgst)}</td>
+              </>
+            ) : (
+              <td className="border border-gray-300 px-2 py-1 text-right">{fmt(totalIgst)}</td>
+            )}
+            <td className="border border-gray-300 px-2 py-1 text-right">{fmt(grandTotal)}</td>
+          </tr>
+        </tfoot>
       </table>
-      {/* Totals */}
-      <div className="flex justify-end">
-        <div className="w-56 space-y-1">
-          <div className="flex justify-between"><span className="text-gray-600">Subtotal</span><span>{fmt(invoice.subtotal)}</span></div>
-          {invoice.taxRate > 0 && <div className="flex justify-between"><span className="text-gray-600">Tax ({invoice.taxRate}%)</span><span>{fmt(invoice.taxAmount)}</span></div>}
-          {invoice.discountAmount > 0 && <div className="flex justify-between"><span className="text-gray-600">Discount</span><span>-{fmt(invoice.discountAmount)}</span></div>}
-          <Separator className="my-1" />
-          <div className="flex justify-between font-bold text-base"><span>Total</span><span>{fmt(invoice.total)}</span></div>
+
+      {/* Amount in words */}
+      <div className="border border-gray-300 rounded p-2 mb-4 bg-gray-50">
+        <span className="text-xs font-semibold text-gray-600">Amount in Words: </span>
+        <span className="text-xs">{numToWords(grandTotal)}</span>
+      </div>
+
+      {/* Grand Total summary box */}
+      <div className="flex justify-end mb-4">
+        <div className="border-2 border-gray-800 rounded p-3 min-w-48 text-xs space-y-1">
+          <div className="flex justify-between"><span className="text-gray-600">Taxable Amount</span><span>{fmt(subtotal)}</span></div>
+          {sameState ? (
+            <>
+              <div className="flex justify-between"><span className="text-gray-600">Total CGST</span><span>{fmt(totalCgst)}</span></div>
+              <div className="flex justify-between"><span className="text-gray-600">Total SGST</span><span>{fmt(totalSgst)}</span></div>
+            </>
+          ) : (
+            <div className="flex justify-between"><span className="text-gray-600">Total IGST</span><span>{fmt(totalIgst)}</span></div>
+          )}
+          <Separator />
+          <div className="flex justify-between font-bold text-base">
+            <span>Grand Total</span><span>₹{fmt(grandTotal)}</span>
+          </div>
         </div>
       </div>
-      {invoice.notes && <div className="mt-8 p-3 bg-gray-50 rounded"><p className="text-xs font-semibold text-gray-500 mb-1">Notes</p><p>{invoice.notes}</p></div>}
-      {invoice.terms && <div className="mt-4 p-3 bg-gray-50 rounded"><p className="text-xs font-semibold text-gray-500 mb-1">Terms & Conditions</p><p>{invoice.terms}</p></div>}
+
+      {/* Bank + Notes */}
+      <div className="grid grid-cols-2 gap-4 text-xs border-t border-gray-300 pt-3">
+        <div>
+          {inv.bankName && (
+            <div>
+              <p className="font-bold text-gray-700 mb-1">Bank Details</p>
+              <p><strong>Bank:</strong> {inv.bankName}</p>
+              {inv.accountNo && <p><strong>A/C No.:</strong> {inv.accountNo}</p>}
+              {inv.ifsc && <p><strong>IFSC:</strong> {inv.ifsc}</p>}
+            </div>
+          )}
+          {inv.notes && (
+            <div className="mt-2">
+              <p className="font-bold text-gray-700 mb-1">Notes / Terms</p>
+              <p className="whitespace-pre-line text-gray-600">{inv.notes}</p>
+            </div>
+          )}
+        </div>
+        <div className="text-right">
+          <p className="font-bold text-gray-700 mb-1">For {inv.sellerName}</p>
+          <div className="mt-10 border-t border-gray-400 inline-block px-8">
+            <p className="text-gray-500 text-[10px]">Authorised Signatory</p>
+          </div>
+          <p className="text-[10px] text-gray-400 mt-2">This is a computer generated invoice</p>
+        </div>
+      </div>
     </div>
   );
 }
 
-// ---------------------------------------------------------------------------
-// Create Invoice Dialog
-// ---------------------------------------------------------------------------
-type LineItem = { description: string; quantity: string; unitPrice: string };
-
-function CreateInvoiceDialog({ onCreated }: { onCreated: () => void }) {
-  const { toast } = useToast();
-  const [open, setOpen] = useState(false);
-  const [customerId, setCustomerId] = useState("");
-  const [branchId, setBranchId] = useState("");
-  const [issueDate, setIssueDate] = useState(new Date().toISOString().split("T")[0]);
-  const [dueDate, setDueDate] = useState("");
-  const [taxRate, setTaxRate] = useState("0");
-  const [discountAmount, setDiscountAmount] = useState("0");
-  const [notes, setNotes] = useState("");
-  const [terms, setTerms] = useState("");
-  const [items, setItems] = useState<LineItem[]>([{ description: "", quantity: "1", unitPrice: "" }]);
-
-  const { data: customers } = useQuery<{ data: Customer[] }>({ queryKey: ["customers-list"], queryFn: () => api.get("/customers?limit=200") });
-  const { data: branches } = useQuery<{ data: Branch[] }>({ queryKey: ["branches-list"], queryFn: () => api.get("/branches") });
-
-  const addItem = () => setItems((prev) => [...prev, { description: "", quantity: "1", unitPrice: "" }]);
-  const removeItem = (i: number) => setItems((prev) => prev.filter((_, idx) => idx !== i));
-  const updateItem = (i: number, field: keyof LineItem, value: string) =>
-    setItems((prev) => prev.map((item, idx) => idx === i ? { ...item, [field]: value } : item));
-
-  const subtotal = items.reduce((sum, it) => sum + parseFloat(it.quantity || "0") * parseFloat(it.unitPrice || "0"), 0);
-  const taxAmt = subtotal * (parseFloat(taxRate || "0") / 100);
-  const total = subtotal + taxAmt - parseFloat(discountAmount || "0");
-
-  const mutation = useMutation({
-    mutationFn: () =>
-      api.post("/invoices", {
-        customerId: parseInt(customerId, 10),
-        branchId: parseInt(branchId, 10),
-        issueDate,
-        dueDate: dueDate || undefined,
-        taxRate: parseFloat(taxRate),
-        discountAmount: parseFloat(discountAmount),
-        notes: notes || undefined,
-        terms: terms || undefined,
-        items: items.map((it) => ({
-          description: it.description,
-          quantity: parseFloat(it.quantity),
-          unitPrice: parseFloat(it.unitPrice),
-        })),
-      }),
-    onSuccess: () => {
-      toast({ title: "Invoice created" });
-      setOpen(false);
-      onCreated();
-    },
-    onError: (e: any) => toast({ title: "Error", description: e.message, variant: "destructive" }),
-  });
-
-  const canSubmit = customerId && branchId && issueDate && items.every((it) => it.description && it.unitPrice);
-
-  return (
-    <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger asChild>
-        <Button><Plus className="h-4 w-4 mr-2" />New Invoice</Button>
-      </DialogTrigger>
-      <DialogContent className="max-w-3xl max-h-[90vh] overflow-hidden flex flex-col">
-        <DialogHeader>
-          <DialogTitle>Create Invoice</DialogTitle>
-        </DialogHeader>
-        <ScrollArea className="flex-1 pr-2">
-          <div className="space-y-4 p-1">
-            {/* Customer + Branch */}
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-1">
-                <Label>Customer *</Label>
-                <Select value={customerId} onValueChange={setCustomerId}>
-                  <SelectTrigger><SelectValue placeholder="Select customer" /></SelectTrigger>
-                  <SelectContent>
-                    {customers?.data?.map((c) => <SelectItem key={c.id} value={String(c.id)}>{c.name}</SelectItem>)}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-1">
-                <Label>Branch *</Label>
-                <Select value={branchId} onValueChange={setBranchId}>
-                  <SelectTrigger><SelectValue placeholder="Select branch" /></SelectTrigger>
-                  <SelectContent>
-                    {branches?.data?.map((b) => <SelectItem key={b.id} value={String(b.id)}>{b.name}</SelectItem>)}
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-            {/* Dates */}
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-1">
-                <Label>Issue Date *</Label>
-                <Input type="date" value={issueDate} onChange={(e) => setIssueDate(e.target.value)} />
-              </div>
-              <div className="space-y-1">
-                <Label>Due Date</Label>
-                <Input type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)} />
-              </div>
-            </div>
-
-            {/* Line Items */}
-            <div>
-              <div className="flex items-center justify-between mb-2">
-                <Label className="text-base font-semibold">Line Items</Label>
-                <Button type="button" variant="outline" size="sm" onClick={addItem}><Plus className="h-3 w-3 mr-1" />Add Item</Button>
-              </div>
-              <div className="space-y-2">
-                {items.map((item, i) => (
-                  <div key={i} className="grid grid-cols-12 gap-2 items-center">
-                    <div className="col-span-5">
-                      <Input placeholder="Description" value={item.description} onChange={(e) => updateItem(i, "description", e.target.value)} />
-                    </div>
-                    <div className="col-span-2">
-                      <Input type="number" placeholder="Qty" min="0.001" step="0.001" value={item.quantity} onChange={(e) => updateItem(i, "quantity", e.target.value)} />
-                    </div>
-                    <div className="col-span-3">
-                      <Input type="number" placeholder="Unit Price" min="0" step="0.01" value={item.unitPrice} onChange={(e) => updateItem(i, "unitPrice", e.target.value)} />
-                    </div>
-                    <div className="col-span-1 text-right text-sm text-muted-foreground">
-                      {fmt(parseFloat(item.quantity || "0") * parseFloat(item.unitPrice || "0"))}
-                    </div>
-                    <div className="col-span-1 flex justify-end">
-                      {items.length > 1 && (
-                        <Button type="button" variant="ghost" size="icon" className="h-8 w-8" onClick={() => removeItem(i)}>
-                          <Trash2 className="h-3 w-3 text-destructive" />
-                        </Button>
-                      )}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            {/* Tax / Discount */}
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-1">
-                <Label>Tax Rate (%)</Label>
-                <Input type="number" min="0" max="100" step="0.01" value={taxRate} onChange={(e) => setTaxRate(e.target.value)} />
-              </div>
-              <div className="space-y-1">
-                <Label>Discount (₹)</Label>
-                <Input type="number" min="0" step="0.01" value={discountAmount} onChange={(e) => setDiscountAmount(e.target.value)} />
-              </div>
-            </div>
-
-            {/* Summary */}
-            <Card className="bg-muted/40">
-              <CardContent className="pt-4">
-                <div className="flex justify-end">
-                  <div className="w-48 space-y-1 text-sm">
-                    <div className="flex justify-between"><span className="text-muted-foreground">Subtotal</span><span>{fmt(subtotal)}</span></div>
-                    {parseFloat(taxRate) > 0 && <div className="flex justify-between"><span className="text-muted-foreground">Tax</span><span>{fmt(taxAmt)}</span></div>}
-                    {parseFloat(discountAmount) > 0 && <div className="flex justify-between"><span className="text-muted-foreground">Discount</span><span>-{fmt(parseFloat(discountAmount))}</span></div>}
-                    <Separator />
-                    <div className="flex justify-between font-bold"><span>Total</span><span>{fmt(total)}</span></div>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* Notes / Terms */}
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-1">
-                <Label>Notes</Label>
-                <Textarea rows={3} placeholder="Internal notes..." value={notes} onChange={(e) => setNotes(e.target.value)} />
-              </div>
-              <div className="space-y-1">
-                <Label>Terms & Conditions</Label>
-                <Textarea rows={3} placeholder="Payment terms..." value={terms} onChange={(e) => setTerms(e.target.value)} />
-              </div>
-            </div>
-          </div>
-        </ScrollArea>
-        <div className="flex justify-end gap-2 pt-4 border-t mt-2">
-          <Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button>
-          <Button onClick={() => mutation.mutate()} disabled={!canSubmit || mutation.isPending}>
-            {mutation.isPending ? "Creating…" : "Create Invoice"}
-          </Button>
-        </div>
-      </DialogContent>
-    </Dialog>
+// ── Invoice Form ─────────────────────────────────────────
+function InvoiceForm({
+  inv,
+  onChange,
+}: {
+  inv: InvoiceData;
+  onChange: (upd: Partial<InvoiceData>) => void;
+}) {
+  const { rows, subtotal, totalCgst, totalSgst, totalIgst, grandTotal, sameState } = calcTotals(
+    inv.items, inv.sellerState, inv.buyerState
   );
-}
 
-// ---------------------------------------------------------------------------
-// Invoice Detail Dialog (view + print)
-// ---------------------------------------------------------------------------
-function InvoiceDetailDialog({ invoiceId, onClose }: { invoiceId: number; onClose: () => void }) {
-  const { toast } = useToast();
-  const qc = useQueryClient();
-
-  const { data: invoice, isLoading } = useQuery<Invoice>({
-    queryKey: ["invoice", invoiceId],
-    queryFn: () => api.get(`/invoices/${invoiceId}`),
-  });
-
-  const statusMutation = useMutation({
-    mutationFn: (status: string) => api.patch(`/invoices/${invoiceId}`, { status }),
-    onSuccess: () => {
-      toast({ title: "Status updated" });
-      qc.invalidateQueries({ queryKey: ["invoices"] });
-      qc.invalidateQueries({ queryKey: ["invoice", invoiceId] });
-    },
-    onError: (e: any) => toast({ title: "Error", description: e.message, variant: "destructive" }),
-  });
-
-  const handlePrint = () => {
-    window.print();
+  const updateItem = (id: string, field: keyof LineItem, value: string | number) => {
+    onChange({
+      items: inv.items.map((it) =>
+        it.id === id ? { ...it, [field]: typeof value === "string" && ["qty", "rate", "gstRate"].includes(field) ? parseFloat(value as string) || 0 : value } : it
+      ),
+    });
   };
 
-  if (isLoading || !invoice) return null;
+  const addItem = () => onChange({ items: [...inv.items, defaultItem()] });
+  const removeItem = (id: string) => onChange({ items: inv.items.filter((it) => it.id !== id) });
 
-  const nextStatuses: Record<string, string[]> = {
-    draft: ["sent", "cancelled"],
-    sent: ["paid", "overdue", "cancelled"],
-    overdue: ["paid", "cancelled"],
-    paid: [],
-    cancelled: [],
-  };
-
-  return (
-    <Dialog open onOpenChange={() => onClose()}>
-      <DialogContent className="max-w-3xl max-h-[90vh] overflow-hidden flex flex-col">
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-3">
-            <FileText className="h-5 w-5" />
-            Invoice #{invoice.invoiceNumber}
-            <Badge variant={statusVariant[invoice.status]} className="flex items-center gap-1 ml-1">
-              {statusIcon[invoice.status]}
-              {invoice.status.toUpperCase()}
-            </Badge>
-          </DialogTitle>
-        </DialogHeader>
-        <ScrollArea className="flex-1">
-          {/* Print-visible invoice */}
-          <div className="space-y-6 p-1">
-            {/* Header info */}
-            <div className="grid grid-cols-2 gap-6">
-              <div>
-                <p className="text-xs font-semibold uppercase text-muted-foreground mb-1">Bill To</p>
-                <p className="font-semibold">{invoice.customerName}</p>
-                {invoice.customerMobile && <p className="text-sm text-muted-foreground">{invoice.customerMobile}</p>}
-              </div>
-              <div className="text-right space-y-1 text-sm">
-                <p><span className="text-muted-foreground">Branch: </span>{invoice.branchName}</p>
-                <p><span className="text-muted-foreground">Issue Date: </span>{invoice.issueDate}</p>
-                {invoice.dueDate && <p><span className="text-muted-foreground">Due Date: </span>{invoice.dueDate}</p>}
-                <p><span className="text-muted-foreground">Created by: </span>{invoice.createdByName}</p>
-              </div>
-            </div>
-
-            <Separator />
-
-            {/* Items */}
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Description</TableHead>
-                  <TableHead className="text-right w-20">Qty</TableHead>
-                  <TableHead className="text-right w-28">Unit Price</TableHead>
-                  <TableHead className="text-right w-28">Amount</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {(invoice.items ?? []).map((item, i) => (
-                  <TableRow key={i}>
-                    <TableCell>{item.description}</TableCell>
-                    <TableCell className="text-right">{item.quantity}</TableCell>
-                    <TableCell className="text-right">{fmt(item.unitPrice)}</TableCell>
-                    <TableCell className="text-right">{fmt(item.amount)}</TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-
-            {/* Totals */}
-            <div className="flex justify-end">
-              <div className="w-56 space-y-1 text-sm">
-                <div className="flex justify-between"><span className="text-muted-foreground">Subtotal</span><span>{fmt(invoice.subtotal)}</span></div>
-                {invoice.taxRate > 0 && <div className="flex justify-between"><span className="text-muted-foreground">Tax ({invoice.taxRate}%)</span><span>{fmt(invoice.taxAmount)}</span></div>}
-                {invoice.discountAmount > 0 && <div className="flex justify-between"><span className="text-muted-foreground">Discount</span><span>-{fmt(invoice.discountAmount)}</span></div>}
-                <Separator />
-                <div className="flex justify-between font-bold text-base"><span>Total</span><span>{fmt(invoice.total)}</span></div>
-              </div>
-            </div>
-
-            {(invoice.notes || invoice.terms) && <Separator />}
-            {invoice.notes && (
-              <div><p className="text-xs font-semibold text-muted-foreground mb-1">NOTES</p><p className="text-sm">{invoice.notes}</p></div>
-            )}
-            {invoice.terms && (
-              <div><p className="text-xs font-semibold text-muted-foreground mb-1">TERMS & CONDITIONS</p><p className="text-sm">{invoice.terms}</p></div>
-            )}
-          </div>
-        </ScrollArea>
-
-        {/* Actions */}
-        <div className="flex justify-between items-center pt-4 border-t mt-2">
-          <div className="flex gap-2">
-            {nextStatuses[invoice.status]?.map((s) => (
-              <Button key={s} variant="outline" size="sm" onClick={() => statusMutation.mutate(s)} disabled={statusMutation.isPending}>
-                Mark as {s.charAt(0).toUpperCase() + s.slice(1)}
-              </Button>
-            ))}
-          </div>
-          <div className="flex gap-2">
-            <Button variant="outline" size="sm" onClick={handlePrint}>
-              <Printer className="h-4 w-4 mr-2" />Print
-            </Button>
-            <Button variant="outline" onClick={onClose}>Close</Button>
-          </div>
-        </div>
-      </DialogContent>
-    </Dialog>
+  const field = (label: string, key: keyof InvoiceData, placeholder?: string, type = "text") => (
+    <div className="space-y-1">
+      <Label className="text-xs">{label}</Label>
+      <Input
+        type={type}
+        placeholder={placeholder}
+        value={(inv[key] as string) ?? ""}
+        onChange={(e) => onChange({ [key]: e.target.value })}
+        className="h-8 text-sm"
+      />
+    </div>
   );
-}
 
-// ---------------------------------------------------------------------------
-// Main Invoices Page
-// ---------------------------------------------------------------------------
-export default function InvoicesPage() {
-  const [page, setPage] = useState(1);
-  const [statusFilter, setStatusFilter] = useState("all");
-  const [selectedId, setSelectedId] = useState<number | null>(null);
-  const qc = useQueryClient();
-  const { toast } = useToast();
-
-  const { data, isLoading } = useQuery<{ data: Invoice[]; total: number; page: number; limit: number }>({
-    queryKey: ["invoices", page, statusFilter],
-    queryFn: () => api.get(`/invoices?page=${page}&limit=20${statusFilter !== "all" ? `&status=${statusFilter}` : ""}`),
-  });
-
-  const { data: summary } = useQuery<Summary>({
-    queryKey: ["invoices-summary"],
-    queryFn: () => api.get("/invoices/summary"),
-  });
-
-  const deleteMutation = useMutation({
-    mutationFn: (id: number) => api.delete(`/invoices/${id}`),
-    onSuccess: () => {
-      toast({ title: "Invoice deleted" });
-      qc.invalidateQueries({ queryKey: ["invoices"] });
-      qc.invalidateQueries({ queryKey: ["invoices-summary"] });
-    },
-    onError: (e: any) => toast({ title: "Error", description: e.message, variant: "destructive" }),
-  });
-
-  const totalPages = Math.ceil((data?.total ?? 0) / 20);
+  const indianStates = [
+    "Rajasthan","Delhi","Maharashtra","Gujarat","Uttar Pradesh","Karnataka",
+    "Tamil Nadu","West Bengal","Telangana","Andhra Pradesh","Madhya Pradesh",
+    "Haryana","Bihar","Punjab","Jharkhand","Assam","Kerala","Odisha","Others"
+  ];
 
   return (
     <div className="space-y-6">
-      {/* Print-only invoice */}
-      {selectedId && (
-        <div className="print:block hidden">
-          {/* Content injected by PrintableInvoice, shown only on print */}
-        </div>
-      )}
-
-      {/* Page header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight">Invoices</h1>
-          <p className="text-muted-foreground">Create and manage customer invoices</p>
-        </div>
-        <CreateInvoiceDialog onCreated={() => { qc.invalidateQueries({ queryKey: ["invoices"] }); qc.invalidateQueries({ queryKey: ["invoices-summary"] }); }} />
-      </div>
-
-      {/* KPI Cards */}
-      <div className="grid gap-4 md:grid-cols-5">
-        <Card>
-          <CardHeader className="pb-2 flex flex-row items-center justify-between">
-            <CardTitle className="text-sm font-medium">Total Invoices</CardTitle>
-            <FileText className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent><div className="text-2xl font-bold">{summary?.total ?? 0}</div></CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="pb-2 flex flex-row items-center justify-between">
-            <CardTitle className="text-sm font-medium">Draft</CardTitle>
-            <Clock className="h-4 w-4 text-gray-400" />
-          </CardHeader>
-          <CardContent><div className="text-2xl font-bold text-gray-500">{summary?.draft ?? 0}</div></CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="pb-2 flex flex-row items-center justify-between">
-            <CardTitle className="text-sm font-medium">Paid</CardTitle>
-            <CheckCircle2 className="h-4 w-4 text-green-500" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-green-600">{summary?.paid ?? 0}</div>
-            <p className="text-xs text-muted-foreground">{fmt(summary?.paidAmount ?? 0)}</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="pb-2 flex flex-row items-center justify-between">
-            <CardTitle className="text-sm font-medium">Overdue</CardTitle>
-            <AlertTriangle className="h-4 w-4 text-red-500" />
-          </CardHeader>
-          <CardContent><div className="text-2xl font-bold text-red-600">{summary?.overdue ?? 0}</div></CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="pb-2 flex flex-row items-center justify-between">
-            <CardTitle className="text-sm font-medium">Total Amount</CardTitle>
-            <FileText className="h-4 w-4 text-blue-500" />
-          </CardHeader>
-          <CardContent><div className="text-xl font-bold text-blue-600">{fmt(summary?.totalAmount ?? 0)}</div></CardContent>
-        </Card>
-      </div>
-
-      {/* Filter */}
-      <div className="flex gap-2">
-        {["all", "draft", "sent", "paid", "overdue", "cancelled"].map((s) => (
-          <Button
-            key={s}
-            variant={statusFilter === s ? "default" : "outline"}
-            size="sm"
-            onClick={() => { setStatusFilter(s); setPage(1); }}
-          >
-            {s.charAt(0).toUpperCase() + s.slice(1)}
-          </Button>
-        ))}
-      </div>
-
-      {/* Invoice Table */}
+      {/* Invoice header */}
       <Card>
-        <CardContent className="p-0">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Invoice #</TableHead>
-                <TableHead>Customer</TableHead>
-                <TableHead>Branch</TableHead>
-                <TableHead>Issue Date</TableHead>
-                <TableHead>Due Date</TableHead>
-                <TableHead className="text-right">Amount</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead className="w-24">Actions</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {isLoading ? (
-                <TableRow><TableCell colSpan={8} className="text-center text-muted-foreground py-8">Loading…</TableCell></TableRow>
-              ) : !data?.data?.length ? (
-                <TableRow><TableCell colSpan={8} className="text-center text-muted-foreground py-8">No invoices found</TableCell></TableRow>
-              ) : (
-                data.data.map((inv) => (
-                  <TableRow key={inv.id} className="cursor-pointer hover:bg-muted/50">
-                    <TableCell className="font-mono font-medium">{inv.invoiceNumber}</TableCell>
-                    <TableCell>{inv.customerName ?? `#${inv.customerId}`}</TableCell>
-                    <TableCell>{inv.branchName}</TableCell>
-                    <TableCell>{inv.issueDate}</TableCell>
-                    <TableCell>{inv.dueDate ?? "—"}</TableCell>
-                    <TableCell className="text-right font-medium">{fmt(inv.total)}</TableCell>
-                    <TableCell>
-                      <Badge variant={statusVariant[inv.status]} className="flex items-center gap-1 w-fit">
-                        {statusIcon[inv.status]}
-                        {inv.status}
-                      </Badge>
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex gap-1">
-                        <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setSelectedId(inv.id)} title="View">
-                          <Eye className="h-4 w-4" />
-                        </Button>
-                        {inv.status === "draft" && (
-                          <Button
-                            variant="ghost" size="icon" className="h-8 w-8"
-                            onClick={() => { if (confirm("Delete this draft invoice?")) deleteMutation.mutate(inv.id); }}
-                            title="Delete"
-                          >
-                            <Trash2 className="h-4 w-4 text-destructive" />
-                          </Button>
-                        )}
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                ))
-              )}
-            </TableBody>
-          </Table>
+        <CardHeader className="pb-3"><CardTitle className="text-sm flex items-center gap-2"><Hash className="h-4 w-4" />Invoice Details</CardTitle></CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            {field("Invoice Number", "invoiceNumber", "INV-2024-0001")}
+            {field("Invoice Date", "invoiceDate", "", "date")}
+            {field("Due Date (optional)", "dueDate", "", "date")}
+          </div>
         </CardContent>
       </Card>
 
-      {/* Pagination */}
-      {totalPages > 1 && (
-        <div className="flex items-center justify-between">
-          <p className="text-sm text-muted-foreground">
-            Page {page} of {totalPages} ({data?.total ?? 0} total)
-          </p>
-          <div className="flex gap-2">
-            <Button variant="outline" size="sm" disabled={page <= 1} onClick={() => setPage((p) => p - 1)}>
-              <ChevronLeft className="h-4 w-4" />
+      {/* Seller + Buyer */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <Card>
+          <CardHeader className="pb-3"><CardTitle className="text-sm flex items-center gap-2"><Building2 className="h-4 w-4" />Your Business (Seller)</CardTitle></CardHeader>
+          <CardContent className="space-y-3">
+            {field("Business Name *", "sellerName", "Bissi Finance")}
+            <div className="space-y-1">
+              <Label className="text-xs">Address</Label>
+              <textarea
+                className="w-full border rounded-md p-2 text-sm h-20 resize-none bg-background"
+                placeholder="Full address..."
+                value={inv.sellerAddress}
+                onChange={(e) => onChange({ sellerAddress: e.target.value })}
+              />
+            </div>
+            {field("GSTIN (optional)", "sellerGstin", "27AAAPZ1234A1Z5")}
+            <div className="space-y-1">
+              <Label className="text-xs">State</Label>
+              <Select value={inv.sellerState} onValueChange={(v) => onChange({ sellerState: v })}>
+                <SelectTrigger className="h-8 text-sm"><SelectValue /></SelectTrigger>
+                <SelectContent>{indianStates.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}</SelectContent>
+              </Select>
+            </div>
+            {field("Phone", "sellerPhone", "+91 98765 43210")}
+            {field("Email", "sellerEmail", "business@example.com")}
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="pb-3"><CardTitle className="text-sm flex items-center gap-2"><User className="h-4 w-4" />Customer (Bill To)</CardTitle></CardHeader>
+          <CardContent className="space-y-3">
+            {field("Customer Name *", "buyerName", "Customer name")}
+            <div className="space-y-1">
+              <Label className="text-xs">Address</Label>
+              <textarea
+                className="w-full border rounded-md p-2 text-sm h-20 resize-none bg-background"
+                placeholder="Customer address..."
+                value={inv.buyerAddress}
+                onChange={(e) => onChange({ buyerAddress: e.target.value })}
+              />
+            </div>
+            {field("GSTIN (optional)", "buyerGstin", "Customer GSTIN if any")}
+            <div className="space-y-1">
+              <Label className="text-xs">State</Label>
+              <Select value={inv.buyerState} onValueChange={(v) => onChange({ buyerState: v })}>
+                <SelectTrigger className="h-8 text-sm"><SelectValue /></SelectTrigger>
+                <SelectContent>{indianStates.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}</SelectContent>
+              </Select>
+            </div>
+            {field("Phone", "buyerPhone", "+91 98765 43210")}
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Line Items */}
+      <Card>
+        <CardHeader className="pb-3">
+          <div className="flex items-center justify-between">
+            <CardTitle className="text-sm">Line Items</CardTitle>
+            <Button size="sm" variant="outline" onClick={addItem}>
+              <Plus className="h-3.5 w-3.5 mr-1" />Add Item
             </Button>
-            <Button variant="outline" size="sm" disabled={page >= totalPages} onClick={() => setPage((p) => p + 1)}>
-              <ChevronRight className="h-4 w-4" />
+          </div>
+        </CardHeader>
+        <CardContent className="p-0">
+          {/* Mobile: card per item */}
+          <div className="sm:hidden space-y-3 p-4">
+            {inv.items.map((item, i) => (
+              <div key={item.id} className="border rounded-lg p-3 space-y-2 relative">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-semibold text-muted-foreground">Item #{i + 1}</span>
+                  {inv.items.length > 1 && (
+                    <Button size="icon" variant="ghost" className="h-6 w-6 text-destructive" onClick={() => removeItem(item.id)}>
+                      <Trash2 className="h-3 w-3" />
+                    </Button>
+                  )}
+                </div>
+                <Input placeholder="Description *" value={item.description} onChange={(e) => updateItem(item.id, "description", e.target.value)} className="h-8 text-sm" />
+                <div className="grid grid-cols-2 gap-2">
+                  <Input placeholder="HSN Code" value={item.hsn} onChange={(e) => updateItem(item.id, "hsn", e.target.value)} className="h-8 text-sm" />
+                  <Select value={item.unit} onValueChange={(v) => updateItem(item.id, "unit", v)}>
+                    <SelectTrigger className="h-8 text-sm"><SelectValue /></SelectTrigger>
+                    <SelectContent>{units.map(u => <SelectItem key={u} value={u}>{u}</SelectItem>)}</SelectContent>
+                  </Select>
+                </div>
+                <div className="grid grid-cols-3 gap-2">
+                  <div><Label className="text-[10px]">Qty</Label><Input type="number" min={0} value={item.qty} onChange={(e) => updateItem(item.id, "qty", e.target.value)} className="h-8 text-sm" /></div>
+                  <div><Label className="text-[10px]">Rate (₹)</Label><Input type="number" min={0} value={item.rate} onChange={(e) => updateItem(item.id, "rate", e.target.value)} className="h-8 text-sm" /></div>
+                  <div>
+                    <Label className="text-[10px]">GST %</Label>
+                    <Select value={String(item.gstRate)} onValueChange={(v) => updateItem(item.id, "gstRate", v)}>
+                      <SelectTrigger className="h-8 text-sm"><SelectValue /></SelectTrigger>
+                      <SelectContent>{GST_RATES.map(r => <SelectItem key={r} value={String(r)}>{r}%</SelectItem>)}</SelectContent>
+                    </Select>
+                  </div>
+                </div>
+                <div className="text-right text-sm font-semibold text-primary">
+                  Total: ₹{fmt(rows[i]?.total ?? 0)}
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* Desktop: table */}
+          <div className="hidden sm:block overflow-x-auto">
+            <table className="w-full text-xs">
+              <thead>
+                <tr className="border-b border-border bg-muted/40">
+                  <th className="px-3 py-2 text-left font-medium text-muted-foreground">Description</th>
+                  <th className="px-2 py-2 text-left font-medium text-muted-foreground w-20">HSN</th>
+                  <th className="px-2 py-2 text-center font-medium text-muted-foreground w-14">Qty</th>
+                  <th className="px-2 py-2 text-center font-medium text-muted-foreground w-20">Unit</th>
+                  <th className="px-2 py-2 text-right font-medium text-muted-foreground w-24">Rate (₹)</th>
+                  <th className="px-2 py-2 text-center font-medium text-muted-foreground w-20">GST%</th>
+                  <th className="px-2 py-2 text-right font-medium text-muted-foreground w-24">Total (₹)</th>
+                  <th className="px-2 py-2 w-8"></th>
+                </tr>
+              </thead>
+              <tbody>
+                {inv.items.map((item, i) => (
+                  <tr key={item.id} className="border-b border-border/50 hover:bg-muted/20">
+                    <td className="px-3 py-1.5">
+                      <Input placeholder="Item description *" value={item.description} onChange={(e) => updateItem(item.id, "description", e.target.value)} className="h-7 text-xs border-0 bg-transparent shadow-none px-0 focus-visible:ring-0 focus-visible:ring-offset-0" />
+                    </td>
+                    <td className="px-2 py-1.5">
+                      <Input placeholder="HSN" value={item.hsn} onChange={(e) => updateItem(item.id, "hsn", e.target.value)} className="h-7 text-xs" />
+                    </td>
+                    <td className="px-2 py-1.5">
+                      <Input type="number" min={0} value={item.qty} onChange={(e) => updateItem(item.id, "qty", e.target.value)} className="h-7 text-xs text-center" />
+                    </td>
+                    <td className="px-2 py-1.5">
+                      <Select value={item.unit} onValueChange={(v) => updateItem(item.id, "unit", v)}>
+                        <SelectTrigger className="h-7 text-xs"><SelectValue /></SelectTrigger>
+                        <SelectContent>{units.map(u => <SelectItem key={u} value={u}>{u}</SelectItem>)}</SelectContent>
+                      </Select>
+                    </td>
+                    <td className="px-2 py-1.5">
+                      <Input type="number" min={0} value={item.rate} onChange={(e) => updateItem(item.id, "rate", e.target.value)} className="h-7 text-xs text-right" />
+                    </td>
+                    <td className="px-2 py-1.5">
+                      <Select value={String(item.gstRate)} onValueChange={(v) => updateItem(item.id, "gstRate", v)}>
+                        <SelectTrigger className="h-7 text-xs"><SelectValue /></SelectTrigger>
+                        <SelectContent>{GST_RATES.map(r => <SelectItem key={r} value={String(r)}>{r}%</SelectItem>)}</SelectContent>
+                      </Select>
+                    </td>
+                    <td className="px-2 py-1.5 text-right font-semibold">{fmt(rows[i]?.total ?? 0)}</td>
+                    <td className="px-2 py-1.5">
+                      {inv.items.length > 1 && (
+                        <Button size="icon" variant="ghost" className="h-6 w-6 text-destructive hover:bg-destructive/10" onClick={() => removeItem(item.id)}>
+                          <Trash2 className="h-3 w-3" />
+                        </Button>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Totals + Tax summary */}
+      <div className="flex flex-col sm:flex-row gap-4">
+        <div className="flex-1 space-y-3">
+          {/* Bank details */}
+          <Card>
+            <CardHeader className="pb-2"><CardTitle className="text-sm">Bank Details (optional)</CardTitle></CardHeader>
+            <CardContent className="space-y-2">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                {field("Bank Name", "bankName", "HDFC Bank")}
+                {field("Account Number", "accountNo", "12345678901")}
+                {field("IFSC Code", "ifsc", "HDFC0001234")}
+              </div>
+            </CardContent>
+          </Card>
+          {/* Notes */}
+          <Card>
+            <CardHeader className="pb-2"><CardTitle className="text-sm">Notes / Terms & Conditions</CardTitle></CardHeader>
+            <CardContent>
+              <textarea
+                className="w-full border rounded-md p-2 text-sm h-20 resize-none bg-background"
+                placeholder="Payment terms, notes, etc."
+                value={inv.notes}
+                onChange={(e) => onChange({ notes: e.target.value })}
+              />
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Tax Summary */}
+        <Card className="sm:w-72 shrink-0">
+          <CardHeader className="pb-2"><CardTitle className="text-sm flex items-center gap-2"><IndianRupee className="h-4 w-4" />Tax Summary</CardTitle></CardHeader>
+          <CardContent className="space-y-2 text-sm">
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">Taxable Amount</span>
+              <span className="font-medium">₹{fmt(subtotal)}</span>
+            </div>
+            {sameState ? (
+              <>
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">CGST</span>
+                  <span className="font-medium">₹{fmt(totalCgst)}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">SGST</span>
+                  <span className="font-medium">₹{fmt(totalSgst)}</span>
+                </div>
+                <Badge variant="outline" className="text-[10px] w-full justify-center">Intra-state (CGST + SGST)</Badge>
+              </>
+            ) : (
+              <>
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">IGST</span>
+                  <span className="font-medium">₹{fmt(totalIgst)}</span>
+                </div>
+                <Badge variant="outline" className="text-[10px] w-full justify-center">Inter-state (IGST)</Badge>
+              </>
+            )}
+            <Separator />
+            <div className="flex justify-between font-bold text-base">
+              <span>Grand Total</span>
+              <span className="text-primary">₹{fmt(grandTotal)}</span>
+            </div>
+            <p className="text-[10px] text-muted-foreground italic text-center pt-1">
+              {numToWords(grandTotal)}
+            </p>
+          </CardContent>
+        </Card>
+      </div>
+    </div>
+  );
+}
+
+// ── Main Page ────────────────────────────────────────────
+export default function InvoicesPage() {
+  const [inv, setInv] = useState<InvoiceData>(defaultInvoice);
+  const [saved, setSaved] = useState<SavedInvoice[]>(() => {
+    try { return JSON.parse(localStorage.getItem("bissi_invoices") ?? "[]"); } catch { return []; }
+  });
+  const [preview, setPreview] = useState(false);
+  const [loadedId, setLoadedId] = useState<string | null>(null);
+  const { toast } = useToast();
+
+  const update = (upd: Partial<InvoiceData>) => setInv((prev) => ({ ...prev, ...upd }));
+
+  const { grandTotal } = calcTotals(inv.items, inv.sellerState, inv.buyerState);
+
+  const saveInvoice = () => {
+    const entry: SavedInvoice = {
+      id: loadedId ?? uid(),
+      invoiceNumber: inv.invoiceNumber,
+      buyerName: inv.buyerName,
+      invoiceDate: inv.invoiceDate,
+      grandTotal,
+      data: inv,
+    };
+    const updated = loadedId
+      ? saved.map((s) => (s.id === loadedId ? entry : s))
+      : [entry, ...saved];
+    setSaved(updated);
+    setLoadedId(entry.id);
+    localStorage.setItem("bissi_invoices", JSON.stringify(updated));
+    toast({ title: "Invoice saved!" });
+  };
+
+  const loadInvoice = (s: SavedInvoice) => {
+    setInv(s.data);
+    setLoadedId(s.id);
+    setPreview(false);
+  };
+
+  const deleteInvoice = (id: string) => {
+    const updated = saved.filter((s) => s.id !== id);
+    setSaved(updated);
+    localStorage.setItem("bissi_invoices", JSON.stringify(updated));
+    if (loadedId === id) { setInv(defaultInvoice()); setLoadedId(null); }
+  };
+
+  const newInvoice = () => { setInv(defaultInvoice()); setLoadedId(null); };
+
+  const handlePrint = () => {
+    setPreview(true);
+    setTimeout(() => window.print(), 400);
+  };
+
+  return (
+    <>
+      {/* Print stylesheet — hides the editor, shows only the invoice */}
+      <style>{`
+        @media print {
+          body > * { display: none !important; }
+          #invoice-print { display: block !important; }
+          #invoice-print { position: fixed; top: 0; left: 0; width: 100%; }
+        }
+      `}</style>
+
+      {/* Hidden print preview (rendered off-screen until print) */}
+      {preview && (
+        <div className="hidden print:block fixed inset-0 bg-white z-[9999]">
+          <PrintView inv={inv} />
+        </div>
+      )}
+      <div id="invoice-print" className="hidden"><PrintView inv={inv} /></div>
+
+      <div className="space-y-4 sm:space-y-6">
+        {/* Page Header */}
+        <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+          <div className="flex-1">
+            <h1 className="text-xl sm:text-2xl font-bold tracking-tight flex items-center gap-2">
+              <FileText className="h-5 w-5 text-primary" />
+              GST Invoice Maker
+            </h1>
+            <p className="text-sm text-muted-foreground mt-0.5">
+              Create GST-compliant invoices with CGST/SGST breakdown · Rajasthan
+            </p>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <Button variant="outline" size="sm" onClick={newInvoice}>
+              <Plus className="h-4 w-4 mr-1" />New Invoice
+            </Button>
+            <Button variant="outline" size="sm" onClick={saveInvoice}>
+              <Download className="h-4 w-4 mr-1" />Save
+            </Button>
+            <Dialog>
+              <DialogTrigger asChild>
+                <Button variant="outline" size="sm">
+                  <FileText className="h-4 w-4 mr-1" />Saved ({saved.length})
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="max-w-lg">
+                <DialogHeader><DialogTitle>Saved Invoices</DialogTitle></DialogHeader>
+                {saved.length === 0 ? (
+                  <p className="text-sm text-muted-foreground py-4 text-center">No saved invoices yet.</p>
+                ) : (
+                  <div className="space-y-2 max-h-80 overflow-y-auto">
+                    {saved.map((s) => (
+                      <div key={s.id} className="flex items-center gap-3 border rounded-lg p-3 hover:bg-muted/50">
+                        <div className="flex-1 min-w-0 cursor-pointer" onClick={() => loadInvoice(s)}>
+                          <p className="font-semibold text-sm truncate">{s.invoiceNumber}</p>
+                          <p className="text-xs text-muted-foreground">{s.buyerName || "—"} · {new Date(s.invoiceDate).toLocaleDateString("en-IN")}</p>
+                          <p className="text-xs font-medium text-primary">₹{fmt(s.grandTotal)}</p>
+                        </div>
+                        <Button size="icon" variant="ghost" className="h-7 w-7 text-destructive shrink-0" onClick={() => deleteInvoice(s.id)}>
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </DialogContent>
+            </Dialog>
+            <Button size="sm" onClick={handlePrint} className="gap-2">
+              <Printer className="h-4 w-4" />Print / Download PDF
             </Button>
           </div>
         </div>
-      )}
 
-      {/* Detail dialog */}
-      {selectedId !== null && (
-        <InvoiceDetailDialog invoiceId={selectedId} onClose={() => setSelectedId(null)} />
-      )}
-    </div>
+        {/* Invoice Form */}
+        <InvoiceForm inv={inv} onChange={update} />
+      </div>
+    </>
   );
 }
