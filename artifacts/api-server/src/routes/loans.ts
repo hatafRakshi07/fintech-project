@@ -1,8 +1,15 @@
 import { Router, type IRouter } from "express";
-import { db, loansTable, customersTable, branchesTable, collectionsTable } from "@workspace/db";
+import { db, loansTable, customersTable, branchesTable, usersTable } from "@workspace/db";
 import { eq, and, sql } from "drizzle-orm";
 
 const router: IRouter = Router();
+
+// Helper to get linked customerId for customer role
+async function getCustomerLimitId(userId: number, role: string): Promise<number | null | undefined> {
+  if (role !== "customer") return undefined;
+  const [user] = await db.select({ customerId: usersTable.customerId }).from(usersTable).where(eq(usersTable.id, userId));
+  return user?.customerId;
+}
 
 function calcEmi(principal: number, rate: number, tenure: number, type: "flat" | "reducing"): number {
   if (type === "flat") {
@@ -16,6 +23,12 @@ function calcEmi(principal: number, rate: number, tenure: number, type: "flat" |
 }
 
 router.get("/loans", async (req, res): Promise<void> => {
+  const customerLimitId = await getCustomerLimitId(req.userId, req.userRole);
+  if (customerLimitId === null) {
+    res.status(403).json({ error: "Access Denied: Customer profile not linked." });
+    return;
+  }
+
   const { customerId, status, branchId, page = "1", limit = "20" } = req.query;
   const pageNum = parseInt(page as string, 10);
   const limitNum = Math.min(parseInt(limit as string, 10), 100);
@@ -28,14 +41,16 @@ router.get("/loans", async (req, res): Promise<void> => {
     .leftJoin(branchesTable, eq(loansTable.branchId, branchesTable.id))
     .orderBy(loansTable.createdAt);
 
-  if (customerId) rows = rows.filter((r) => r.l.customerId === parseInt(customerId as string, 10));
+  const targetCustomerId = customerLimitId !== undefined ? customerLimitId : (customerId ? parseInt(customerId as string, 10) : undefined);
+
+  if (targetCustomerId !== undefined) rows = rows.filter((r) => r.l.customerId === targetCustomerId);
   if (status) rows = rows.filter((r) => r.l.status === status);
   if (branchId) rows = rows.filter((r) => r.l.branchId === parseInt(branchId as string, 10));
 
   const total = rows.length;
   const sliced = rows.slice(offset, offset + limitNum);
 
-  const data = sliced.map((row: (typeof sliced)[number]) => {
+  const data = sliced.map((row) => {
     const principal = parseFloat(row.l.principalAmount);
     const rate = parseFloat(row.l.interestRate);
     const tenure = row.l.tenure;
@@ -62,6 +77,11 @@ router.get("/loans", async (req, res): Promise<void> => {
 });
 
 router.post("/loans", async (req, res): Promise<void> => {
+  if (req.userRole === "customer") {
+    res.status(403).json({ error: "Forbidden: Customers cannot create loans." });
+    return;
+  }
+
   const { customerId, principalAmount, interestRate, interestType, tenure, branchId, purpose } = req.body;
   if (!customerId || !principalAmount || !interestRate || !interestType || !tenure || !branchId) {
     res.status(400).json({ error: "All fields required" });
@@ -99,6 +119,11 @@ router.post("/loans", async (req, res): Promise<void> => {
 });
 
 router.get("/loans/summary", async (req, res): Promise<void> => {
+  if (req.userRole === "customer") {
+    res.status(403).json({ error: "Forbidden: Customers cannot view general loan summaries." });
+    return;
+  }
+
   const [all] = await db.select({ count: sql<number>`count(*)::int` }).from(loansTable);
   const [active] = await db.select({ count: sql<number>`count(*)::int` }).from(loansTable).where(eq(loansTable.status, "active"));
   const [pending] = await db.select({ count: sql<number>`count(*)::int` }).from(loansTable).where(eq(loansTable.status, "pending"));
@@ -117,6 +142,12 @@ router.get("/loans/summary", async (req, res): Promise<void> => {
 });
 
 router.get("/loans/:id", async (req, res): Promise<void> => {
+  const customerLimitId = await getCustomerLimitId(req.userId, req.userRole);
+  if (customerLimitId === null) {
+    res.status(403).json({ error: "Access Denied: Customer profile not linked." });
+    return;
+  }
+
   const id = parseInt(Array.isArray(req.params.id) ? req.params.id[0] : req.params.id, 10);
   const [row] = await db
     .select({ l: loansTable, customerName: customersTable.name, customerMobile: customersTable.mobile, branchName: branchesTable.name })
@@ -125,6 +156,13 @@ router.get("/loans/:id", async (req, res): Promise<void> => {
     .leftJoin(branchesTable, eq(loansTable.branchId, branchesTable.id))
     .where(eq(loansTable.id, id));
   if (!row) { res.status(404).json({ error: "Loan not found" }); return; }
+
+  // Enforce customer restriction
+  if (customerLimitId !== undefined && row.l.customerId !== customerLimitId) {
+    res.status(403).json({ error: "Forbidden: You do not have permission to view this loan." });
+    return;
+  }
+
   const principal = parseFloat(row.l.principalAmount);
   const emi = row.l.emiAmount ? parseFloat(row.l.emiAmount) : 0;
   const total = row.l.totalAmount ? parseFloat(row.l.totalAmount) : 0;
@@ -146,6 +184,11 @@ router.get("/loans/:id", async (req, res): Promise<void> => {
 });
 
 router.patch("/loans/:id", async (req, res): Promise<void> => {
+  if (req.userRole === "customer") {
+    res.status(403).json({ error: "Forbidden: Customers cannot update loans." });
+    return;
+  }
+
   const id = parseInt(Array.isArray(req.params.id) ? req.params.id[0] : req.params.id, 10);
   const { status, disbursedAt } = req.body;
   const update: any = {};
@@ -167,9 +210,21 @@ router.patch("/loans/:id", async (req, res): Promise<void> => {
 });
 
 router.get("/loans/:id/emi-schedule", async (req, res): Promise<void> => {
+  const customerLimitId = await getCustomerLimitId(req.userId, req.userRole);
+  if (customerLimitId === null) {
+    res.status(403).json({ error: "Access Denied: Customer profile not linked." });
+    return;
+  }
+
   const id = parseInt(Array.isArray(req.params.id) ? req.params.id[0] : req.params.id, 10);
   const [loan] = await db.select().from(loansTable).where(eq(loansTable.id, id));
   if (!loan) { res.status(404).json({ error: "Loan not found" }); return; }
+
+  // Enforce customer restriction
+  if (customerLimitId !== undefined && loan.customerId !== customerLimitId) {
+    res.status(403).json({ error: "Forbidden: You do not have permission to view this loan schedule." });
+    return;
+  }
 
   const principal = parseFloat(loan.principalAmount);
   const rate = parseFloat(loan.interestRate);

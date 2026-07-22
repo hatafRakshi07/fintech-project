@@ -5,11 +5,24 @@ import { createNotification, notifyManagers } from "./notifications";
 
 const router: IRouter = Router();
 
+// Helper to get linked customerId for customer role
+async function getCustomerLimitId(userId: number, role: string): Promise<number | null | undefined> {
+  if (role !== "customer") return undefined;
+  const [user] = await db.select({ customerId: usersTable.customerId }).from(usersTable).where(eq(usersTable.id, userId));
+  return user?.customerId;
+}
+
 function genReceipt(): string {
   return `RCP${Date.now()}`;
 }
 
 router.get("/collections", async (req, res): Promise<void> => {
+  const customerLimitId = await getCustomerLimitId(req.userId, req.userRole);
+  if (customerLimitId === null) {
+    res.status(403).json({ error: "Access Denied: Customer profile not linked." });
+    return;
+  }
+
   const { customerId, collectorId, branchId, committeeId, loanId, date, status, page = "1", limit = "20" } = req.query;
   const pageNum = parseInt(page as string, 10);
   const limitNum = Math.min(parseInt(limit as string, 10), 100);
@@ -29,7 +42,9 @@ router.get("/collections", async (req, res): Promise<void> => {
     .leftJoin(committeesTable, eq(collectionsTable.committeeId, committeesTable.id))
     .orderBy(collectionsTable.collectedAt);
 
-  if (customerId) rows = rows.filter((r) => r.c.customerId === parseInt(customerId as string, 10));
+  const targetCustomerId = customerLimitId !== undefined ? customerLimitId : (customerId ? parseInt(customerId as string, 10) : undefined);
+
+  if (targetCustomerId !== undefined) rows = rows.filter((r) => r.c.customerId === targetCustomerId);
   if (collectorId) rows = rows.filter((r) => r.c.collectorId === parseInt(collectorId as string, 10));
   if (committeeId) rows = rows.filter((r) => r.c.committeeId === parseInt(committeeId as string, 10));
   if (loanId) rows = rows.filter((r) => r.c.loanId === parseInt(loanId as string, 10));
@@ -60,6 +75,11 @@ router.get("/collections", async (req, res): Promise<void> => {
 });
 
 router.post("/collections", async (req, res): Promise<void> => {
+  if (req.userRole === "customer") {
+    res.status(403).json({ error: "Forbidden: Customers cannot create collections." });
+    return;
+  }
+
   const { customerId, collectorId, committeeId, loanId, amount, paymentMode, notes, collectedAt, billingName, billingPhone, billingAddress, billingGstin } = req.body;
   if (!customerId || !amount || !paymentMode) {
     res.status(400).json({ error: "customerId, amount, paymentMode required" });
@@ -110,7 +130,7 @@ router.post("/collections", async (req, res): Promise<void> => {
     createdAt: col.createdAt.toISOString(),
   });
 
-  // Fire-and-forget notifications — do NOT await so the response is already sent
+  // Fire-and-forget notifications
   const amtFmt = new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 0 }).format(parseFloat(String(amount)));
   notifyManagers(
     cust?.branchId ?? null,
@@ -122,6 +142,11 @@ router.post("/collections", async (req, res): Promise<void> => {
 });
 
 router.get("/collections/today-summary", async (req, res): Promise<void> => {
+  if (req.userRole === "customer") {
+    res.status(403).json({ error: "Forbidden: Customers cannot access collections summaries." });
+    return;
+  }
+
   const today = new Date();
   today.setHours(0, 0, 0, 0);
 
@@ -138,6 +163,11 @@ router.get("/collections/today-summary", async (req, res): Promise<void> => {
 });
 
 router.get("/collections/due-today", async (req, res): Promise<void> => {
+  if (req.userRole === "customer") {
+    res.status(403).json({ error: "Forbidden: Customers cannot access due lists." });
+    return;
+  }
+
   // Return customers who haven't paid today
   const customers = await db.select().from(customersTable).where(eq(customersTable.status, "active")).limit(20);
 
@@ -168,6 +198,12 @@ router.get("/collections/due-today", async (req, res): Promise<void> => {
 });
 
 router.get("/collections/:id", async (req, res): Promise<void> => {
+  const customerLimitId = await getCustomerLimitId(req.userId, req.userRole);
+  if (customerLimitId === null) {
+    res.status(403).json({ error: "Access Denied: Customer profile not linked." });
+    return;
+  }
+
   const id = parseInt(Array.isArray(req.params.id) ? req.params.id[0] : req.params.id, 10);
   const [row] = await db
     .select({
@@ -183,6 +219,13 @@ router.get("/collections/:id", async (req, res): Promise<void> => {
     .leftJoin(committeesTable, eq(collectionsTable.committeeId, committeesTable.id))
     .where(eq(collectionsTable.id, id));
   if (!row) { res.status(404).json({ error: "Collection not found" }); return; }
+
+  // Enforce customer restriction
+  if (customerLimitId !== undefined && row.c.customerId !== customerLimitId) {
+    res.status(403).json({ error: "Forbidden: You do not have permission to view this collection record." });
+    return;
+  }
+
   res.json({
     ...row.c,
     customerName: row.customerName,
@@ -195,10 +238,12 @@ router.get("/collections/:id", async (req, res): Promise<void> => {
   });
 });
 
-// ---------------------------------------------------------------------------
-// Verify / Reject a collection (branch_manager, owner, super_admin only)
-// ---------------------------------------------------------------------------
 router.patch("/collections/:id/verify", async (req, res): Promise<void> => {
+  if (req.userRole === "customer") {
+    res.status(403).json({ error: "Forbidden: Customers cannot verify collections." });
+    return;
+  }
+
   const id = parseInt(Array.isArray(req.params.id) ? req.params.id[0] : req.params.id, 10);
   const { verificationStatus, verificationNotes } = req.body as {
     verificationStatus: "verified" | "rejected";
@@ -225,7 +270,7 @@ router.patch("/collections/:id/verify", async (req, res): Promise<void> => {
 
   res.json({ ...col, amount: parseFloat(col.amount), collectedAt: col.collectedAt.toISOString(), createdAt: col.createdAt.toISOString() });
 
-  // Notify the collector who recorded this (find user by collector mobile match)
+  // Notify the collector who recorded this
   if (col.collectorId) {
     const [collector] = await db.select({ mobile: collectorsTable.mobile }).from(collectorsTable).where(eq(collectorsTable.id, col.collectorId));
     if (collector?.mobile) {
@@ -249,10 +294,12 @@ router.patch("/collections/:id/verify", async (req, res): Promise<void> => {
   }
 });
 
-// ---------------------------------------------------------------------------
-// Pending verifications count (for manager dashboard badge)
-// ---------------------------------------------------------------------------
 router.get("/collections/pending-verifications", async (req, res): Promise<void> => {
+  if (req.userRole === "customer") {
+    res.status(403).json({ error: "Forbidden: Customers cannot access pending verification details." });
+    return;
+  }
+
   const { branchId } = req.query;
   const conditions: any[] = [eq(collectionsTable.verificationStatus, "pending")];
   if (branchId) conditions.push(eq(collectionsTable.branchId, parseInt(branchId as string, 10)));

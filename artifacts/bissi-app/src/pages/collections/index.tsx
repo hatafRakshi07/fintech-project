@@ -72,10 +72,15 @@ export default function CollectionsPage() {
   const [verifyNotes, setVerifyNotes] = useState("");
   const [selectedBillCollection, setSelectedBillCollection] = useState<any | null>(null);
   const [showBillingDetails, setShowBillingDetails] = useState(false);
-  const { role } = useRole();
+  const { role, user, isCustomer } = useRole();
   const isManager = ["super_admin", "owner", "branch_manager"].includes(role ?? "");
 
-  const { data: collections, isLoading } = useListCollections({ page, limit: 20, date: dateFilter || undefined });
+  const { data: collections, isLoading } = useListCollections({
+    page,
+    limit: 20,
+    date: dateFilter || undefined,
+    customerId: isCustomer ? user?.customerId ?? undefined : undefined,
+  } as any);
   const { data: summary } = useGetTodayCollectionSummary();
   const { data: dueList } = useGetDueToday();
   const { data: customers } = useListCustomers({ limit: 200 });
@@ -178,10 +183,12 @@ export default function CollectionsPage() {
           <h1 className="text-2xl font-bold tracking-tight">Collections</h1>
           <p className="text-muted-foreground">Daily collection ledger and due list.</p>
         </div>
-        <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
-          <DialogTrigger asChild>
-            <Button><Plus className="h-4 w-4 mr-2" /> Record Payment</Button>
-          </DialogTrigger>
+        {!isCustomer && (
+          <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
+            <DialogTrigger asChild>
+              <Button><Plus className="h-4 w-4 mr-2" /> Record Payment</Button>
+            </DialogTrigger>
+        )}
           <DialogContent className="max-w-md">
             <DialogHeader>
               <DialogTitle>Record New Payment</DialogTitle>
@@ -383,35 +390,37 @@ export default function CollectionsPage() {
                 </div>
               </form>
             </Form>
-          </DialogContent>
-        </Dialog>
+        {!isCustomer && (
+            </DialogContent>
+          </Dialog>
+        )}
       </div>
 
-      {/* Today Summary */}
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
-        {[
-          { label: "Total Today", value: summary?.totalAmount ?? 0, icon: Wallet },
-          { label: "Cash", value: summary?.cashAmount ?? 0, icon: Banknote },
-          { label: "UPI", value: summary?.upiAmount ?? 0, icon: Smartphone },
-          { label: "Bank", value: summary?.bankAmount ?? 0, icon: Building2 },
-          { label: "Card", value: summary?.cardAmount ?? 0, icon: CreditCard },
-          { label: "Transactions", value: summary?.totalCount ?? 0, icon: Plus, currency: false },
-        ].map(({ label, value, icon: Icon, currency = true }) => (
-          <Card key={label}>
-            <CardHeader className="p-3 pb-1">
-              <CardTitle className="text-xs text-muted-foreground font-medium flex items-center gap-1">
-                <Icon className="h-3 w-3" /> {label}
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="p-3 pt-0">
-              <div className="text-lg font-bold">{currency ? formatCurrency(value as number) : value}</div>
-            </CardContent>
-          </Card>
-        ))}
-      </div>
+      {!isCustomer && (
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+          {[
+            { label: "Total Today", value: summary?.totalAmount ?? 0, icon: Wallet },
+            { label: "Cash", value: summary?.cashAmount ?? 0, icon: Banknote },
+            { label: "UPI", value: summary?.upiAmount ?? 0, icon: Smartphone },
+            { label: "Bank", value: summary?.bankAmount ?? 0, icon: Building2 },
+            { label: "Card", value: summary?.cardAmount ?? 0, icon: CreditCard },
+            { label: "Transactions", value: summary?.totalCount ?? 0, icon: Plus, currency: false },
+          ].map(({ label, value, icon: Icon, currency = true }) => (
+            <Card key={label}>
+              <CardHeader className="p-3 pb-1">
+                <CardTitle className="text-xs text-muted-foreground font-medium flex items-center gap-1">
+                  <Icon className="h-3 w-3" /> {label}
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="p-3 pt-0">
+                <div className="text-lg font-bold">{currency ? formatCurrency(value as number) : value}</div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      )}
 
-      {/* Due Today */}
-      {dueList && dueList.length > 0 && (
+      {!isCustomer && dueList && dueList.length > 0 && (
         <Card className="border-orange-200 bg-orange-50/50">
           <CardHeader className="p-4 pb-2">
             <CardTitle className="text-sm flex items-center gap-2 text-orange-700">

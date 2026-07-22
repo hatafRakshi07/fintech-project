@@ -40,6 +40,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import { useToast } from "@/hooks/use-toast";
+import { useRole } from "@/hooks/use-role";
 
 const tokenSchema = z.object({
   customerId: z.coerce.number().min(1, "Customer is required"),
@@ -63,10 +64,13 @@ export default function TokensPage() {
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [transferTokenId, setTransferTokenId] = useState<number | null>(null);
 
+  const { role, user, isCustomer } = useRole();
+
   const { data: tokens, isLoading } = useListTokens({
     committeeId: committeeFilter !== "all" ? parseInt(committeeFilter, 10) : undefined,
     status: statusFilter !== "all" ? statusFilter : undefined,
-  });
+    customerId: isCustomer ? user?.customerId ?? undefined : undefined,
+  } as any);
   const { data: committees } = useListCommittees();
   const { data: customers } = useListCustomers({ limit: 200 });
   const createToken = useCreateToken();
@@ -123,76 +127,78 @@ export default function TokensPage() {
           <p className="text-muted-foreground">Manage committee participation tokens.</p>
         </div>
 
-        <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
-          <DialogTrigger asChild>
-            <Button><Plus className="h-4 w-4 mr-2" /> Issue Token</Button>
-          </DialogTrigger>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>Issue New Token</DialogTitle>
-            </DialogHeader>
-            <Form {...form}>
-              <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-                <FormField
-                  control={form.control}
-                  name="customerId"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Customer</FormLabel>
-                      <Select onValueChange={field.onChange} defaultValue={field.value?.toString()}>
-                        <FormControl>
-                          <SelectTrigger><SelectValue placeholder="Select customer" /></SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                          {customers?.data?.map((c) => (
-                            <SelectItem key={c.id} value={c.id.toString()}>{c.name} ({c.referenceNumber})</SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={form.control}
-                  name="committeeId"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Committee</FormLabel>
-                      <Select onValueChange={field.onChange} defaultValue={field.value?.toString()}>
-                        <FormControl>
-                          <SelectTrigger><SelectValue placeholder="Select committee" /></SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                          {committees?.map((c) => (
-                            <SelectItem key={c.id} value={c.id.toString()}>{c.name}</SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={form.control}
-                  name="tokenNumber"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Token Number (optional — auto-generated if blank)</FormLabel>
-                      <FormControl><Input placeholder="TK001" {...field} /></FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <div className="flex justify-end pt-4">
-                  <Button type="submit" disabled={createToken.isPending}>
-                    {createToken.isPending ? "Issuing..." : "Issue Token"}
-                  </Button>
-                </div>
-              </form>
-            </Form>
-          </DialogContent>
-        </Dialog>
+        {!isCustomer && (
+          <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
+            <DialogTrigger asChild>
+              <Button><Plus className="h-4 w-4 mr-2" /> Issue Token</Button>
+            </DialogTrigger>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Issue New Token</DialogTitle>
+              </DialogHeader>
+              <Form {...form}>
+                <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+                  <FormField
+                    control={form.control}
+                    name="customerId"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Customer</FormLabel>
+                        <Select onValueChange={field.onChange} defaultValue={field.value?.toString()}>
+                          <FormControl>
+                            <SelectTrigger><SelectValue placeholder="Select customer" /></SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            {customers?.data?.map((c) => (
+                              <SelectItem key={c.id} value={c.id.toString()}>{c.name} ({c.referenceNumber})</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="committeeId"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Committee</FormLabel>
+                        <Select onValueChange={field.onChange} defaultValue={field.value?.toString()}>
+                          <FormControl>
+                            <SelectTrigger><SelectValue placeholder="Select committee" /></SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            {committees?.map((c) => (
+                              <SelectItem key={c.id} value={c.id.toString()}>{c.name}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="tokenNumber"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Token Number (optional — auto-generated if blank)</FormLabel>
+                        <FormControl><Input placeholder="TK001" {...field} /></FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <div className="flex justify-end pt-4">
+                    <Button type="submit" disabled={createToken.isPending}>
+                      {createToken.isPending ? "Issuing..." : "Issue Token"}
+                    </Button>
+                  </div>
+                </form>
+              </Form>
+            </DialogContent>
+          </Dialog>
+        )}
       </div>
 
       {/* Transfer Dialog */}
@@ -295,7 +301,7 @@ export default function TokensPage() {
                       <Badge variant={statusVariant[token.status] ?? "secondary"}>{token.status}</Badge>
                     </TableCell>
                     <TableCell className="pr-4 text-right">
-                      {token.status === "active" && (
+                      {!isCustomer && token.status === "active" && (
                         <Button
                           variant="ghost"
                           size="sm"

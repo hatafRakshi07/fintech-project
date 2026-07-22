@@ -17,7 +17,7 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import { BookOpen, ClipboardList, MessageSquare, Heart, Plus, CheckCircle2, Clock, AlertCircle } from "lucide-react";
+import { BookOpen, ClipboardList, MessageSquare, Heart, Plus, CheckCircle2, Clock, AlertCircle, TrendingDown, Trash2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
 type OfficeSummary = { openComplaints: number; pendingTasks: number; inProgressTasks: number; todayDiaryEntries: number };
@@ -94,6 +94,7 @@ export default function OfficePage() {
           <TabsTrigger value="tasks"><ClipboardList className="h-4 w-4 mr-1" />Tasks</TabsTrigger>
           <TabsTrigger value="complaints"><MessageSquare className="h-4 w-4 mr-1" />Complaints</TabsTrigger>
           <TabsTrigger value="donations"><Heart className="h-4 w-4 mr-1" />Donations</TabsTrigger>
+          <TabsTrigger value="expenses"><TrendingDown className="h-4 w-4 mr-1" />Expenses</TabsTrigger>
         </TabsList>
 
         <TabsContent value="diary" className="mt-4">
@@ -107,6 +108,9 @@ export default function OfficePage() {
         </TabsContent>
         <TabsContent value="donations" className="mt-4">
           <DonationsTab />
+        </TabsContent>
+        <TabsContent value="expenses" className="mt-4">
+          <ExpensesTab />
         </TabsContent>
       </Tabs>
     </div>
@@ -509,6 +513,247 @@ function DonationsTab() {
                   <TableCell>{d.purpose ?? "—"}</TableCell>
                   <TableCell>{d.donationDate}</TableCell>
                   <TableCell>{d.receiptNumber ?? "—"}</TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Expenses Tab
+// ---------------------------------------------------------------------------
+type OfficeExpense = {
+  id: number;
+  category: string;
+  amount: string;
+  expenseDate: string;
+  description: string | null;
+  branchId: number;
+  createdAt: string;
+};
+
+function ExpensesTab() {
+  const { toast } = useToast();
+  const qc = useQueryClient();
+  const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [form, setForm] = useState({
+    categorySelect: "Office Rent",
+    categoryCustom: "",
+    amount: "",
+    expenseDate: new Date().toISOString().split("T")[0],
+    description: "",
+    branchId: "1",
+  });
+
+  const { data: expenses = [], isLoading } = useQuery<OfficeExpense[]>({
+    queryKey: ["office", "expenses"],
+    queryFn: () => api.get("/office/expenses"),
+  });
+
+  const create = useMutation({
+    mutationFn: (body: any) => api.post("/office/expenses", body),
+    onSuccess: () => {
+      toast({ title: "Expense Recorded", description: "Office expense saved successfully." });
+      qc.invalidateQueries({ queryKey: ["office", "expenses"] });
+      setIsDialogOpen(false);
+      setForm({
+        categorySelect: "Office Rent",
+        categoryCustom: "",
+        amount: "",
+        expenseDate: new Date().toISOString().split("T")[0],
+        description: "",
+        branchId: "1",
+      });
+    },
+    onError: (err: any) => {
+      toast({ title: "Error", description: err.message, variant: "destructive" });
+    },
+  });
+
+  const remove = useMutation({
+    mutationFn: (id: number) => api.delete(`/office/expenses/${id}`),
+    onSuccess: () => {
+      toast({ title: "Expense Deleted", description: "Expense removed successfully." });
+      qc.invalidateQueries({ queryKey: ["office", "expenses"] });
+    },
+    onError: (err: any) => {
+      toast({ title: "Error", description: err.message, variant: "destructive" });
+    },
+  });
+
+  const handleSave = () => {
+    const finalCategory = form.categorySelect === "Other" ? form.categoryCustom : form.categorySelect;
+    if (!finalCategory || !form.amount || !form.expenseDate) {
+      toast({ title: "Validation Error", description: "Please fill all required fields.", variant: "destructive" });
+      return;
+    }
+    create.mutate({
+      category: finalCategory,
+      amount: form.amount,
+      expenseDate: form.expenseDate,
+      description: form.description,
+      branchId: parseInt(form.branchId, 10),
+    });
+  };
+
+  // Compute summary metrics
+  const totalRent = expenses
+    .filter(e => e.category === "Office Rent")
+    .reduce((sum, e) => sum + parseFloat(e.amount), 0);
+  const totalElectricity = expenses
+    .filter(e => e.category === "Electricity Bill")
+    .reduce((sum, e) => sum + parseFloat(e.amount), 0);
+  const totalOthers = expenses
+    .filter(e => e.category !== "Office Rent" && e.category !== "Electricity Bill")
+    .reduce((sum, e) => sum + parseFloat(e.amount), 0);
+
+  const grandTotal = totalRent + totalElectricity + totalOthers;
+
+  return (
+    <div className="space-y-4">
+      <div className="flex justify-between items-center">
+        <h2 className="text-lg font-semibold">Office Expense Register</h2>
+        <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+          <DialogTrigger asChild>
+            <Button><Plus className="mr-2 h-4 w-4" />Record Expense</Button>
+          </DialogTrigger>
+          <DialogContent>
+            <DialogHeader><DialogTitle>Record Office Expense</DialogTitle></DialogHeader>
+            <div className="space-y-4 pt-2">
+              <div>
+                <Label>Category</Label>
+                <Select
+                  value={form.categorySelect}
+                  onValueChange={v => setForm({ ...form, categorySelect: v })}
+                >
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Office Rent">Office Rent (Built-in)</SelectItem>
+                    <SelectItem value="Electricity Bill">Electricity Bill (Built-in)</SelectItem>
+                    <SelectItem value="Other">Other (Enter manually)</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {form.categorySelect === "Other" && (
+                <div>
+                  <Label>Manual Expense Name / Bill Type</Label>
+                  <Input
+                    placeholder="e.g. Water Bill, Internet, Office Stationery"
+                    value={form.categoryCustom}
+                    onChange={e => setForm({ ...form, categoryCustom: e.target.value })}
+                  />
+                </div>
+              )}
+
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <Label>Amount (₹)</Label>
+                  <Input
+                    type="number"
+                    step="0.01"
+                    placeholder="0.00"
+                    value={form.amount}
+                    onChange={e => setForm({ ...form, amount: e.target.value })}
+                  />
+                </div>
+                <div>
+                  <Label>Date</Label>
+                  <Input type="date" value={form.expenseDate} onChange={e => setForm({ ...form, expenseDate: e.target.value })} />
+                </div>
+              </div>
+
+              <div>
+                <Label>Description / Note</Label>
+                <Input
+                  placeholder="Optional description notes..."
+                  value={form.description}
+                  onChange={e => setForm({ ...form, description: e.target.value })}
+                />
+              </div>
+
+              <Button className="w-full" onClick={handleSave} disabled={create.isPending || !form.amount}>
+                {create.isPending ? "Saving..." : "Save Expense"}
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
+      </div>
+
+      {/* Expense summary KPI cards */}
+      <div className="grid gap-4 grid-cols-2 md:grid-cols-4">
+        <Card className="bg-muted/40">
+          <CardHeader className="p-3 pb-1">
+            <CardTitle className="text-xs text-muted-foreground font-medium">Rent Expense</CardTitle>
+          </CardHeader>
+          <CardContent className="p-3 pt-0">
+            <div className="text-lg font-bold font-mono">{formatCurrency(totalRent.toString())}</div>
+          </CardContent>
+        </Card>
+        <Card className="bg-muted/40">
+          <CardHeader className="p-3 pb-1">
+            <CardTitle className="text-xs text-muted-foreground font-medium">Electricity Expense</CardTitle>
+          </CardHeader>
+          <CardContent className="p-3 pt-0">
+            <div className="text-lg font-bold font-mono">{formatCurrency(totalElectricity.toString())}</div>
+          </CardContent>
+        </Card>
+        <Card className="bg-muted/40">
+          <CardHeader className="p-3 pb-1">
+            <CardTitle className="text-xs text-muted-foreground font-medium">Other Expenses</CardTitle>
+          </CardHeader>
+          <CardContent className="p-3 pt-0">
+            <div className="text-lg font-bold font-mono">{formatCurrency(totalOthers.toString())}</div>
+          </CardContent>
+        </Card>
+        <Card className="bg-primary/5 border border-primary/20">
+          <CardHeader className="p-3 pb-1">
+            <CardTitle className="text-xs text-primary font-medium">Total Expenses</CardTitle>
+          </CardHeader>
+          <CardContent className="p-3 pt-0">
+            <div className="text-lg font-bold font-mono text-primary">{formatCurrency(grandTotal.toString())}</div>
+          </CardContent>
+        </Card>
+      </div>
+
+      <Card>
+        <CardContent className="p-0 overflow-x-auto">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead className="pl-4">Category</TableHead>
+                <TableHead>Amount</TableHead>
+                <TableHead>Expense Date</TableHead>
+                <TableHead>Description</TableHead>
+                <TableHead className="text-right pr-4">Action</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {isLoading ? (
+                <TableRow><TableCell colSpan={5} className="text-center py-8 text-muted-foreground">Loading...</TableCell></TableRow>
+              ) : expenses.length === 0 ? (
+                <TableRow><TableCell colSpan={5} className="text-center py-8 text-muted-foreground">No expenses recorded.</TableCell></TableRow>
+              ) : expenses.map(e => (
+                <TableRow key={e.id}>
+                  <TableCell className="pl-4 font-medium">{e.category}</TableCell>
+                  <TableCell className="font-mono text-xs text-red-600">-{formatCurrency(e.amount)}</TableCell>
+                  <TableCell>{e.expenseDate}</TableCell>
+                  <TableCell className="italic text-muted-foreground">{e.description ?? "—"}</TableCell>
+                  <TableCell className="text-right pr-4">
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="text-destructive h-8 w-8 hover:bg-destructive/10"
+                      onClick={() => remove.mutate(e.id)}
+                      disabled={remove.isPending}
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </TableCell>
                 </TableRow>
               ))}
             </TableBody>

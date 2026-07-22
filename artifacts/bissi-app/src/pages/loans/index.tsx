@@ -42,6 +42,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import { useToast } from "@/hooks/use-toast";
+import { useRole } from "@/hooks/use-role";
 
 const loanSchema = z.object({
   customerId: z.coerce.number().min(1, "Customer is required"),
@@ -70,11 +71,14 @@ export default function LoansPage() {
   const [page, setPage] = useState(1);
   const [isCreateOpen, setIsCreateOpen] = useState(false);
 
+  const { role, user, isCustomer } = useRole();
+
   const { data: loans, isLoading } = useListLoans({
     status: statusFilter !== "all" ? statusFilter : undefined,
     page,
     limit: 20,
-  });
+    customerId: isCustomer ? user?.customerId ?? undefined : undefined,
+  } as any);
   const { data: summary } = useGetLoanSummary();
   const { data: customers } = useListCustomers({ limit: 200 });
   const { data: branches } = useListBranches();
@@ -143,10 +147,12 @@ export default function LoansPage() {
           <h1 className="text-2xl font-bold tracking-tight">Loans</h1>
           <p className="text-muted-foreground">Manage loan applications, approvals and EMI schedules.</p>
         </div>
-        <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
-          <DialogTrigger asChild>
-            <Button><Plus className="h-4 w-4 mr-2" /> New Loan</Button>
-          </DialogTrigger>
+        {!isCustomer && (
+          <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
+            <DialogTrigger asChild>
+              <Button><Plus className="h-4 w-4 mr-2" /> New Loan</Button>
+            </DialogTrigger>
+        )}
           <DialogContent className="max-w-lg">
             <DialogHeader>
               <DialogTitle>New Loan Application</DialogTitle>
@@ -266,34 +272,37 @@ export default function LoansPage() {
                 </div>
               </form>
             </Form>
+        {!isCustomer && (
           </DialogContent>
         </Dialog>
+        )}
       </div>
 
-      {/* Summary KPIs */}
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
-        {[
-          { label: "Total Loans", value: summary?.totalLoans ?? 0, icon: CreditCard, format: "num" },
-          { label: "Active", value: summary?.activeLoans ?? 0, icon: CheckCircle2, format: "num" },
-          { label: "Pending Approval", value: summary?.pendingApproval ?? 0, icon: Clock, format: "num" },
-          { label: "Overdue", value: summary?.totalOverdue ?? 0, icon: AlertTriangle, format: "num" },
-          { label: "Total Disbursed", value: summary?.totalDisbursed ?? 0, icon: Wallet, format: "currency" },
-          { label: "Outstanding", value: summary?.totalOutstanding ?? 0, icon: CreditCard, format: "currency" },
-        ].map(({ label, value, icon: Icon, format }) => (
-          <Card key={label}>
-            <CardHeader className="p-3 pb-1">
-              <CardTitle className="text-xs text-muted-foreground font-medium flex items-center gap-1">
-                <Icon className="h-3 w-3" /> {label}
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="p-3 pt-0">
-              <div className="text-lg font-bold">
-                {format === "currency" ? formatCurrency(value as number) : value}
-              </div>
-            </CardContent>
-          </Card>
-        ))}
-      </div>
+      {!isCustomer && (
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+          {[
+            { label: "Total Loans", value: summary?.totalLoans ?? 0, icon: CreditCard, format: "num" },
+            { label: "Active", value: summary?.activeLoans ?? 0, icon: CheckCircle2, format: "num" },
+            { label: "Pending Approval", value: summary?.pendingApproval ?? 0, icon: Clock, format: "num" },
+            { label: "Overdue", value: summary?.totalOverdue ?? 0, icon: AlertTriangle, format: "num" },
+            { label: "Total Disbursed", value: summary?.totalDisbursed ?? 0, icon: Wallet, format: "currency" },
+            { label: "Outstanding", value: summary?.totalOutstanding ?? 0, icon: CreditCard, format: "currency" },
+          ].map(({ label, value, icon: Icon, format }) => (
+            <Card key={label}>
+              <CardHeader className="p-3 pb-1">
+                <CardTitle className="text-xs text-muted-foreground font-medium flex items-center gap-1">
+                  <Icon className="h-3 w-3" /> {label}
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="p-3 pt-0">
+                <div className="text-lg font-bold">
+                  {format === "currency" ? formatCurrency(value as number) : value}
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      )}
 
       <Card>
         <CardHeader className="p-4 border-b">
@@ -357,7 +366,7 @@ export default function LoansPage() {
                       <Badge variant={statusBadge[loan.status] ?? "secondary"}>{loan.status}</Badge>
                     </TableCell>
                     <TableCell className="pr-4 text-right space-x-1">
-                      {loan.status === "pending" && (
+                      {!isCustomer && loan.status === "pending" && (
                         <>
                           <Button size="sm" variant="default" onClick={() => approveLoan(loan.id)} disabled={updateLoan.isPending}>
                             Approve

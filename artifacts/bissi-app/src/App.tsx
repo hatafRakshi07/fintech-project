@@ -33,6 +33,7 @@ import RecoveryPage from "@/pages/recovery";
 import OfficePage from "@/pages/office";
 import ImportPage from "@/pages/import";
 import InvoicesPage from "@/pages/invoices";
+import AccountingPage from "@/pages/accounting";
 import ProfilePage from "@/pages/profile";
 import NotFound from "@/pages/not-found";
 import { Shell } from "@/components/layout/Shell";
@@ -215,6 +216,13 @@ function AppRoutes() {
             <Route path="/invoices">
               <RoleGate roles={FINANCE}>
                 <InvoicesPage />
+              </RoleGate>
+            </Route>
+
+            {/* Accounting / Tally — finance roles */}
+            <Route path="/accounting">
+              <RoleGate roles={FINANCE}>
+                <AccountingPage />
               </RoleGate>
             </Route>
 

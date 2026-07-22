@@ -1,4 +1,4 @@
-import { pgTable, serial, text, integer, timestamp, pgEnum, date, boolean } from "drizzle-orm/pg-core";
+import { pgTable, serial, text, integer, timestamp, pgEnum, date, boolean, numeric } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
@@ -78,16 +78,30 @@ export const donationsTable = pgTable("donations", {
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
+export const officeExpensesTable = pgTable("office_expenses", {
+  id: serial("id").primaryKey(),
+  category: text("category").notNull(), // "Office Rent", "Electricity Bill", or custom manually entered
+  amount: numeric("amount", { precision: 12, scale: 2 }).notNull(),
+  expenseDate: date("expense_date", { mode: "string" }).notNull(),
+  description: text("description"),
+  branchId: integer("branch_id").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
 export const insertOfficeDiarySchema = createInsertSchema(officeDiaryTable).omit({ id: true, createdAt: true, updatedAt: true }) as any;
 export const insertOfficeTaskSchema = createInsertSchema(officeTasksTable).omit({ id: true, createdAt: true, updatedAt: true }) as any;
 export const insertComplaintSchema = createInsertSchema(complaintsTable).omit({ id: true, createdAt: true, updatedAt: true }) as any;
 export const insertDonationSchema = createInsertSchema(donationsTable).omit({ id: true, createdAt: true }) as any;
+export const insertOfficeExpenseSchema = createInsertSchema(officeExpensesTable).omit({ id: true, createdAt: true }) as any;
 
 export type OfficeDiary = typeof officeDiaryTable.$inferSelect;
 export type OfficeTask = typeof officeTasksTable.$inferSelect;
 export type Complaint = typeof complaintsTable.$inferSelect;
 export type Donation = typeof donationsTable.$inferSelect;
+export type OfficeExpense = typeof officeExpensesTable.$inferSelect;
+
 export type InsertOfficeDiary = z.infer<typeof insertOfficeDiarySchema>;
 export type InsertOfficeTask = z.infer<typeof insertOfficeTaskSchema>;
 export type InsertComplaint = z.infer<typeof insertComplaintSchema>;
 export type InsertDonation = z.infer<typeof insertDonationSchema>;
+export type InsertOfficeExpense = z.infer<typeof insertOfficeExpenseSchema>;

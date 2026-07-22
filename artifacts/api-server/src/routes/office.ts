@@ -7,6 +7,7 @@ import {
   donationsTable,
   customersTable,
   usersTable,
+  officeExpensesTable,
 } from "@workspace/db";
 import { eq, and, desc, ilike, sql, gte, lte } from "drizzle-orm";
 
@@ -212,6 +213,48 @@ router.get("/office/summary", async (req, res): Promise<void> => {
     inProgressTasks: inProgressTasks?.count ?? 0,
     todayDiaryEntries: todayDiary?.count ?? 0,
   });
+});
+
+// ---------------------------------------------------------------------------
+// Office Expenses
+// ---------------------------------------------------------------------------
+
+router.get("/office/expenses", async (req, res): Promise<void> => {
+  const { branchId, from, to } = req.query;
+  const conditions: any[] = [];
+  if (branchId) conditions.push(eq(officeExpensesTable.branchId, parseInt(branchId as string, 10)));
+  if (from) conditions.push(gte(officeExpensesTable.expenseDate, from as string));
+  if (to) conditions.push(lte(officeExpensesTable.expenseDate, to as string));
+
+  let query = db.select().from(officeExpensesTable).$dynamic();
+  if (conditions.length) query = (query as any).where(and(...conditions));
+  const rows = await (query as any).orderBy(desc(officeExpensesTable.expenseDate));
+  res.json(rows);
+});
+
+router.post("/office/expenses", async (req, res): Promise<void> => {
+  const { category, amount, expenseDate, description, branchId } = req.body;
+  if (!category || !amount || !expenseDate || !branchId) {
+    res.status(400).json({ error: "category, amount, expenseDate, and branchId are required" });
+    return;
+  }
+  const [row] = await db
+    .insert(officeExpensesTable)
+    .values({
+      category,
+      amount: String(amount),
+      expenseDate,
+      description,
+      branchId: parseInt(branchId, 10),
+    })
+    .returning();
+  res.status(201).json(row);
+});
+
+router.delete("/office/expenses/:id", async (req, res): Promise<void> => {
+  const id = parseInt(req.params.id, 10);
+  await db.delete(officeExpensesTable).where(eq(officeExpensesTable.id, id));
+  res.json({ success: true });
 });
 
 export default router;

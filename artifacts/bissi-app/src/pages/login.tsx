@@ -59,10 +59,10 @@ export default function LoginPage() {
         {/* Brand */}
         <div className="flex justify-center mb-6">
           <div className="flex flex-col items-center gap-2">
-            <div className="w-14 h-14 rounded-2xl bg-primary flex items-center justify-center text-primary-foreground font-bold text-2xl shadow-lg">
-              B
+            <div className="w-14 h-14 rounded-2xl bg-primary flex items-center justify-center text-primary-foreground font-bold text-xl shadow-lg">
+              SKA
             </div>
-            <span className="font-bold text-2xl tracking-tight text-foreground">Bissi.</span>
+            <span className="font-bold text-2xl tracking-tight text-foreground">Shree Krishna Association</span>
           </div>
         </div>
 
@@ -128,7 +128,7 @@ export default function LoginPage() {
         </Card>
 
         <p className="text-center text-xs text-muted-foreground mt-6">
-          © {new Date().getFullYear()} Bissi Management System. All rights reserved.
+          © {new Date().getFullYear()} Shree Krishna Association. All rights reserved.
         </p>
       </div>
     </div>

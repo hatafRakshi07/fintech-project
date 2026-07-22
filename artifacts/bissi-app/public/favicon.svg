@@ -1,3 +1,11 @@
-<svg width="180" height="180" viewBox="0 0 180 180" fill="none" xmlns="http://www.w3.org/2000/svg">
-<rect width="180" height="180" rx="36" fill="#FF3C00"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 240" fill="none">
+  <circle cx="120" cy="120" r="110" fill="#1a3a6b" stroke="#d4a017" strokeWidth="4"/>
+  <g transform="translate(105, 55) scale(2.0)">
+    <path d="M15 78 Q13 60 10 45 Q6 30 2 20 Q8 28 12 40 Q14 50 15 78Z" fill="#d4a017" opacity="0.6"/>
+    <path d="M15 78 Q17 60 20 45 Q24 30 28 20 Q22 28 18 40 Q16 50 15 78Z" fill="#d4a017" opacity="0.6"/>
+    <path d="M15 78 Q15 55 15 35 Q15 20 15 5" stroke="#d4a017" strokeWidth="1.5" strokeLinecap="round"/>
+    <ellipse cx="15" cy="18" rx="6" ry="8" fill="#003566" stroke="#d4a017" strokeWidth="1"/>
+    <ellipse cx="15" cy="18" rx="3" ry="4" fill="#00c8a0" opacity="0.8"/>
+    <ellipse cx="15" cy="18" rx="1.5" ry="2" fill="#d4a017" opacity="0.9"/>
+  </g>
 </svg>

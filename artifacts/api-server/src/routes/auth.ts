@@ -51,31 +51,82 @@ const loginLimiter = rateLimit({
 // ---------------------------------------------------------------------------
 
 router.post("/auth/login", loginLimiter, async (req: Request, res: Response): Promise<void> => {
+  const { username, password } = req.body;
+  if (!username || !password) {
+    res.status(400).json({ error: "Username and password are required" });
+    return;
+  }
+
+  // 1. Fetch user from database
+  const [user] = await db
+    .select()
+    .from(usersTable)
+    .where(eq(usersTable.username, username.trim().toLowerCase()));
+
+  if (!user) {
+    res.status(401).json({ error: "Invalid username or password" });
+    return;
+  }
+
+  // 2. Verify password
+  const isValid = await verifyPassword(password, user.passwordHash);
+  if (!isValid) {
+    res.status(401).json({ error: "Invalid username or password" });
+    return;
+  }
+
+  // 3. Create session token
+  const token = generateToken();
+  const expiresAt = new Date(Date.now() + SESSION_TTL_MS);
+
+  await purgeExpiredSessions();
+
+  await db.insert(sessionsTable).values({
+    token,
+    userId: user.id,
+    expiresAt,
+  });
+
   res.json({
-    token: "mock-session-token",
+    token,
     user: {
-      id: 1,
-      username: "admin",
-      name: "Administrator",
-      role: "super_admin",
-      branchId: null,
-      customerId: null,
-      email: null,
-      phone: null,
+      id: user.id,
+      username: user.username,
+      name: user.name,
+      role: user.role,
+      branchId: user.branchId,
+      customerId: user.customerId,
+      email: user.email,
+      phone: user.phone,
     },
   });
 });
 
 router.get("/auth/me", async (req: Request, res: Response): Promise<void> => {
+  if (!req.userId) {
+    res.status(401).json({ error: "Unauthorized" });
+    return;
+  }
+
+  const [user] = await db
+    .select()
+    .from(usersTable)
+    .where(eq(usersTable.id, req.userId));
+
+  if (!user) {
+    res.status(401).json({ error: "User not found" });
+    return;
+  }
+
   res.json({
-    id: 1,
-    username: "admin",
-    name: "Administrator",
-    role: "super_admin",
-    branchId: null,
-    customerId: null,
-    email: null,
-    phone: null,
+    id: user.id,
+    username: user.username,
+    name: user.name,
+    role: user.role,
+    branchId: user.branchId,
+    customerId: user.customerId,
+    email: user.email,
+    phone: user.phone,
   });
 });
 

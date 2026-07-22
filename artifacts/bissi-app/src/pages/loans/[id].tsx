@@ -49,6 +49,7 @@ import {
 } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
+import { useRole } from "@/hooks/use-role";
 
 const fmt = (n: number) =>
   new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 0 }).format(n);
@@ -120,8 +121,14 @@ export default function LoanDetailPage() {
     );
   };
 
+  const { role, user, isCustomer } = useRole();
+
   if (isLoading) return <div className="p-8 text-muted-foreground animate-pulse">Loading loan details…</div>;
   if (!loan) return <div className="p-8">Loan not found.</div>;
+
+  if (isCustomer && loan.customerId !== user?.customerId) {
+    return <div className="p-8 text-destructive font-medium">Access Denied: You do not have permission to view this loan.</div>;
+  }
 
   const paidInstallments = emiSchedule?.filter((e) => e.status === "paid").length ?? 0;
   const totalInstallments = emiSchedule?.length ?? loan.tenure;
@@ -166,7 +173,7 @@ export default function LoanDetailPage() {
           </div>
         </div>
 
-        {loan.status === "pending" && (
+        {!isCustomer && loan.status === "pending" && (
           <div className="flex gap-2 shrink-0">
             <AlertDialog>
               <AlertDialogTrigger asChild>

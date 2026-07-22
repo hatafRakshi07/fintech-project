@@ -19,7 +19,8 @@
     "@rollup/rollup-win32-x64-msvc": "4.62.2",
     "@tailwindcss/oxide-win32-x64-msvc": "4.3.1",
     "lightningcss-win32-x64-msvc": "1.32.0",
-    "pg": "^8.22.0"
+    "pg": "^8.22.0",
+    "xlsx": "^0.18.5"
   },
   "pnpm": {
     "overrides": {

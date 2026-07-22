@@ -20,6 +20,7 @@ import importsRouter from "./imports";
 import notificationsRouter from "./notifications";
 import invoicesRouter from "./invoices";
 import profileRouter from "./profile";
+import accountingRouter from "./accounting";
 
 const router: IRouter = Router();
 
@@ -76,6 +77,9 @@ router.use(notificationsRouter);
 
 // Invoices — finance roles
 router.use(requireRole("super_admin", "owner", "branch_manager", "accountant"), invoicesRouter);
+
+// Accounting / Ledgers / Tally — finance roles
+router.use(requireRole("super_admin", "owner", "branch_manager", "accountant"), accountingRouter);
 
 // Customer self-service profile — all authenticated roles (customers read their own data)
 router.use(profileRouter);
