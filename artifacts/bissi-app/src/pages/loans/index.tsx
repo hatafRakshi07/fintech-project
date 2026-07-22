@@ -152,129 +152,127 @@ export default function LoansPage() {
             <DialogTrigger asChild>
               <Button><Plus className="h-4 w-4 mr-2" /> New Loan</Button>
             </DialogTrigger>
-        )}
-          <DialogContent className="max-w-lg">
-            <DialogHeader>
-              <DialogTitle>New Loan Application</DialogTitle>
-            </DialogHeader>
-            <Form {...form}>
-              <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-                <FormField
-                  control={form.control}
-                  name="customerId"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Customer</FormLabel>
-                      <Select onValueChange={field.onChange} defaultValue={field.value?.toString()}>
-                        <FormControl>
-                          <SelectTrigger><SelectValue placeholder="Select customer" /></SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                          {customers?.data?.map((c) => (
-                            <SelectItem key={c.id} value={c.id.toString()}>{c.name} ({c.referenceNumber})</SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <DialogContent className="max-w-lg">
+              <DialogHeader>
+                <DialogTitle>New Loan Application</DialogTitle>
+              </DialogHeader>
+              <Form {...form}>
+                <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
                   <FormField
                     control={form.control}
-                    name="principalAmount"
+                    name="customerId"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Principal (₹)</FormLabel>
-                        <FormControl><Input type="number" {...field} /></FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                  <FormField
-                    control={form.control}
-                    name="tenure"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Tenure (months)</FormLabel>
-                        <FormControl><Input type="number" {...field} /></FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                </div>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <FormField
-                    control={form.control}
-                    name="interestRate"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Interest Rate (%)</FormLabel>
-                        <FormControl><Input type="number" step="0.1" {...field} /></FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                  <FormField
-                    control={form.control}
-                    name="interestType"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Interest Type</FormLabel>
-                        <Select onValueChange={field.onChange} defaultValue={field.value}>
+                        <FormLabel>Customer</FormLabel>
+                        <Select onValueChange={field.onChange} defaultValue={field.value?.toString()}>
                           <FormControl>
-                            <SelectTrigger><SelectValue /></SelectTrigger>
+                            <SelectTrigger><SelectValue placeholder="Select customer" /></SelectTrigger>
                           </FormControl>
                           <SelectContent>
-                            <SelectItem value="flat">Flat</SelectItem>
-                            <SelectItem value="reducing">Reducing Balance</SelectItem>
+                            {customers?.data?.map((c) => (
+                              <SelectItem key={c.id} value={c.id.toString()}>{c.name} ({c.referenceNumber})</SelectItem>
+                            ))}
                           </SelectContent>
                         </Select>
                         <FormMessage />
                       </FormItem>
                     )}
                   />
-                </div>
-                <FormField
-                  control={form.control}
-                  name="branchId"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Branch</FormLabel>
-                      <Select onValueChange={field.onChange} defaultValue={field.value?.toString()}>
-                        <FormControl>
-                          <SelectTrigger><SelectValue placeholder="Select branch" /></SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                          {branches?.map((b) => (
-                            <SelectItem key={b.id} value={b.id.toString()}>{b.name}</SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={form.control}
-                  name="purpose"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Purpose (optional)</FormLabel>
-                      <FormControl><Input placeholder="Business, Medical, Education…" {...field} /></FormControl>
-                    </FormItem>
-                  )}
-                />
-                <div className="flex justify-end pt-4">
-                  <Button type="submit" disabled={createLoan.isPending}>
-                    {createLoan.isPending ? "Submitting..." : "Submit Application"}
-                  </Button>
-                </div>
-              </form>
-            </Form>
-        {!isCustomer && (
-          </DialogContent>
-        </Dialog>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <FormField
+                      control={form.control}
+                      name="principalAmount"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Principal (₹)</FormLabel>
+                          <FormControl><Input type="number" {...field} /></FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={form.control}
+                      name="tenure"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Tenure (months)</FormLabel>
+                          <FormControl><Input type="number" {...field} /></FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <FormField
+                      control={form.control}
+                      name="interestRate"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Interest Rate (%)</FormLabel>
+                          <FormControl><Input type="number" step="0.1" {...field} /></FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={form.control}
+                      name="interestType"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Interest Type</FormLabel>
+                          <Select onValueChange={field.onChange} defaultValue={field.value}>
+                            <FormControl>
+                              <SelectTrigger><SelectValue /></SelectTrigger>
+                            </FormControl>
+                            <SelectContent>
+                              <SelectItem value="flat">Flat</SelectItem>
+                              <SelectItem value="reducing">Reducing Balance</SelectItem>
+                            </SelectContent>
+                          </Select>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </div>
+                  <FormField
+                    control={form.control}
+                    name="branchId"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Branch</FormLabel>
+                        <Select onValueChange={field.onChange} defaultValue={field.value?.toString()}>
+                          <FormControl>
+                            <SelectTrigger><SelectValue placeholder="Select branch" /></SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            {branches?.map((b) => (
+                              <SelectItem key={b.id} value={b.id.toString()}>{b.name}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="purpose"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Purpose (optional)</FormLabel>
+                        <FormControl><Input placeholder="Business, Medical, Education…" {...field} /></FormControl>
+                      </FormItem>
+                    )}
+                  />
+                  <div className="flex justify-end pt-4">
+                    <Button type="submit" disabled={createLoan.isPending}>
+                      {createLoan.isPending ? "Submitting..." : "Submit Application"}
+                    </Button>
+                  </div>
+                </form>
+              </Form>
+            </DialogContent>
+          </Dialog>
         )}
       </div>
 

@@ -188,209 +188,207 @@ export default function CollectionsPage() {
             <DialogTrigger asChild>
               <Button><Plus className="h-4 w-4 mr-2" /> Record Payment</Button>
             </DialogTrigger>
-        )}
-          <DialogContent className="max-w-md">
-            <DialogHeader>
-              <DialogTitle>Record New Payment</DialogTitle>
-            </DialogHeader>
-            <Form {...form}>
-              <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-                <FormField
-                  control={form.control}
-                  name="customerId"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Customer</FormLabel>
-                      <Select onValueChange={field.onChange} defaultValue={field.value?.toString()}>
-                        <FormControl>
-                          <SelectTrigger><SelectValue placeholder="Select customer" /></SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                          {customers?.data?.map((c) => (
-                            <SelectItem key={c.id} value={c.id.toString()}>{c.name} ({c.referenceNumber})</SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <DialogContent className="max-w-md">
+              <DialogHeader>
+                <DialogTitle>Record New Payment</DialogTitle>
+              </DialogHeader>
+              <Form {...form}>
+                <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
                   <FormField
                     control={form.control}
-                    name="amount"
+                    name="customerId"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Amount (₹)</FormLabel>
-                        <FormControl><Input type="number" {...field} /></FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                  <FormField
-                    control={form.control}
-                    name="paymentMode"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Payment Mode</FormLabel>
-                        <Select onValueChange={field.onChange} defaultValue={field.value}>
+                        <FormLabel>Customer</FormLabel>
+                        <Select onValueChange={field.onChange} defaultValue={field.value?.toString()}>
                           <FormControl>
-                            <SelectTrigger><SelectValue /></SelectTrigger>
+                            <SelectTrigger><SelectValue placeholder="Select customer" /></SelectTrigger>
                           </FormControl>
                           <SelectContent>
-                            <SelectItem value="cash">Cash</SelectItem>
-                            <SelectItem value="upi">UPI</SelectItem>
-                            <SelectItem value="bank">Bank Transfer</SelectItem>
-                            <SelectItem value="card">Card</SelectItem>
+                            {customers?.data?.map((c) => (
+                              <SelectItem key={c.id} value={c.id.toString()}>{c.name} ({c.referenceNumber})</SelectItem>
+                            ))}
                           </SelectContent>
                         </Select>
                         <FormMessage />
                       </FormItem>
                     )}
                   />
-                </div>
-                <FormField
-                  control={form.control}
-                  name="committeeId"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Committee (optional)</FormLabel>
-                      <Select onValueChange={field.onChange} defaultValue={field.value?.toString()}>
-                        <FormControl>
-                          <SelectTrigger><SelectValue placeholder="Link to committee" /></SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                          <SelectItem value="0">None</SelectItem>
-                          {committees?.map((c) => (
-                            <SelectItem key={c.id} value={c.id.toString()}>{c.name}</SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={form.control}
-                  name="collectorId"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Collector (optional)</FormLabel>
-                      <Select onValueChange={field.onChange} defaultValue={field.value?.toString()}>
-                        <FormControl>
-                          <SelectTrigger><SelectValue placeholder="Assign collector" /></SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                          <SelectItem value="0">None</SelectItem>
-                          {collectors?.map((c) => (
-                            <SelectItem key={c.id} value={c.id.toString()}>{c.name}</SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={form.control}
-                  name="notes"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Notes (optional)</FormLabel>
-                      <FormControl><Input placeholder="Any remarks…" {...field} /></FormControl>
-                    </FormItem>
-                  )}
-                />
-
-                <div className="flex items-center space-x-2 py-1">
-                  <Checkbox
-                    id="add-billing-details"
-                    checked={showBillingDetails}
-                    onCheckedChange={(checked) => setShowBillingDetails(!!checked)}
-                  />
-                  <label
-                    htmlFor="add-billing-details"
-                    className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer"
-                  >
-                    Add Billing Recipient Details
-                  </label>
-                </div>
-
-                {showBillingDetails && (
-                  <div className="space-y-3 p-3 bg-muted/40 rounded-lg border">
-                    <div className="flex justify-between items-center pb-1 border-b">
-                      <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Recipient Details</span>
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        className="h-6 text-xs px-2"
-                        onClick={() => {
-                          const customerId = form.getValues("customerId");
-                          const cust = customers?.data?.find(c => c.id === Number(customerId));
-                          if (cust) {
-                            form.setValue("billingName", cust.name);
-                            form.setValue("billingPhone", cust.mobile);
-                            form.setValue("billingAddress", cust.address || "");
-                          } else {
-                            toast({ title: "Please select a customer first", variant: "destructive" });
-                          }
-                        }}
-                      >
-                        Copy Customer Info
-                      </Button>
-                    </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <FormField
                       control={form.control}
-                      name="billingName"
+                      name="amount"
                       render={({ field }) => (
                         <FormItem>
-                          <FormLabel className="text-xs">Recipient Name</FormLabel>
-                          <FormControl><Input placeholder="Recipient Full Name" className="h-8 text-sm" {...field} /></FormControl>
+                          <FormLabel>Amount (₹)</FormLabel>
+                          <FormControl><Input type="number" {...field} /></FormControl>
+                          <FormMessage />
                         </FormItem>
                       )}
                     />
-                    <div className="grid grid-cols-2 gap-2">
-                      <FormField
-                        control={form.control}
-                        name="billingPhone"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel className="text-xs">Phone Number</FormLabel>
-                            <FormControl><Input placeholder="10-digit mobile" className="h-8 text-sm" {...field} /></FormControl>
-                          </FormItem>
-                        )}
-                      />
-                      <FormField
-                        control={form.control}
-                        name="billingGstin"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel className="text-xs">GSTIN (Optional)</FormLabel>
-                            <FormControl><Input placeholder="22AAAAA0000A1Z5" className="h-8 text-sm uppercase" {...field} /></FormControl>
-                          </FormItem>
-                        )}
-                      />
-                    </div>
                     <FormField
                       control={form.control}
-                      name="billingAddress"
+                      name="paymentMode"
                       render={({ field }) => (
                         <FormItem>
-                          <FormLabel className="text-xs">Address</FormLabel>
-                          <FormControl><Input placeholder="Recipient Address" className="h-8 text-sm" {...field} /></FormControl>
+                          <FormLabel>Payment Mode</FormLabel>
+                          <Select onValueChange={field.onChange} defaultValue={field.value}>
+                            <FormControl>
+                              <SelectTrigger><SelectValue /></SelectTrigger>
+                            </FormControl>
+                            <SelectContent>
+                              <SelectItem value="cash">Cash</SelectItem>
+                              <SelectItem value="upi">UPI</SelectItem>
+                              <SelectItem value="bank">Bank Transfer</SelectItem>
+                              <SelectItem value="card">Card</SelectItem>
+                            </SelectContent>
+                          </Select>
+                          <FormMessage />
                         </FormItem>
                       )}
                     />
                   </div>
-                )}
+                  <FormField
+                    control={form.control}
+                    name="committeeId"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Committee (optional)</FormLabel>
+                        <Select onValueChange={field.onChange} defaultValue={field.value?.toString()}>
+                          <FormControl>
+                            <SelectTrigger><SelectValue placeholder="Link to committee" /></SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            <SelectItem value="0">None</SelectItem>
+                            {committees?.map((c) => (
+                              <SelectItem key={c.id} value={c.id.toString()}>{c.name}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="collectorId"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Collector (optional)</FormLabel>
+                        <Select onValueChange={field.onChange} defaultValue={field.value?.toString()}>
+                          <FormControl>
+                            <SelectTrigger><SelectValue placeholder="Assign collector" /></SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            <SelectItem value="0">None</SelectItem>
+                            {collectors?.map((c) => (
+                              <SelectItem key={c.id} value={c.id.toString()}>{c.name}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="notes"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Notes (optional)</FormLabel>
+                        <FormControl><Input placeholder="Any remarks…" {...field} /></FormControl>
+                      </FormItem>
+                    )}
+                  />
 
-                <div className="flex justify-end pt-4">
-                  <Button type="submit" disabled={createCollection.isPending}>
-                    {createCollection.isPending ? "Saving..." : "Record Payment"}
-                  </Button>
-                </div>
-              </form>
-            </Form>
-        {!isCustomer && (
+                  <div className="flex items-center space-x-2 py-1">
+                    <Checkbox
+                      id="add-billing-details"
+                      checked={showBillingDetails}
+                      onCheckedChange={(checked) => setShowBillingDetails(!!checked)}
+                    />
+                    <label
+                      htmlFor="add-billing-details"
+                      className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer"
+                    >
+                      Add Billing Recipient Details
+                    </label>
+                  </div>
+
+                  {showBillingDetails && (
+                    <div className="space-y-3 p-3 bg-muted/40 rounded-lg border">
+                      <div className="flex justify-between items-center pb-1 border-b">
+                        <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Recipient Details</span>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          className="h-6 text-xs px-2"
+                          onClick={() => {
+                            const customerId = form.getValues("customerId");
+                            const cust = customers?.data?.find(c => c.id === Number(customerId));
+                            if (cust) {
+                              form.setValue("billingName", cust.name);
+                              form.setValue("billingPhone", cust.mobile);
+                              form.setValue("billingAddress", cust.address || "");
+                            } else {
+                              toast({ title: "Please select a customer first", variant: "destructive" });
+                            }
+                          }}
+                        >
+                          Copy Customer Info
+                        </Button>
+                      </div>
+                      <FormField
+                        control={form.control}
+                        name="billingName"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel className="text-xs">Recipient Name</FormLabel>
+                            <FormControl><Input placeholder="Recipient Full Name" className="h-8 text-sm" {...field} /></FormControl>
+                          </FormItem>
+                        )}
+                      />
+                      <div className="grid grid-cols-2 gap-2">
+                        <FormField
+                          control={form.control}
+                          name="billingPhone"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel className="text-xs">Phone Number</FormLabel>
+                              <FormControl><Input placeholder="10-digit mobile" className="h-8 text-sm" {...field} /></FormControl>
+                            </FormItem>
+                          )}
+                        />
+                        <FormField
+                          control={form.control}
+                          name="billingGstin"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel className="text-xs">GSTIN (Optional)</FormLabel>
+                              <FormControl><Input placeholder="22AAAAA0000A1Z5" className="h-8 text-sm uppercase" {...field} /></FormControl>
+                            </FormItem>
+                          )}
+                        />
+                      </div>
+                      <FormField
+                        control={form.control}
+                        name="billingAddress"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel className="text-xs">Address</FormLabel>
+                            <FormControl><Input placeholder="Recipient Address" className="h-8 text-sm" {...field} /></FormControl>
+                          </FormItem>
+                        )}
+                      />
+                    </div>
+                  )}
+
+                  <div className="flex justify-end pt-4">
+                    <Button type="submit" disabled={createCollection.isPending}>
+                      {createCollection.isPending ? "Saving..." : "Record Payment"}
+                    </Button>
+                  </div>
+                </form>
+              </Form>
             </DialogContent>
           </Dialog>
         )}
