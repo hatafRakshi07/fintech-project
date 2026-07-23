@@ -159,4 +159,6 @@ overrides:
   zod: "3.25.76"
 
 allowBuilds:
+  '@firebase/util': set this to true or false
   esbuild: true
+  protobufjs: set this to true or false

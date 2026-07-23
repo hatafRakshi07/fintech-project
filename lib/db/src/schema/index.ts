@@ -16,3 +16,5 @@ export * from "./notifications";
 export * from "./installments";
 export * from "./ledger";
 export * from "./invoices";
+export * from "./otps";
+

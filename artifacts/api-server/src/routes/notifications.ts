@@ -62,6 +62,71 @@ router.patch("/notifications/read-all", async (req, res): Promise<void> => {
 });
 
 // ---------------------------------------------------------------------------
+// Admin Message Broadcasting (Broadcast to All, Customers, Collectors, Branch)
+// ---------------------------------------------------------------------------
+router.post("/notifications/broadcast", async (req, res): Promise<void> => {
+  const { title, message, type = "announcement", target = "all", branchId } = req.body;
+  if (!title || !message) {
+    res.status(400).json({ error: "Title and message are required" });
+    return;
+  }
+
+  // Fetch target user IDs
+  let targetUsers: { id: number }[] = [];
+
+  if (target === "customers") {
+    targetUsers = await db
+      .select({ id: usersTable.id })
+      .from(usersTable)
+      .where(eq(usersTable.role, "customer"));
+  } else if (target === "collectors") {
+    targetUsers = await db
+      .select({ id: usersTable.id })
+      .from(usersTable)
+      .where(eq(usersTable.role, "collector"));
+  } else if (target === "branch" && branchId) {
+    targetUsers = await db
+      .select({ id: usersTable.id })
+      .from(usersTable)
+      .where(eq(usersTable.branchId, parseInt(branchId, 10)));
+  } else {
+    // All users
+    targetUsers = await db.select({ id: usersTable.id }).from(usersTable);
+  }
+
+  if (targetUsers.length === 0) {
+    res.json({ success: true, count: 0, message: "No recipient users found for selected target" });
+    return;
+  }
+
+  // Batch insert notifications
+  const valuesToInsert = targetUsers.map((u) => ({
+    userId: u.id,
+    title: String(title).trim(),
+    message: String(message).trim(),
+    type: String(type).trim(),
+    entityType: "broadcast",
+    isRead: false,
+  }));
+
+  // Insert in chunks of 500
+  const chunkSize = 500;
+  for (let i = 0; i < valuesToInsert.length; i += chunkSize) {
+    const chunk = valuesToInsert.slice(i, i + chunkSize);
+    await db.insert(notificationsTable).values(chunk);
+  }
+
+  console.log(`[BROADCAST] Sent broadcast "${title}" to ${targetUsers.length} users (Target: ${target})`);
+
+  res.json({
+    success: true,
+    count: targetUsers.length,
+    message: `Message successfully broadcasted to ${targetUsers.length} users`,
+  });
+});
+
+
+// ---------------------------------------------------------------------------
 // Helper exported for use by other route modules
 // ---------------------------------------------------------------------------
 export async function createNotification(params: {

@@ -3,6 +3,8 @@ import { useQuery } from "@tanstack/react-query";
 import { Link, useLocation } from "wouter";
 import { useRole } from "@/hooks/use-role";
 import { customFetch } from "@workspace/api-client-react";
+import CustomerPortalPage from "@/pages/customer-portal";
+
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -60,8 +62,9 @@ export default function DashboardPage() {
   }
 
   if (isCustomer) {
-    return <CustomerDashboard user={user} />;
+    return <CustomerPortalPage />;
   }
+
 
   // Fallback: Admin / Accountant / Branch Manager Dashboard
   return <AdminDashboard />;

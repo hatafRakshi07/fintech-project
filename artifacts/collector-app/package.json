@@ -10,6 +10,7 @@
   },
   "dependencies": {
     "@tanstack/react-query": "catalog:",
+    "firebase": "^12.16.0",
     "lucide-react": "catalog:",
     "react": "catalog:",
     "react-dom": "catalog:",

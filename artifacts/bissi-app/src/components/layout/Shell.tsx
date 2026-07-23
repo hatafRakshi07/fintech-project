@@ -38,7 +38,9 @@ import {
   ChevronRight,
   FileText,
   UserCircle,
+  Megaphone,
 } from "lucide-react";
+
 
 const ROLE_BADGE_VARIANT: Record<string, "default" | "secondary" | "outline" | "destructive"> = {
   super_admin: "default",
@@ -82,7 +84,9 @@ const ALL_NAV_ITEMS: NavItem[] = [
   { icon: Upload, label: "Import", href: "/import", roles: ["super_admin","owner","branch_manager"] },
   { icon: FileText, label: "Invoices", href: "/invoices", roles: ["super_admin","owner","branch_manager","accountant"] },
   { icon: FileText, label: "Accounting (Tally)", href: "/accounting", roles: ["super_admin","owner","branch_manager","accountant"] },
+  { icon: Megaphone, label: "Message Broadcast", href: "/broadcast", roles: ["super_admin","owner","branch_manager"] },
   { icon: BarChart3, label: "Reports", href: "/reports", roles: ["super_admin","owner","branch_manager","accountant"] },
+
   // Customer self-service — only shown to customer role
   { icon: UserCircle, label: "My Profile", href: "/profile", roles: ["customer"] },
 ];

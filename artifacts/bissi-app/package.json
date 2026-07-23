@@ -14,9 +14,9 @@
     "cap:open:android": "cap open android"
   },
   "devDependencies": {
-    "@capacitor/core": "^6.0.0",
-    "@capacitor/cli": "^6.0.0",
     "@capacitor/android": "^6.0.0",
+    "@capacitor/cli": "^6.0.0",
+    "@capacitor/core": "^6.0.0",
     "@capacitor/ios": "^6.0.0",
     "@hookform/resolvers": "^3.10.0",
     "@radix-ui/react-accordion": "^1.2.4",
@@ -81,5 +81,8 @@
     "vite": "catalog:",
     "wouter": "^3.3.5",
     "zod": "catalog:"
+  },
+  "dependencies": {
+    "firebase": "^12.16.0"
   }
 }

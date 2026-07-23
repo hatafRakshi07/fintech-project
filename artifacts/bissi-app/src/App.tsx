@@ -35,7 +35,11 @@ import ImportPage from "@/pages/import";
 import InvoicesPage from "@/pages/invoices";
 import AccountingPage from "@/pages/accounting";
 import ProfilePage from "@/pages/profile";
+import BroadcastPage from "@/pages/broadcast";
+import CustomerPortalPage from "@/pages/customer-portal";
 import NotFound from "@/pages/not-found";
+
+
 import { Shell } from "@/components/layout/Shell";
 
 /**
@@ -228,6 +232,18 @@ function AppRoutes() {
 
             {/* Profile — customer self-service (all roles can view their own profile) */}
             <Route path="/profile" component={ProfilePage} />
+
+            {/* Broadcast — managers and above */}
+            <Route path="/broadcast">
+              <RoleGate roles={MANAGERS}>
+                <BroadcastPage />
+              </RoleGate>
+            </Route>
+
+            {/* Read-Only Customer Portal */}
+            <Route path="/customer-portal" component={CustomerPortalPage} />
+
+
 
         <Route component={NotFound} />
       </Switch>
