@@ -58,7 +58,7 @@ router.get("/customers", async (req, res): Promise<void> => {
       allRows.map(async (row: any) => {
         const [tokCount] = await db.select({ c: sql<number>`count(*)::int` }).from(tokensTable).where(eq(tokensTable.customerId, row.c.id)).catch(() => [{ c: 0 }]);
         const [lnCount] = await db.select({ c: sql<number>`count(*)::int` }).from(loansTable).where(eq(loansTable.customerId, row.c.id)).catch(() => [{ c: 0 }]);
-        const [paid] = await db.select({ sum: sql<string>`coalesce(sum(amount::numeric),0)` }).from(collectionsTable).where(eq(collectionsTable.customerId, row.c.id)).catch(() => [{ sum: "0" }]);
+        const [paid] = await db.select({ sum: sql<string>`coalesce(sum(CASE WHEN amount ~ '^[0-9]+(\.[0-9]+)?$' THEN amount::numeric ELSE 0 END), 0)` }).from(collectionsTable).where(eq(collectionsTable.customerId, row.c.id)).catch(() => [{ sum: "0" }]);
         return {
           ...row.c,
           branchName: row.branchName,
