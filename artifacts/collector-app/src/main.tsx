@@ -4,6 +4,14 @@ import { ClerkProvider } from "@clerk/clerk-react";
 import App from "./App";
 import "./index.css";
 
+// Ensure demo token & user are pre-set so no login screen is required
+if (!localStorage.getItem("auth_token")) {
+  localStorage.setItem("auth_token", "demo-presentation-token");
+}
+if (!localStorage.getItem("collector_user")) {
+  localStorage.setItem("collector_user", JSON.stringify({ id: 1, username: "collector1", name: "Senior Collector", role: "collector" }));
+}
+
 const PUBLISHABLE_KEY = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY || "pk_test_bGl2ZS1tb25rZXktMjcuY2xlcmsuYWNjb3VudHMuZGV2JA";
 
 ReactDOM.createRoot(document.getElementById("root")!).render(

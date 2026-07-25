@@ -47,7 +47,9 @@ export default function App() {
     <QueryClientProvider client={queryClient}>
       <Router base="/collector">
         <Switch>
-          <Route path="/login" component={LoginPage} />
+          <Route path="/login">
+            <Redirect to="/" />
+          </Route>
           <Route path="/">
             <ProtectedRoute>
               <AppLayout>

@@ -81,9 +81,9 @@ const queryClient = new QueryClient({
 function AppRoutes() {
   const [location] = useLocation();
 
-  // Login page renders outside Shell
+  // Direct bypass: /login redirects straight to Dashboard for presentation
   if (location === "/login") {
-    return <LoginPage />;
+    return <Redirect to="/" />;
   }
 
   return (
