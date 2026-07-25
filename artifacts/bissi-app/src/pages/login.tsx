@@ -109,40 +109,23 @@ export default function LoginPage() {
 
     setIsSendingOtp(true);
     try {
-      setupRecaptcha();
-      const formattedPhone = "+91" + cleanPhone;
-      
-      // Send Real Firebase Phone SMS
-      const confirmation = await signInWithPhoneNumber(auth, formattedPhone, window.recaptchaVerifier);
-      setConfirmationResult(confirmation);
-      window.confirmationResult = confirmation;
-      setOtpSent(true);
+      const res: any = await customFetch("/api/auth/send-otp", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ phone: cleanPhone }),
+      });
 
+      setOtpSent(true);
       toast({
-        title: "Real SMS OTP Sent via Firebase",
-        description: `6-digit verification code sent directly to ${formattedPhone}.`,
+        title: "OTP Code Sent",
+        description: res.message || `6-digit verification code sent to +91 ${cleanPhone}.`,
       });
     } catch (err: any) {
-      console.warn("Firebase Phone Auth error, using fallback API:", err);
-      // Fallback to backend API send-otp
-      try {
-        await customFetch("/api/auth/send-otp", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ phone: cleanPhone }),
-        });
-        setOtpSent(true);
-        toast({
-          title: "OTP Sent Successfully",
-          description: `6-digit verification code sent to +91 ${cleanPhone}.`,
-        });
-      } catch (fallbackErr: any) {
-        toast({
-          title: "Failed to Send OTP",
-          description: fallbackErr.message || "Something went wrong while requesting OTP.",
-          variant: "destructive",
-        });
-      }
+      toast({
+        title: "Failed to Send OTP",
+        description: err.message || "Something went wrong while requesting OTP.",
+        variant: "destructive",
+      });
     } finally {
       setIsSendingOtp(false);
     }
@@ -163,17 +146,11 @@ export default function LoginPage() {
     try {
       const cleanPhone = phone.replace(/\D/g, "").slice(-10);
 
-      // Verify with Firebase Confirmation Result if available
-      if (confirmationResult || window.confirmationResult) {
-        const activeConfirmation = confirmationResult || window.confirmationResult;
-        await activeConfirmation.confirm(otp);
-      }
-
-      // Complete Backend Session Verification
+      // Verify with Backend API
       const res: any = await customFetch("/api/auth/verify-otp", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ phone: cleanPhone, otp }),
+        body: JSON.stringify({ phone: cleanPhone, otp: otp.trim() }),
       });
 
       localStorage.setItem("auth_token", res.token);
