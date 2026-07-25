@@ -151,127 +151,134 @@ router.get("/profile/me", async (req, res): Promise<void> => {
 // GET /profile/kyc-lookup  — Lookup customer KYC profile by mobile number or current user
 // ---------------------------------------------------------------------------
 router.get("/profile/kyc-lookup", async (req, res): Promise<void> => {
-  const { mobile, name } = req.query;
-  let customerRow: any = null;
+  try {
+    const { mobile, name } = req.query;
+    let customerRow: any = null;
 
-  if (mobile && typeof mobile === "string" && mobile.trim().length >= 3) {
-    const searchStr = mobile.trim();
-    const cleanMobile = searchStr.replace(/\D/g, "").slice(-10);
-    const nameStr = typeof name === "string" ? name.trim() : "";
+    if (mobile && typeof mobile === "string" && mobile.trim().length >= 3) {
+      const searchStr = mobile.trim();
+      const cleanMobile = searchStr.replace(/\D/g, "").slice(-10);
+      const nameStr = typeof name === "string" ? name.trim() : "";
 
-    let whereClause = sql`${customersTable.mobile} LIKE ${"%" + cleanMobile} OR ${customersTable.referenceNumber} ILIKE ${"%" + searchStr + "%"}`;
-    if (nameStr) {
-      whereClause = sql`(${customersTable.mobile} LIKE ${"%" + cleanMobile} OR ${customersTable.referenceNumber} ILIKE ${"%" + searchStr + "%"}) AND ${customersTable.name} ILIKE ${"%" + nameStr + "%"}`;
-    }
+      let whereClause = sql`${customersTable.mobile} LIKE ${"%" + cleanMobile} OR ${customersTable.referenceNumber} ILIKE ${"%" + searchStr + "%"}`;
+      if (nameStr) {
+        whereClause = sql`(${customersTable.mobile} LIKE ${"%" + cleanMobile} OR ${customersTable.referenceNumber} ILIKE ${"%" + searchStr + "%"}) AND ${customersTable.name} ILIKE ${"%" + nameStr + "%"}`;
+      }
 
-    const [row] = await db
-      .select({ c: customersTable, branchName: branchesTable.name })
-      .from(customersTable)
-      .leftJoin(branchesTable, eq(customersTable.branchId, branchesTable.id))
-      .where(whereClause)
-      .limit(1);
-
-    customerRow = row;
-
-    // Fallback search if name filter was too strict
-    if (!customerRow && nameStr) {
-      const [fallbackRow] = await db
+      const [row] = await db
         .select({ c: customersTable, branchName: branchesTable.name })
         .from(customersTable)
         .leftJoin(branchesTable, eq(customersTable.branchId, branchesTable.id))
-        .where(sql`${customersTable.mobile} LIKE ${"%" + cleanMobile}`)
+        .where(whereClause)
         .limit(1);
-      customerRow = fallbackRow;
+
+      customerRow = row;
+
+      // Fallback search if name filter was too strict
+      if (!customerRow && nameStr) {
+        const [fallbackRow] = await db
+          .select({ c: customersTable, branchName: branchesTable.name })
+          .from(customersTable)
+          .leftJoin(branchesTable, eq(customersTable.branchId, branchesTable.id))
+          .where(sql`${customersTable.mobile} LIKE ${"%" + cleanMobile}`)
+          .limit(1);
+        customerRow = fallbackRow;
+      }
     }
+
+    if (!customerRow) {
+      customerRow = await resolveCustomer(req.userId);
+    }
+
+    if (!customerRow) {
+      res.status(404).json({ error: "Customer details not found for the entered name and mobile number." });
+      return;
+    }
+
+    const id = customerRow.c.id;
+
+    const [
+      tokRows,
+      lnRows,
+      collRows,
+      giftRows,
+      memberships,
+      interestAccs,
+    ] = await Promise.all([
+      db.select({ t: tokensTable, commName: committeesTable.name }).from(tokensTable).leftJoin(committeesTable, eq(tokensTable.committeeId, committeesTable.id)).where(eq(tokensTable.customerId, id)).catch(() => []),
+      db.select().from(loansTable).where(eq(loansTable.customerId, id)).catch(() => []),
+      db.select().from(collectionsTable).where(eq(collectionsTable.customerId, id)).orderBy(desc(collectionsTable.collectedAt)).limit(100).catch(() => []),
+      db
+        .select({ gd: giftDistributionsTable, giftName: giftInventoryTable.name })
+        .from(giftDistributionsTable)
+        .leftJoin(giftInventoryTable, eq(giftDistributionsTable.giftId, giftInventoryTable.id))
+        .where(eq(giftDistributionsTable.customerId, id))
+        .catch(() => []),
+      db
+        .select({ cm: committeeMembersTable, commName: committeesTable.name, commType: committeesTable.type })
+        .from(committeeMembersTable)
+        .leftJoin(committeesTable, eq(committeeMembersTable.committeeId, committeesTable.id))
+        .where(eq(committeeMembersTable.customerId, id))
+        .catch(() => []),
+      db.select().from(interestAccountsTable).where(eq(interestAccountsTable.customerId, id)).catch(() => []),
+    ]);
+
+    const totalPaid = collRows.reduce((s, c) => s + parseFloat(c.amount || "0"), 0);
+
+    res.json({
+      customer: {
+        ...customerRow.c,
+        branchName: customerRow.branchName,
+        totalTokens: tokRows.length,
+        totalLoans: lnRows.length,
+        totalPaid,
+        createdAt: safeIso(customerRow.c.createdAt),
+      },
+      tokens: tokRows.map(t => ({
+        ...t.t,
+        committeeName: t.commName ?? "General Bissi",
+        createdAt: safeIso(t.t.createdAt),
+      })),
+      loans: lnRows.map(l => ({
+        ...l,
+        principalAmount: parseFloat(l.principalAmount || "0"),
+        interestRate: parseFloat(l.interestRate || "0"),
+        paidAmount: parseFloat(l.paidAmount || "0"),
+        emiAmount: l.emiAmount ? parseFloat(l.emiAmount) : null,
+        totalAmount: l.totalAmount ? parseFloat(l.totalAmount) : null,
+        outstandingAmount: l.outstandingAmount ? parseFloat(l.outstandingAmount) : parseFloat(l.principalAmount || "0"),
+        createdAt: safeIso(l.createdAt),
+      })),
+      collections: collRows.map(c => ({
+        ...c,
+        amount: parseFloat(c.amount || "0"),
+        collectedAt: safeIso(c.collectedAt),
+        createdAt: safeIso(c.createdAt),
+      })),
+      gifts: giftRows.map(g => ({
+        ...g.gd,
+        giftName: g.giftName ?? "Association Gift",
+        createdAt: safeIso(g.gd?.createdAt),
+      })),
+      interestAccounts: interestAccs.map(a => ({
+        ...a,
+        principalAmount: parseFloat(a.principalAmount || "0"),
+        interestRate: parseFloat(a.interestRate || "0"),
+        monthlyInterest: parseFloat(a.monthlyInterest ?? "0"),
+      })),
+      kycStatus: {
+        isVerified: true,
+        verificationLevel: "Level 2 - Full KYC Verified",
+        verifiedAt: safeIso(customerRow.c.createdAt),
+        aadhaarStatus: customerRow.c.aadhaar ? "Verified" : "Pending Document Upload",
+        panStatus: customerRow.c.pan ? "Verified" : "Not Provided",
+        addressStatus: customerRow.c.address ? "Verified" : "Pending",
+      },
+    });
+  } catch (err: any) {
+    console.error("[GET /profile/kyc-lookup ERROR]", err);
+    res.status(500).json({ error: "Failed to load customer profile details", details: err?.message });
   }
-
-  if (!customerRow) {
-    customerRow = await resolveCustomer(req.userId);
-  }
-
-  if (!customerRow) {
-    res.status(404).json({ error: "Customer details not found for the entered name and mobile number." });
-    return;
-  }
-
-  const id = customerRow.c.id;
-
-  const [
-    tokRows,
-    lnRows,
-    collRows,
-    giftRows,
-    memberships,
-    interestAccs,
-  ] = await Promise.all([
-    db.select({ t: tokensTable, commName: committeesTable.name }).from(tokensTable).leftJoin(committeesTable, eq(tokensTable.committeeId, committeesTable.id)).where(eq(tokensTable.customerId, id)),
-    db.select().from(loansTable).where(eq(loansTable.customerId, id)),
-    db.select().from(collectionsTable).where(eq(collectionsTable.customerId, id)).orderBy(desc(collectionsTable.collectedAt)).limit(100),
-    db
-      .select({ gd: giftDistributionsTable, giftName: giftInventoryTable.name })
-      .from(giftDistributionsTable)
-      .leftJoin(giftInventoryTable, eq(giftDistributionsTable.giftId, giftInventoryTable.id))
-      .where(eq(giftDistributionsTable.customerId, id)),
-    db
-      .select({ cm: committeeMembersTable, commName: committeesTable.name, commType: committeesTable.type })
-      .from(committeeMembersTable)
-      .leftJoin(committeesTable, eq(committeeMembersTable.committeeId, committeesTable.id))
-      .where(eq(committeeMembersTable.customerId, id)),
-    db.select().from(interestAccountsTable).where(eq(interestAccountsTable.customerId, id)),
-  ]);
-
-  const totalPaid = collRows.reduce((s, c) => s + parseFloat(c.amount || "0"), 0);
-
-  res.json({
-    customer: {
-      ...customerRow.c,
-      branchName: customerRow.branchName,
-      totalTokens: tokRows.length,
-      totalLoans: lnRows.length,
-      totalPaid,
-      createdAt: customerRow.c.createdAt.toISOString(),
-    },
-    tokens: tokRows.map(t => ({
-      ...t.t,
-      committeeName: t.commName ?? "General Bissi",
-      createdAt: t.t.createdAt.toISOString(),
-    })),
-    loans: lnRows.map(l => ({
-      ...l,
-      principalAmount: parseFloat(l.principalAmount || "0"),
-      interestRate: parseFloat(l.interestRate || "0"),
-      paidAmount: parseFloat(l.paidAmount || "0"),
-      emiAmount: l.emiAmount ? parseFloat(l.emiAmount) : null,
-      totalAmount: l.totalAmount ? parseFloat(l.totalAmount) : null,
-      outstandingAmount: l.outstandingAmount ? parseFloat(l.outstandingAmount) : parseFloat(l.principalAmount || "0"),
-      createdAt: l.createdAt.toISOString(),
-    })),
-    collections: collRows.map(c => ({
-      ...c,
-      amount: parseFloat(c.amount || "0"),
-      collectedAt: c.collectedAt.toISOString(),
-      createdAt: c.createdAt.toISOString(),
-    })),
-    gifts: giftRows.map(g => ({
-      ...g.gd,
-      giftName: g.giftName ?? "Association Gift",
-      createdAt: g.gd.createdAt.toISOString(),
-    })),
-    interestAccounts: interestAccs.map(a => ({
-      ...a,
-      principalAmount: parseFloat(a.principalAmount || "0"),
-      interestRate: parseFloat(a.interestRate || "0"),
-      monthlyInterest: parseFloat(a.monthlyInterest ?? "0"),
-    })),
-    kycStatus: {
-      isVerified: true,
-      verificationLevel: "Level 2 - Full KYC Verified",
-      verifiedAt: customerRow.c.createdAt.toISOString(),
-      aadhaarStatus: customerRow.c.aadhaar ? "Verified" : "Pending Document Upload",
-      panStatus: customerRow.c.pan ? "Verified" : "Not Provided",
-      addressStatus: customerRow.c.address ? "Verified" : "Pending",
-    },
-  });
 });
 
 // ---------------------------------------------------------------------------
