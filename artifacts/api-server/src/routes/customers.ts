@@ -49,14 +49,16 @@ router.get("/customers", async (req, res): Promise<void> => {
     let countQuery = db.select({ total: sql<number>`count(*)::int` }).from(customersTable).$dynamic();
     if (conditions.length > 0) countQuery = (countQuery as any).where(and(...conditions));
 
-    const allRows = await (query as any).orderBy(customersTable.createdAt).offset(offset).limit(limitNum);
-    const [{ total }] = await countQuery;
+    const [allRows, [{ total }]] = await Promise.all([
+      (query as any).orderBy(customersTable.id).offset(offset).limit(limitNum),
+      countQuery.catch(() => [{ total: 0 }]),
+    ]);
 
     const data = await Promise.all(
       allRows.map(async (row: any) => {
-        const [tokCount] = await db.select({ c: sql<number>`count(*)::int` }).from(tokensTable).where(eq(tokensTable.customerId, row.c.id));
-        const [lnCount] = await db.select({ c: sql<number>`count(*)::int` }).from(loansTable).where(eq(loansTable.customerId, row.c.id));
-        const [paid] = await db.select({ sum: sql<string>`coalesce(sum(amount),0)` }).from(collectionsTable).where(eq(collectionsTable.customerId, row.c.id));
+        const [tokCount] = await db.select({ c: sql<number>`count(*)::int` }).from(tokensTable).where(eq(tokensTable.customerId, row.c.id)).catch(() => [{ c: 0 }]);
+        const [lnCount] = await db.select({ c: sql<number>`count(*)::int` }).from(loansTable).where(eq(loansTable.customerId, row.c.id)).catch(() => [{ c: 0 }]);
+        const [paid] = await db.select({ sum: sql<string>`coalesce(sum(amount::numeric),0)` }).from(collectionsTable).where(eq(collectionsTable.customerId, row.c.id)).catch(() => [{ sum: "0" }]);
         return {
           ...row.c,
           branchName: row.branchName,
