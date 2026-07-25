@@ -87,6 +87,8 @@ export default function CollectionsPage() {
   const { data: collectors } = useListCollectors();
   const { data: committees } = useListCommittees();
 
+  const collectionsList = Array.isArray(collections?.data) ? collections.data : (Array.isArray(collections) ? collections : []);
+
   // Pending verifications (managers only)
   const { data: pendingCollections, isLoading: pendingLoading } = useQuery<any[]>({
     queryKey: ["collections-pending"],
@@ -496,12 +498,12 @@ export default function CollectionsPage() {
                 <TableRow>
                   <TableCell colSpan={9} className="text-center py-8 text-muted-foreground">Loading collections...</TableCell>
                 </TableRow>
-              ) : !collections?.data?.length ? (
+              ) : collectionsList.length === 0 ? (
                 <TableRow>
                   <TableCell colSpan={9} className="text-center py-8 text-muted-foreground">No collections found</TableCell>
                 </TableRow>
               ) : (
-                collections.data.map((col) => (
+                collectionsList.map((col: any) => (
                   <TableRow key={col.id} className="hover:bg-muted/50">
                     <TableCell className="pl-4">
                       <div className="font-medium">{col.customerName ?? `#${col.customerId}`}</div>

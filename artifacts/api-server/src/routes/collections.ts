@@ -5,6 +5,16 @@ import { createNotification, notifyManagers } from "./notifications";
 
 const router: IRouter = Router();
 
+function safeIso(d: any): string {
+  if (!d) return new Date().toISOString();
+  if (d instanceof Date) return d.toISOString();
+  if (typeof d === "string") {
+    const parsed = new Date(d);
+    return isNaN(parsed.getTime()) ? new Date().toISOString() : parsed.toISOString();
+  }
+  return new Date().toISOString();
+}
+
 // Helper to get linked customerId for customer role
 async function getCustomerLimitId(userId: number, role: string): Promise<number | null | undefined> {
   if (role !== "customer") return undefined;
@@ -67,8 +77,8 @@ router.get("/collections", async (req, res): Promise<void> => {
     collectorName: r.collectorName,
     committeeName: r.committeeName,
     amount: parseFloat(r.c.amount),
-    collectedAt: r.c.collectedAt.toISOString(),
-    createdAt: r.c.createdAt.toISOString(),
+    collectedAt: safeIso(r.c.collectedAt),
+    createdAt: safeIso(r.c.createdAt),
   }));
 
   res.json({ data, total, page: pageNum, limit: limitNum });
@@ -196,8 +206,8 @@ router.post("/collections", async (req, res): Promise<void> => {
   res.status(201).json({
     ...col,
     amount: parseFloat(col.amount),
-    collectedAt: col.collectedAt.toISOString(),
-    createdAt: col.createdAt.toISOString(),
+    collectedAt: safeIso(col.collectedAt),
+    createdAt: safeIso(col.createdAt),
   });
 
   // Fire-and-forget notifications
@@ -314,8 +324,8 @@ router.get("/collections/due-today", async (req, res): Promise<void> => {
       isPaidToday: !!payment,
       paidAmountToday: payment ? parseFloat(payment.amount) : 0,
       paymentModeToday: payment ? payment.paymentMode : null,
-      paidAtToday: payment ? payment.collectedAt.toISOString() : null,
-      lastPaymentDate: payment ? payment.collectedAt.toISOString() : null,
+      paidAtToday: payment ? safeIso(payment.collectedAt) : null,
+      lastPaymentDate: payment ? safeIso(payment.collectedAt) : null,
     };
   });
 
@@ -364,8 +374,8 @@ router.get("/collections/:id", async (req, res): Promise<void> => {
     collectorName: row.collectorName,
     committeeName: row.committeeName,
     amount: parseFloat(row.c.amount),
-    collectedAt: row.c.collectedAt.toISOString(),
-    createdAt: row.c.createdAt.toISOString(),
+    collectedAt: safeIso(row.c.collectedAt),
+    createdAt: safeIso(row.c.createdAt),
   });
 });
 
@@ -399,7 +409,7 @@ router.patch("/collections/:id/verify", async (req, res): Promise<void> => {
 
   if (!col) { res.status(404).json({ error: "Collection not found" }); return; }
 
-  res.json({ ...col, amount: parseFloat(col.amount), collectedAt: col.collectedAt.toISOString(), createdAt: col.createdAt.toISOString() });
+  res.json({ ...col, amount: parseFloat(col.amount), collectedAt: safeIso(col.collectedAt), createdAt: safeIso(col.createdAt) });
 
   // Notify the collector who recorded this
   if (col.collectorId) {

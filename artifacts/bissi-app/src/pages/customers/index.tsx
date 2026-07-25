@@ -47,6 +47,8 @@ export default function CustomersPage() {
   const { data, isLoading } = useListCustomers({ search, page, limit: 10 });
   const { data: branches } = useListBranches();
   
+  const customersList = Array.isArray(data?.data) ? data.data : [];
+  
   const createCustomer = useCreateCustomer();
   const queryClient = useQueryClient();
   const { toast } = useToast();
@@ -202,12 +204,12 @@ export default function CustomersPage() {
                 <TableRow>
                   <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">Loading customers...</TableCell>
                 </TableRow>
-              ) : data?.data.length === 0 ? (
+              ) : customersList.length === 0 ? (
                 <TableRow>
                   <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">No customers found</TableCell>
                 </TableRow>
               ) : (
-                data?.data.map((customer) => (
+                customersList.map((customer) => (
                   <TableRow key={customer.id} className="hover:bg-muted/50 cursor-pointer">
                     <TableCell className="pl-4 font-mono text-xs">{customer.referenceNumber}</TableCell>
                     <TableCell>
