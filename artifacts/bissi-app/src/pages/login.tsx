@@ -1,18 +1,16 @@
-import React, { useState, useEffect } from "react";
+import React, { useState } from "react";
 import { useLocation } from "wouter";
-import { useUser, SignIn } from "@clerk/clerk-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
-import { ShieldCheck, UserCheck, Flame, KeyRound, MessageCircle, ArrowRight, RefreshCw } from "lucide-react";
+import { ShieldCheck, KeyRound, MessageCircle, ArrowRight, RefreshCw } from "lucide-react";
 import { customFetch } from "@workspace/api-client-react";
 
 export default function LoginPage() {
   const [, setLocation] = useLocation();
-  const { user, isLoaded, isSignedIn } = useUser();
   const { toast } = useToast();
 
   // Custom Auth State
@@ -34,81 +32,31 @@ export default function LoginPage() {
     }
   };
 
-  // Sync Clerk Session if signed in via Clerk
-  useEffect(() => {
-    async function syncClerkUser() {
-      if (!isLoaded || !isSignedIn || !user) return;
-
-      try {
-        const phone = user.primaryPhoneNumber?.phoneNumber || "";
-        const email = user.primaryEmailAddress?.emailAddress || "";
-        const name = user.fullName || user.firstName || "";
-        const clerkId = user.id;
-
-        const response = await fetch("/api/auth/clerk-sync", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ clerkId, phone, email, name }),
-        });
-        const data = await response.json();
-        if (data.token) {
-          localStorage.setItem("auth_token", data.token);
-          handleRoleRedirect(data.user?.role || "super_admin");
-        }
-      } catch (err) {
-        console.error("Clerk sync failed:", err);
-      }
-    }
-    syncClerkUser();
-  }, [isLoaded, isSignedIn, user]);
-
-  const handlePasswordSubmit = async (e: React.FormEvent) => {
+  const handleSendOtp = async (e: React.FormEvent, viaWhatsApp = false) => {
     e.preventDefault();
-    setLoading(true);
-    try {
-      const data: any = await customFetch("/api/auth/login", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ username, password }),
-      });
-      if (data.token) {
-        localStorage.setItem("auth_token", data.token);
-        toast({ title: "Login Successful", description: `Welcome back, ${data.user?.name || "User"}!` });
-        handleRoleRedirect(data.user?.role || "super_admin");
-      }
-    } catch (err: any) {
-      toast({ title: "Login Failed", description: err.message || "Invalid credentials", variant: "destructive" });
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleSendOtp = async (e: React.FormEvent, isWhatsapp = false) => {
-    e.preventDefault();
-    const cleanPhone = phone.replace(/\D/g, "").slice(-10);
-    if (cleanPhone.length !== 10) {
-      toast({ title: "Invalid Mobile Number", description: "Please enter a valid 10-digit mobile number", variant: "destructive" });
+    if (!phone || phone.length < 10) {
+      toast({ title: "Invalid Phone Number", description: "Please enter a valid 10-digit mobile number.", variant: "destructive" });
       return;
     }
 
     setLoading(true);
     try {
-      const res: any = await customFetch("/api/auth/send-otp", {
+      const endpoint = viaWhatsApp ? "/auth/whatsapp-otp" : "/auth/send-otp";
+      const res: any = await customFetch(endpoint, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ phone: cleanPhone, channel: isWhatsapp ? "whatsapp" : "sms" }),
+        body: JSON.stringify({ phone }),
       });
 
       setOtpSent(true);
-      const code = res?.debugOtp || res?.code;
-      setDebugOtp(code || null);
-
+      if (res.debugOtp) {
+        setDebugOtp(res.debugOtp);
+      }
       toast({
-        title: isWhatsapp ? "WhatsApp OTP Dispatched" : "SMS OTP Code Sent",
-        description: code ? `Verification Code: ${code}` : `OTP sent to +91 ${cleanPhone}`,
+        title: viaWhatsApp ? "WhatsApp OTP Sent!" : "SMS OTP Sent!",
+        description: res.message || "OTP code has been dispatched to your mobile number.",
       });
     } catch (err: any) {
-      toast({ title: "Failed to Send OTP", description: err.message || "System error", variant: "destructive" });
+      toast({ title: "Failed to Send OTP", description: err.message, variant: "destructive" });
     } finally {
       setLoading(false);
     }
@@ -116,37 +64,68 @@ export default function LoginPage() {
 
   const handleVerifyOtp = async (e: React.FormEvent) => {
     e.preventDefault();
-    const cleanPhone = phone.replace(/\D/g, "").slice(-10);
-    if (!otp.trim()) return;
+    if (!otp || otp.length < 4) {
+      toast({ title: "Invalid OTP", description: "Please enter the verification code.", variant: "destructive" });
+      return;
+    }
 
     setLoading(true);
     try {
-      const res: any = await customFetch("/api/auth/verify-otp", {
+      const res: any = await customFetch("/auth/verify-otp", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ phone: cleanPhone, otp: otp.trim() }),
+        body: JSON.stringify({ phone, otp }),
       });
 
-      if (res?.token) {
+      if (res.token) {
         localStorage.setItem("auth_token", res.token);
-        toast({ title: "Verification Successful", description: `Welcome back!` });
+        if (res.user) {
+          localStorage.setItem("current_user", JSON.stringify(res.user));
+        }
+        toast({ title: "Login Successful", description: `Welcome back, ${res.user?.name || "User"}!` });
         handleRoleRedirect(res.user?.role || "super_admin");
       }
     } catch (err: any) {
-      toast({ title: "OTP Verification Failed", description: err.message || "Invalid OTP", variant: "destructive" });
+      toast({ title: "Verification Failed", description: err.message, variant: "destructive" });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handlePasswordSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+    try {
+      const res: any = await customFetch("/auth/login", {
+        method: "POST",
+        body: JSON.stringify({ username, password }),
+      });
+
+      if (res.token) {
+        localStorage.setItem("auth_token", res.token);
+        if (res.user) {
+          localStorage.setItem("current_user", JSON.stringify(res.user));
+        }
+        toast({ title: "Login Successful", description: `Welcome back, ${res.user?.name || "User"}!` });
+        handleRoleRedirect(res.user?.role || "super_admin");
+      }
+    } catch (err: any) {
+      toast({ title: "Login Failed", description: err.message, variant: "destructive" });
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center p-4 bg-gradient-to-br from-slate-950 via-slate-900 to-indigo-950 text-white">
-      <div className="w-full max-w-md space-y-6">
+    <div className="min-h-screen bg-slate-950 flex flex-col justify-center items-center p-4 relative overflow-hidden">
+      <div className="absolute -top-40 -left-40 w-96 h-96 bg-primary/20 rounded-full blur-3xl" />
+      <div className="absolute -bottom-40 -right-40 w-96 h-96 bg-secondary/20 rounded-full blur-3xl" />
+
+      <div className="w-full max-w-md space-y-6 relative z-10">
         <div className="text-center space-y-2">
-          <div className="inline-flex items-center justify-center p-3 rounded-2xl bg-gradient-to-br from-amber-500 to-amber-600 shadow-lg shadow-amber-500/20 mb-2">
-            <Flame className="h-8 w-8 text-slate-950" />
+          <div className="inline-flex items-center justify-center p-3 bg-primary/10 rounded-2xl border border-primary/20 mb-2">
+            <ShieldCheck className="h-10 w-10 text-primary" />
           </div>
-          <h1 className="text-2xl font-bold tracking-tight">Shree Krishna Association</h1>
+          <h1 className="text-2xl font-black tracking-tight text-white">Shree Krishna Association</h1>
           <p className="text-xs text-muted-foreground">Bissi & Committee Management System</p>
         </div>
 
@@ -157,15 +136,12 @@ export default function LoginPage() {
           </CardHeader>
           <CardContent>
             <Tabs defaultValue="otp" className="w-full">
-              <TabsList className="grid w-full grid-cols-3 mb-6">
+              <TabsList className="grid w-full grid-cols-2 mb-6">
                 <TabsTrigger value="otp" className="text-xs font-bold gap-1">
                   <ShieldCheck className="h-3.5 w-3.5" /> Mobile OTP
                 </TabsTrigger>
                 <TabsTrigger value="password" className="text-xs font-bold gap-1">
-                  <KeyRound className="h-3.5 w-3.5" /> Name/Pass
-                </TabsTrigger>
-                <TabsTrigger value="clerk" className="text-xs font-bold gap-1 text-indigo-500">
-                  <UserCheck className="h-3.5 w-3.5" /> Clerk Auth
+                  <KeyRound className="h-3.5 w-3.5" /> Name / Password
                 </TabsTrigger>
               </TabsList>
 
@@ -252,11 +228,6 @@ export default function LoginPage() {
                     {loading ? "Signing In..." : "Sign In"}
                   </Button>
                 </form>
-              </TabsContent>
-
-              {/* 🔐 Clerk Auth Tab */}
-              <TabsContent value="clerk" className="flex justify-center">
-                <SignIn routing="hash" />
               </TabsContent>
             </Tabs>
           </CardContent>
