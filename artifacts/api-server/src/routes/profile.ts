@@ -30,7 +30,8 @@ const router: IRouter = Router();
 // ---------------------------------------------------------------------------
 // Helper — resolve customer record for the current user
 // ---------------------------------------------------------------------------
-async function resolveCustomer(userId: number) {
+async function resolveCustomer(userId: number | undefined) {
+  if (!userId || isNaN(userId)) return null;
   // Look up the user's linked customer ID
   const [user] = await db
     .select({ customerId: usersTable.customerId })
