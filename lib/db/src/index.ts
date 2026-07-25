@@ -1,3 +1,4 @@
+import dns from "node:dns";
 import { drizzle } from "drizzle-orm/node-postgres";
 import pg from "pg";
 import * as schema from "./schema";
@@ -17,6 +18,14 @@ function getPool() {
   if (!poolInstance) {
     poolInstance = new Pool({
       connectionString: url,
+      // Force IPv4 lookup for Render compatibility (prevents ENETUNREACH IPv6 errors)
+      lookup: (hostname: string, options: any, callback: any) => {
+        if (typeof options === "function") {
+          callback = options;
+          options = {};
+        }
+        dns.lookup(hostname, { ...options, family: 4 }, callback);
+      },
       // Production-grade pool settings
       max: parseInt(process.env.DB_POOL_MAX ?? "10", 10),
       min: parseInt(process.env.DB_POOL_MIN ?? "2", 10),
