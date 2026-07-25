@@ -24,12 +24,10 @@ function getPool() {
       connectionTimeoutMillis: 5_000,      // fail fast if DB is unreachable
       keepAlive: true,
       keepAliveInitialDelayMillis: 10_000,
-      // SSL for cloud DBs (Neon, Supabase, Railway, etc.)
-      ...(process.env.DATABASE_SSL !== "false" && url.includes("ssl=false")
+      // SSL for cloud DBs (CockroachDB, Neon, Supabase, Render, etc.)
+      ...(process.env.DATABASE_SSL === "false" || url.includes("ssl=false") || url.includes("localhost") || url.includes("127.0.0.1")
         ? {}
-        : process.env.DATABASE_SSL === "true"
-          ? { ssl: { rejectUnauthorized: true } }
-          : {}),
+        : { ssl: { rejectUnauthorized: false } }),
     });
 
     // Log pool errors so they surface in prod logs instead of crashing
