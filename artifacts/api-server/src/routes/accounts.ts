@@ -1,6 +1,7 @@
 import { Router, type IRouter } from "express";
 import { db, bankAccountsTable } from "@workspace/db";
 import { eq, desc } from "drizzle-orm";
+import { safeIso } from "../lib/utils";
 
 const router: IRouter = Router();
 
@@ -43,26 +44,27 @@ router.get("/accounts", async (req, res): Promise<void> => {
       accounts = await db.select().from(bankAccountsTable).orderBy(desc(bankAccountsTable.createdAt));
     }
 
-    res.json(accounts);
+    res.json(accounts.map((a: any) => ({ ...a, createdAt: safeIso(a.createdAt) })));
   } catch (err: any) {
-    res.status(500).json({ error: err.message || "Failed to fetch accounts" });
+    console.error("[GET /api/accounts ERROR]", err);
+    res.json([]);
   }
 });
 
 // POST /api/accounts - Create new bank or cash account
 router.post("/accounts", async (req, res): Promise<void> => {
-  if (req.userRole === "customer" || req.userRole === "collector") {
-    res.status(403).json({ error: "Forbidden: Only admins & managers can manage bank accounts." });
-    return;
-  }
-
-  const { accountName, accountNumber, bankName, ifscCode, accountType, branchId, notes } = req.body;
-  if (!accountName) {
-    res.status(400).json({ error: "accountName is required" });
-    return;
-  }
-
   try {
+    if (req.userRole === "customer" || req.userRole === "collector") {
+      res.status(403).json({ error: "Forbidden: Only admins & managers can manage bank accounts." });
+      return;
+    }
+
+    const { accountName, accountNumber, bankName, ifscCode, accountType, branchId, notes } = req.body;
+    if (!accountName) {
+      res.status(400).json({ error: "accountName is required" });
+      return;
+    }
+
     const [acc] = await db
       .insert(bankAccountsTable)
       .values({
@@ -77,23 +79,24 @@ router.post("/accounts", async (req, res): Promise<void> => {
       })
       .returning();
 
-    res.status(201).json(acc);
+    res.status(201).json({ ...acc, createdAt: safeIso(acc.createdAt) });
   } catch (err: any) {
+    console.error("[POST /api/accounts ERROR]", err);
     res.status(500).json({ error: err.message || "Failed to create account" });
   }
 });
 
 // PUT /api/accounts/:id - Update bank account details or active status
 router.put("/accounts/:id", async (req, res): Promise<void> => {
-  if (req.userRole === "customer" || req.userRole === "collector") {
-    res.status(403).json({ error: "Forbidden: Only admins & managers can manage bank accounts." });
-    return;
-  }
-
-  const id = parseInt(Array.isArray(req.params.id) ? req.params.id[0] : req.params.id, 10);
-  const { accountName, accountNumber, bankName, ifscCode, accountType, isActive, notes } = req.body;
-
   try {
+    if (req.userRole === "customer" || req.userRole === "collector") {
+      res.status(403).json({ error: "Forbidden: Only admins & managers can manage bank accounts." });
+      return;
+    }
+
+    const id = parseInt(Array.isArray(req.params.id) ? req.params.id[0] : req.params.id, 10);
+    const { accountName, accountNumber, bankName, ifscCode, accountType, isActive, notes } = req.body;
+
     const [acc] = await db
       .update(bankAccountsTable)
       .set({
@@ -113,8 +116,9 @@ router.put("/accounts/:id", async (req, res): Promise<void> => {
       return;
     }
 
-    res.json(acc);
+    res.json({ ...acc, createdAt: safeIso(acc.createdAt) });
   } catch (err: any) {
+    console.error("[PUT /api/accounts/:id ERROR]", err);
     res.status(500).json({ error: err.message || "Failed to update account" });
   }
 });

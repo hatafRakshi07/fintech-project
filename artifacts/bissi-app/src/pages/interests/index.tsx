@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
+import { safeArray } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
@@ -55,8 +56,11 @@ export default function InterestsPage() {
   const [newTx, setNewTx] = useState({ accountId: "", customerId: "", type: "credit", amount: "", month: String(today.getMonth() + 1), year: String(today.getFullYear()), paymentDate: today.toISOString().split("T")[0], receiptNumber: "", branchId: "1" });
 
   const { data: summary } = useQuery<InterestSummary>({ queryKey: ["interests", "summary"], queryFn: () => api.get("/interests/summary") });
-  const { data: accounts = [], isLoading: loadingAccounts } = useQuery<InterestAccount[]>({ queryKey: ["interests", "accounts"], queryFn: () => api.get("/interests/accounts") });
-  const { data: transactions = [], isLoading: loadingTx } = useQuery<InterestTransaction[]>({ queryKey: ["interests", "transactions"], queryFn: () => api.get("/interests/transactions") });
+  const { data: rawAccounts, isLoading: loadingAccounts } = useQuery<InterestAccount[]>({ queryKey: ["interests", "accounts"], queryFn: () => api.get("/interests/accounts") });
+  const accounts = safeArray<InterestAccount>(rawAccounts);
+
+  const { data: rawTx, isLoading: loadingTx } = useQuery<InterestTransaction[]>({ queryKey: ["interests", "transactions"], queryFn: () => api.get("/interests/transactions") });
+  const transactions = safeArray<InterestTransaction>(rawTx);
 
   const createAccount = useMutation({
     mutationFn: (d: typeof newAccount) => api.post("/interests/accounts", { ...d, customerId: parseInt(d.customerId), principalAmount: d.principalAmount, interestRate: d.interestRate, branchId: parseInt(d.branchId) }),

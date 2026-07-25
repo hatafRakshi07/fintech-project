@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { customFetch } from "@workspace/api-client-react";
+import { safeArray } from "@/lib/utils";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -48,7 +49,7 @@ export default function BankAccountsPage() {
     queryKey: ["bank-accounts"],
     queryFn: () => customFetch("/api/accounts"),
   });
-  const accounts = Array.isArray(accountsData) ? accountsData : [];
+  const accounts = safeArray<BankAccount>(accountsData);
 
   const saveMutation = useMutation({
     mutationFn: (data: object) =>

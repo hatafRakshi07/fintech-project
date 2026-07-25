@@ -9,6 +9,7 @@ import {
   type VoucherPosting,
 } from "@workspace/db";
 import { eq, and, sql, desc, asc } from "drizzle-orm";
+import { safeIso } from "../lib/utils";
 
 const router: IRouter = Router();
 
@@ -165,6 +166,8 @@ router.get("/accounting/vouchers", async (req, res): Promise<void> => {
 
     const data = vouchers.map((v) => ({
       ...v,
+      date: safeIso(v.date),
+      createdAt: safeIso(v.createdAt),
       postings: postingsByVoucher.get(v.id) || [],
     }));
 

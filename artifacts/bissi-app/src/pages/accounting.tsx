@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { customFetch } from "@workspace/api-client-react";
+import { safeArray } from "@/lib/utils";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -210,13 +211,14 @@ export default function AccountingPage() {
     enabled: selectedLedgerId !== null,
   });
 
-  const safeLedgers = Array.isArray(ledgers) ? ledgers : [];
-  const safeVouchers = Array.isArray(vouchers) ? vouchers : [];
-  const safeTbRows = Array.isArray(trialBalance?.rows) ? trialBalance.rows : [];
-  const safePlIncomes = Array.isArray(plReport?.incomes) ? plReport.incomes : [];
-  const safePlExpenses = Array.isArray(plReport?.expenses) ? plReport.expenses : [];
-  const safeBsAssets = Array.isArray(bsReport?.assets) ? bsReport.assets : [];
-  const safeBsLiabilities = Array.isArray(bsReport?.liabilities) ? bsReport.liabilities : [];
+  const safeLedgers = safeArray<LedgerAccount>(ledgers);
+  const safeVouchers = safeArray<Voucher>(vouchers);
+  const safeTbRows = safeArray<any>(trialBalance?.rows);
+  const safePlIncomes = safeArray<any>(plReport?.incomes);
+  const safePlExpenses = safeArray<any>(plReport?.expenses);
+  const safeBsAssets = safeArray<any>(bsReport?.assets);
+  const safeBsLiabilities = safeArray<any>(bsReport?.liabilities);
+  const safeStatementEntries = safeArray<LedgerStatementEntry>(statementData?.entries);
 
   // ── Mutations ─────────────────────────────────────────────────────────────
   const createLedgerMutation = useMutation({
@@ -1153,14 +1155,14 @@ export default function AccountingPage() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {statementData.entries.length === 0 ? (
+                    {safeStatementEntries.length === 0 ? (
                       <TableRow>
                         <TableCell colSpan={7} className="text-center py-8 text-xs text-muted-foreground">
                           No transactions recorded in this ledger account.
                         </TableCell>
                       </TableRow>
                     ) : (
-                      statementData.entries.map((entry) => (
+                      safeStatementEntries.map((entry) => (
                         <TableRow key={entry.postingId} className="text-xs">
                           <TableCell className="pl-4 py-2 font-medium">
                             {new Date(entry.date).toLocaleDateString("en-IN", { dateStyle: "short" })}
