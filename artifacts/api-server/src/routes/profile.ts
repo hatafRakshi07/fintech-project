@@ -151,23 +151,38 @@ router.get("/profile/me", async (req, res): Promise<void> => {
 // GET /profile/kyc-lookup  — Lookup customer KYC profile by mobile number or current user
 // ---------------------------------------------------------------------------
 router.get("/profile/kyc-lookup", async (req, res): Promise<void> => {
-  const { mobile } = req.query;
+  const { mobile, name } = req.query;
   let customerRow: any = null;
 
   if (mobile && typeof mobile === "string" && mobile.trim().length >= 3) {
     const searchStr = mobile.trim();
     const cleanMobile = searchStr.replace(/\D/g, "").slice(-10);
+    const nameStr = typeof name === "string" ? name.trim() : "";
+
+    let whereClause = sql`${customersTable.mobile} LIKE ${"%" + cleanMobile} OR ${customersTable.referenceNumber} ILIKE ${"%" + searchStr + "%"}`;
+    if (nameStr) {
+      whereClause = sql`(${customersTable.mobile} LIKE ${"%" + cleanMobile} OR ${customersTable.referenceNumber} ILIKE ${"%" + searchStr + "%"}) AND ${customersTable.name} ILIKE ${"%" + nameStr + "%"}`;
+    }
 
     const [row] = await db
       .select({ c: customersTable, branchName: branchesTable.name })
       .from(customersTable)
       .leftJoin(branchesTable, eq(customersTable.branchId, branchesTable.id))
-      .where(
-        sql`${customersTable.mobile} LIKE ${"%" + cleanMobile} OR ${customersTable.referenceNumber} ILIKE ${"%" + searchStr + "%"}`
-      )
+      .where(whereClause)
       .limit(1);
 
     customerRow = row;
+
+    // Fallback search if name filter was too strict
+    if (!customerRow && nameStr) {
+      const [fallbackRow] = await db
+        .select({ c: customersTable, branchName: branchesTable.name })
+        .from(customersTable)
+        .leftJoin(branchesTable, eq(customersTable.branchId, branchesTable.id))
+        .where(sql`${customersTable.mobile} LIKE ${"%" + cleanMobile}`)
+        .limit(1);
+      customerRow = fallbackRow;
+    }
   }
 
   if (!customerRow) {
@@ -175,22 +190,23 @@ router.get("/profile/kyc-lookup", async (req, res): Promise<void> => {
   }
 
   if (!customerRow) {
-    res.status(404).json({ error: "Customer details not found for the entered mobile number." });
+    res.status(404).json({ error: "Customer details not found for the entered name and mobile number." });
     return;
   }
 
   const id = customerRow.c.id;
 
   const [
-    tokCount,
+    tokRows,
     lnRows,
     collRows,
     giftRows,
     memberships,
+    interestAccs,
   ] = await Promise.all([
-    db.select({ c: sql<number>`count(*)::int` }).from(tokensTable).where(eq(tokensTable.customerId, id)),
+    db.select({ t: tokensTable, commName: committeesTable.name }).from(tokensTable).leftJoin(committeesTable, eq(tokensTable.committeeId, committeesTable.id)).where(eq(tokensTable.customerId, id)),
     db.select().from(loansTable).where(eq(loansTable.customerId, id)),
-    db.select().from(collectionsTable).where(eq(collectionsTable.customerId, id)).limit(20),
+    db.select().from(collectionsTable).where(eq(collectionsTable.customerId, id)).orderBy(desc(collectionsTable.collectedAt)).limit(100),
     db
       .select({ gd: giftDistributionsTable, giftName: giftInventoryTable.name })
       .from(giftDistributionsTable)
@@ -201,19 +217,52 @@ router.get("/profile/kyc-lookup", async (req, res): Promise<void> => {
       .from(committeeMembersTable)
       .leftJoin(committeesTable, eq(committeeMembersTable.committeeId, committeesTable.id))
       .where(eq(committeeMembersTable.customerId, id)),
+    db.select().from(interestAccountsTable).where(eq(interestAccountsTable.customerId, id)),
   ]);
 
-  const totalPaid = collRows.reduce((s, c) => s + parseFloat(c.amount), 0);
+  const totalPaid = collRows.reduce((s, c) => s + parseFloat(c.amount || "0"), 0);
 
   res.json({
     customer: {
       ...customerRow.c,
       branchName: customerRow.branchName,
-      totalTokens: tokCount[0]?.c ?? 0,
+      totalTokens: tokRows.length,
       totalLoans: lnRows.length,
       totalPaid,
       createdAt: customerRow.c.createdAt.toISOString(),
     },
+    tokens: tokRows.map(t => ({
+      ...t.t,
+      committeeName: t.commName ?? "General Bissi",
+      createdAt: t.t.createdAt.toISOString(),
+    })),
+    loans: lnRows.map(l => ({
+      ...l,
+      principalAmount: parseFloat(l.principalAmount || "0"),
+      interestRate: parseFloat(l.interestRate || "0"),
+      paidAmount: parseFloat(l.paidAmount || "0"),
+      emiAmount: l.emiAmount ? parseFloat(l.emiAmount) : null,
+      totalAmount: l.totalAmount ? parseFloat(l.totalAmount) : null,
+      outstandingAmount: l.outstandingAmount ? parseFloat(l.outstandingAmount) : parseFloat(l.principalAmount || "0"),
+      createdAt: l.createdAt.toISOString(),
+    })),
+    collections: collRows.map(c => ({
+      ...c,
+      amount: parseFloat(c.amount || "0"),
+      collectedAt: c.collectedAt.toISOString(),
+      createdAt: c.createdAt.toISOString(),
+    })),
+    gifts: giftRows.map(g => ({
+      ...g.gd,
+      giftName: g.giftName ?? "Association Gift",
+      createdAt: g.gd.createdAt.toISOString(),
+    })),
+    interestAccounts: interestAccs.map(a => ({
+      ...a,
+      principalAmount: parseFloat(a.principalAmount || "0"),
+      interestRate: parseFloat(a.interestRate || "0"),
+      monthlyInterest: parseFloat(a.monthlyInterest ?? "0"),
+    })),
     kycStatus: {
       isVerified: true,
       verificationLevel: "Level 2 - Full KYC Verified",
@@ -222,10 +271,6 @@ router.get("/profile/kyc-lookup", async (req, res): Promise<void> => {
       panStatus: customerRow.c.pan ? "Verified" : "Not Provided",
       addressStatus: customerRow.c.address ? "Verified" : "Pending",
     },
-    loansCount: lnRows.length,
-    tokensCount: tokCount[0]?.c ?? 0,
-    collectionsCount: collRows.length,
-    giftsCount: giftRows.length,
   });
 });
 
