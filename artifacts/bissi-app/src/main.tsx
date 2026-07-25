@@ -11,12 +11,16 @@ if (!localStorage.getItem("auth_token")) {
   localStorage.setItem("auth_token", "demo-presentation-token");
 }
 
-const PUBLISHABLE_KEY = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY || "pk_test_bGl2ZS1tb25rZXktMjcuY2xlcmsuYWNjb3VudHMuZGV2JA";
+const PUBLISHABLE_KEY = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY;
 
 createRoot(document.getElementById('root')!).render(
   <ErrorBoundary>
-    <ClerkProvider publishableKey={PUBLISHABLE_KEY}>
+    {PUBLISHABLE_KEY ? (
+      <ClerkProvider publishableKey={PUBLISHABLE_KEY}>
+        <App />
+      </ClerkProvider>
+    ) : (
       <App />
-    </ClerkProvider>
+    )}
   </ErrorBoundary>
 );
