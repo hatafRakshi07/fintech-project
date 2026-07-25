@@ -12,7 +12,7 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
-import { Building2, KeyRound, Phone, ShieldCheck, ArrowRight, RefreshCw, Flame } from "lucide-react";
+import { Building2, KeyRound, Phone, ShieldCheck, ArrowRight, RefreshCw, Flame, MessageCircle } from "lucide-react";
 
 declare global {
   interface Window {
@@ -225,14 +225,25 @@ export default function LoginPage() {
                         />
                       </div>
                       <p className="text-xs text-muted-foreground">
-                        Firebase will send a real 6-digit SMS verification code to your mobile phone.
+                        Instant 6-digit verification code via WhatsApp or SMS.
                       </p>
                     </div>
 
-                    <Button type="submit" disabled={isSendingOtp} className="w-full h-11 text-base font-semibold gap-2">
-                      {isSendingOtp ? "Sending Firebase SMS..." : "Send Real SMS OTP"}
-                      <ArrowRight className="h-4 w-4" />
-                    </Button>
+                    <div className="space-y-2">
+                      <Button
+                        type="button"
+                        onClick={(e) => handleSendOtp(e, true)}
+                        disabled={isSendingOtp}
+                        className="w-full h-11 text-base font-semibold gap-2 bg-emerald-600 hover:bg-emerald-500 text-white shadow-md"
+                      >
+                        <MessageCircle className="h-5 w-5" /> Get OTP on WhatsApp
+                      </Button>
+
+                      <Button type="submit" disabled={isSendingOtp} variant="outline" className="w-full h-11 text-base font-semibold gap-2">
+                        {isSendingOtp ? "Generating OTP..." : "Get OTP Code"}
+                        <ArrowRight className="h-4 w-4" />
+                      </Button>
+                    </div>
                   </form>
                 ) : (
                   <form onSubmit={handleVerifyOtp} className="space-y-4">

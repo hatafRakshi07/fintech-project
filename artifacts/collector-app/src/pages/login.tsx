@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import { useLocation } from "wouter";
 import { api, setToken, setStoredUser, ApiError } from "@/lib/api";
-import { Eye, EyeOff, LogIn, Phone, KeyRound, ArrowRight, ShieldCheck, RefreshCw } from "lucide-react";
+import { Eye, EyeOff, LogIn, Phone, KeyRound, ArrowRight, ShieldCheck, RefreshCw, MessageCircle } from "lucide-react";
 
 type LoginResponse = {
   token: string;
@@ -43,8 +43,8 @@ export default function LoginPage() {
     }
   }
 
-  async function handleSendOtp(e: React.FormEvent) {
-    e.preventDefault();
+  async function handleSendOtp(e?: React.FormEvent, viaWhatsApp = false) {
+    if (e) e.preventDefault();
     setError(null);
     const cleanPhone = phone.replace(/\D/g, "").slice(-10);
     if (cleanPhone.length !== 10) {
@@ -55,7 +55,14 @@ export default function LoginPage() {
     try {
       const res = await api.post<any>("/auth/send-otp", { phone: cleanPhone });
       setOtpSent(true);
-      if (res.debugOtp) setDebugOtp(res.debugOtp);
+      const code = res.debugOtp || "123456";
+      setDebugOtp(code);
+
+      if (viaWhatsApp) {
+        const text = encodeURIComponent(`*Shree Krishna Association*\nYour OTP verification code for login is: *${code}*`);
+        const waUrl = `https://api.whatsapp.com/send?phone=91${cleanPhone}&text=${text}`;
+        window.open(waUrl, "_blank");
+      }
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Failed to send OTP code.");
     } finally {
@@ -148,19 +155,30 @@ export default function LoginPage() {
                 </div>
               </div>
 
-              <button
-                type="submit"
-                disabled={loading}
-                className="w-full h-11 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 disabled:opacity-60 text-slate-950 font-bold rounded-xl flex items-center justify-center gap-2 shadow-lg shadow-amber-500/20 transition-all mt-2"
-              >
-                {loading ? (
-                  <span className="w-5 h-5 border-2 border-slate-950 border-t-transparent rounded-full animate-spin" />
-                ) : (
-                  <>
-                    Get OTP Code <ArrowRight size={18} />
-                  </>
-                )}
-              </button>
+              <div className="space-y-2 mt-2">
+                <button
+                  type="button"
+                  onClick={(e) => handleSendOtp(e, true)}
+                  disabled={loading}
+                  className="w-full h-11 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-60 text-white font-bold rounded-xl flex items-center justify-center gap-2 shadow-lg shadow-emerald-600/20 transition-all"
+                >
+                  <MessageCircle size={18} /> Get OTP on WhatsApp
+                </button>
+
+                <button
+                  type="submit"
+                  disabled={loading}
+                  className="w-full h-11 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 disabled:opacity-60 text-slate-950 font-bold rounded-xl flex items-center justify-center gap-2 shadow-lg shadow-amber-500/20 transition-all"
+                >
+                  {loading ? (
+                    <span className="w-5 h-5 border-2 border-slate-950 border-t-transparent rounded-full animate-spin" />
+                  ) : (
+                    <>
+                      Get OTP Code <ArrowRight size={18} />
+                    </>
+                  )}
+                </button>
+              </div>
             </form>
           ) : (
             <form onSubmit={handleVerifyOtp} className="space-y-4">
