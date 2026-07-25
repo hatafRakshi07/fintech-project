@@ -7,22 +7,27 @@ const router: IRouter = Router();
 router.get("/healthz", async (_req, res): Promise<void> => {
   let dbOk = false;
   let dbLatencyMs: number | null = null;
+  let dbInfo: any = null;
 
   const start = Date.now();
   try {
-    await pingDb();
-    dbOk = true;
+    const { pool } = await import("@workspace/db");
+    const client = await pool.connect();
+    try {
+      const dbRes = await client.query("SELECT current_database(), current_user, (SELECT count(*) FROM customers)::int as customer_count");
+      dbInfo = dbRes.rows[0];
+      dbOk = true;
+    } finally {
+      client.release();
+    }
     dbLatencyMs = Date.now() - start;
-  } catch {
-    // db unreachable — return 503 but still return JSON
+  } catch (err: any) {
+    dbInfo = { error: err?.message || String(err) };
   }
 
-  const status = dbOk ? "ok" : "degraded";
-  const data = HealthCheckResponse.parse({ status });
-
   res.status(dbOk ? 200 : 503).json({
-    ...data,
-    db: { ok: dbOk, latencyMs: dbLatencyMs },
+    status: dbOk ? "ok" : "degraded",
+    db: { ok: dbOk, latencyMs: dbLatencyMs, info: dbInfo },
     uptime: Math.floor(process.uptime()),
     timestamp: new Date().toISOString(),
   });
