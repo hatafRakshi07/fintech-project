@@ -328,7 +328,11 @@ function AdminDashboard() {
   const { data: activity, isLoading: activityLoading } = useGetRecentActivity();
   const { data: branchSummary, isLoading: branchLoading } = useGetBranchSummary();
 
-  if (statsLoading || trendLoading || activityLoading || branchLoading) {
+  const safeTrend = Array.isArray(trend) ? trend : [];
+  const safeActivity = Array.isArray(activity) ? activity : [];
+  const safeBranchSummary = Array.isArray(branchSummary) ? branchSummary : [];
+
+  if (statsLoading && trendLoading && activityLoading && branchLoading) {
     return <div className="h-full flex items-center justify-center">Loading dashboard...</div>;
   }
 
@@ -405,7 +409,7 @@ function AdminDashboard() {
           <CardContent>
             <div className="h-55 md:h-75 w-full">
               <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={trend || []} margin={{ top: 5, right: 10, left: 10, bottom: 0 }}>
+                <LineChart data={safeTrend} margin={{ top: 5, right: 10, left: 10, bottom: 0 }}>
                   <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e5e7eb" />
                   <XAxis 
                     dataKey="date" 
@@ -447,7 +451,7 @@ function AdminDashboard() {
           </CardHeader>
           <CardContent>
             <div className="space-y-6">
-              {(activity || []).slice(0, 6).map((item) => (
+              {safeActivity.slice(0, 6).map((item) => (
                 <div key={item.id} className="flex items-start gap-3">
                   <div className="mt-0.5 bg-muted p-2 rounded-full">
                     {item.type === 'collection' ? <Wallet className="h-4 w-4 text-primary" /> : 
@@ -483,7 +487,7 @@ function AdminDashboard() {
         <CardContent>
           <div className="h-50 md:h-62.5 w-full mt-4">
             <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={branchSummary || []} layout="vertical" margin={{ top: 0, right: 30, left: 40, bottom: 0 }}>
+              <BarChart data={safeBranchSummary} layout="vertical" margin={{ top: 0, right: 30, left: 40, bottom: 0 }}>
                 <CartesianGrid strokeDasharray="3 3" horizontal={true} vertical={false} />
                 <XAxis type="number" axisLine={false} tickLine={false} tickFormatter={(val) => `₹${val/1000}k`} />
                 <YAxis dataKey="branchName" type="category" axisLine={false} tickLine={false} width={100} />
