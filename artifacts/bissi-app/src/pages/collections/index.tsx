@@ -588,19 +588,23 @@ export default function CollectionsPage() {
                   pendingCollections.map((col: any) => (
                     <TableRow key={col.id} className="hover:bg-muted/50">
                       <TableCell className="pl-4">
-                        <div className="font-medium">{col.customerName ?? `#${col.customerId}`}</div>
-                        {col.customerMobile && <div className="text-xs text-muted-foreground">{col.customerMobile}</div>}
+                        <div className="font-medium text-foreground">{col.customerName ?? `#${col.customerId}`}</div>
+                        <div className="text-xs text-muted-foreground font-mono">{col.customerMobile || col.customerRef || "Ref on file"}</div>
                       </TableCell>
-                      <TableCell className="text-sm">{col.collectorName ?? "—"}</TableCell>
+                      <TableCell className="text-sm">
+                        <div className="font-semibold text-primary">{col.collectorName ?? "Field Collector"}</div>
+                        <div className="text-[10px] text-muted-foreground">Collected By</div>
+                      </TableCell>
                       <TableCell className="text-center">
-                        <Badge variant="outline" className="gap-1">
+                        <Badge variant="outline" className="gap-1 text-xs">
                           {paymentModeIcon[col.paymentMode]}
                           {col.paymentMode?.toUpperCase()}
                         </Badge>
                       </TableCell>
                       <TableCell className="text-right font-semibold text-primary">{formatCurrency(col.amount)}</TableCell>
                       <TableCell className="text-sm text-muted-foreground">
-                        {col.collectedAt ? new Date(col.collectedAt).toLocaleDateString("en-IN", { day: "2-digit", month: "short" }) : "—"}
+                        <div>{col.collectedAt ? new Date(col.collectedAt).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" }) : "—"}</div>
+                        {col.notes && <div className="text-[10px] text-muted-foreground max-w-[150px] truncate">{col.notes}</div>}
                       </TableCell>
                       <TableCell className="pr-4 text-right">
                         <div className="flex justify-end gap-2">

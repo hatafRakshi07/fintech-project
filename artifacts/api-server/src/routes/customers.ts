@@ -409,4 +409,115 @@ router.get("/customers/:id/history", async (req, res): Promise<void> => {
   }
 });
 
+// POST /customers/check-duplicate — Scans database for potential duplicate customer entries
+router.post("/customers/check-duplicate", async (req, res): Promise<void> => {
+  try {
+    const { name, mobile, aadhaar } = req.body;
+    if (!name && !mobile && !aadhaar) {
+      res.json({ matchFound: false, candidates: [] });
+      return;
+    }
+
+    const cleanMobile = mobile ? String(mobile).replace(/\D/g, "").slice(-10) : "";
+    const cleanAadhaar = aadhaar ? String(aadhaar).replace(/\D/g, "") : "";
+    const nameStr = name ? String(name).trim() : "";
+
+    const candidates = await db
+      .select({
+        c: customersTable,
+        branchName: branchesTable.name,
+      })
+      .from(customersTable)
+      .leftJoin(branchesTable, eq(customersTable.branchId, branchesTable.id))
+      .where(
+        or(
+          cleanMobile ? ilike(customersTable.mobile, `%${cleanMobile}%`) : sql`false`,
+          cleanAadhaar ? eq(customersTable.aadhaar, cleanAadhaar) : sql`false`,
+          nameStr ? ilike(customersTable.name, `%${nameStr}%`) : sql`false`
+        )
+      )
+      .limit(10);
+
+    const scored = candidates.map((row) => {
+      let score = 0;
+      if (cleanMobile && row.c.mobile && row.c.mobile.includes(cleanMobile)) score += 50;
+      if (cleanAadhaar && row.c.aadhaar === cleanAadhaar) score += 40;
+      if (nameStr && row.c.name.toLowerCase() === nameStr.toLowerCase()) score += 30;
+      else if (nameStr && row.c.name.toLowerCase().includes(nameStr.toLowerCase())) score += 15;
+
+      return {
+        customer: {
+          ...row.c,
+          branchName: row.branchName,
+          createdAt: safeIso(row.c.createdAt),
+        },
+        matchScore: score,
+        isExactMatch: score >= 70,
+      };
+    });
+
+    const sorted = scored.sort((a, b) => b.matchScore - a.matchScore);
+    res.json({
+      matchFound: sorted.length > 0 && sorted[0].matchScore >= 30,
+      candidates: sorted,
+    });
+  } catch (err: any) {
+    console.error("[CHECK DUPLICATE ERROR]", err);
+    res.status(500).json({ error: "Failed to check duplicates" });
+  }
+});
+
+// POST /customers/merge — Merge duplicate source customer into target canonical customer
+router.post("/customers/merge", async (req, res): Promise<void> => {
+  try {
+    const { targetCustomerId, sourceCustomerId } = req.body;
+    if (!targetCustomerId || !sourceCustomerId || targetCustomerId === sourceCustomerId) {
+      res.status(400).json({ error: "Valid targetCustomerId and sourceCustomerId required (must be different)" });
+      return;
+    }
+
+    const targetId = parseInt(String(targetCustomerId), 10);
+    const sourceId = parseInt(String(sourceCustomerId), 10);
+
+    const [targetCust] = await db.select().from(customersTable).where(eq(customersTable.id, targetId));
+    const [sourceCust] = await db.select().from(customersTable).where(eq(customersTable.id, sourceId));
+
+    if (!targetCust || !sourceCust) {
+      res.status(404).json({ error: "Target or Source customer record not found" });
+      return;
+    }
+
+    // Execute safe merge across all child tables
+    await Promise.all([
+      db.update(tokensTable).set({ customerId: targetId }).where(eq(tokensTable.customerId, sourceId)),
+      db.update(loansTable).set({ customerId: targetId }).where(eq(loansTable.customerId, sourceId)),
+      db.update(collectionsTable).set({ customerId: targetId }).where(eq(collectionsTable.customerId, sourceId)),
+      db.update(committeeMembersTable).set({ customerId: targetId }).where(eq(committeeMembersTable.customerId, sourceId)),
+      db.update(giftDistributionsTable).set({ customerId: targetId }).where(eq(giftDistributionsTable.customerId, sourceId)),
+      db.update(interestAccountsTable).set({ customerId: targetId }).where(eq(interestAccountsTable.customerId, sourceId)),
+      db.update(recoveryTasksTable).set({ customerId: targetId }).where(eq(recoveryTasksTable.customerId, sourceId)),
+    ]);
+
+    // Mark source customer as merged
+    await db
+      .update(customersTable)
+      .set({
+        status: "merged" as any,
+        recoveryNotes: `Merged into Canonical Customer #${targetId} (${targetCust.referenceNumber}) on ${new Date().toISOString()}`,
+      })
+      .where(eq(customersTable.id, sourceId));
+
+    res.json({
+      message: `Successfully merged Customer #${sourceId} (${sourceCust.name}) into Customer #${targetId} (${targetCust.name})`,
+      targetCustomer: {
+        ...targetCust,
+        createdAt: safeIso(targetCust.createdAt),
+      },
+    });
+  } catch (err: any) {
+    console.error("[CUSTOMER MERGE ERROR]", err);
+    res.status(500).json({ error: "Failed to merge customer records" });
+  }
+});
+
 export default router;

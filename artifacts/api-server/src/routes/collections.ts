@@ -451,4 +451,81 @@ router.get("/collections/pending-verifications", async (req, res): Promise<void>
   res.json({ count: row?.count ?? 0 });
 });
 
+// GET /collections/verification-queue — Returns pending collections with Collector Name attribution & Collector aggregates
+router.get("/collections/verification-queue", async (req, res): Promise<void> => {
+  if (req.userRole === "customer") {
+    res.status(403).json({ error: "Forbidden: Customers cannot access verification queue." });
+    return;
+  }
+
+  try {
+    const { branchId } = req.query;
+    let rows = await db
+      .select({
+        c: collectionsTable,
+        customerName: customersTable.name,
+        customerMobile: customersTable.mobile,
+        customerRef: customersTable.referenceNumber,
+        collectorName: collectorsTable.name,
+        collectorMobile: collectorsTable.mobile,
+        committeeName: committeesTable.name,
+        branchName: branchesTable.name,
+      })
+      .from(collectionsTable)
+      .leftJoin(customersTable, eq(collectionsTable.customerId, customersTable.id))
+      .leftJoin(collectorsTable, eq(collectionsTable.collectorId, collectorsTable.id))
+      .leftJoin(committeesTable, eq(collectionsTable.committeeId, committeesTable.id))
+      .leftJoin(branchesTable, eq(collectionsTable.branchId, branchesTable.id))
+      .where(eq(collectionsTable.verificationStatus, "pending"))
+      .orderBy(desc(collectionsTable.collectedAt));
+
+    if (branchId) {
+      const bId = parseInt(branchId as string, 10);
+      if (!isNaN(bId)) rows = rows.filter((r) => r.c.branchId === bId);
+    }
+
+    // Compute Collector Aggregates (total collections & total unique customers per collector)
+    const collectorStatsMap = new Map<string, { totalAmount: number; customerSet: Set<number> }>();
+
+    rows.forEach((r) => {
+      const colName = r.collectorName || "Field Collector";
+      if (!collectorStatsMap.has(colName)) {
+        collectorStatsMap.set(colName, { totalAmount: 0, customerSet: new Set() });
+      }
+      const stat = collectorStatsMap.get(colName)!;
+      stat.totalAmount += parseFloat(r.c.amount || "0");
+      if (r.c.customerId) stat.customerSet.add(r.c.customerId);
+    });
+
+    const collectorSummary = Array.from(collectorStatsMap.entries()).map(([collectorName, stat]) => ({
+      collectorName,
+      totalPendingAmount: stat.totalAmount,
+      totalCustomersCollected: stat.customerSet.size,
+    }));
+
+    const queue = rows.map((r) => ({
+      ...r.c,
+      customerName: r.customerName ?? "Customer",
+      customerMobile: r.customerMobile,
+      customerRef: r.customerRef,
+      collectorName: r.collectorName ?? "Field Collector",
+      collectorMobile: r.collectorMobile,
+      committeeName: r.committeeName ?? "General Scheme",
+      branchName: r.branchName ?? "Main Branch",
+      amount: parseFloat(r.c.amount || "0"),
+      collectedAt: safeIso(r.c.collectedAt),
+      createdAt: safeIso(r.c.createdAt),
+    }));
+
+    res.json({
+      totalPending: queue.length,
+      collectorSummary,
+      queue,
+    });
+  } catch (err: any) {
+    console.error("[VERIFICATION QUEUE ERROR]", err);
+    res.status(500).json({ error: "Failed to fetch verification queue" });
+  }
+});
+
 export default router;

@@ -213,44 +213,62 @@ export default function CommitteeDetailPage() {
                   {!members?.length ? (
                     <TableRow><TableCell colSpan={5} className="text-center py-8 text-muted-foreground">No members yet</TableCell></TableRow>
                   ) : (() => {
-                    // Group by customerId — one row per customer, show all tokens
-                    const grouped = new Map<number, { name: string; mobile: string | null; ref: string; tokens: string[]; status: string; customerId: number }>();
+                    const grouped = new Map<number, { name: string; mobile: string | null; ref: string; tokens: { number: string; status: string }[]; customerId: number }>();
                     for (const m of members) {
                       if (!grouped.has(m.customerId)) {
                         grouped.set(m.customerId, {
                           customerId: m.customerId,
                           name: m.customerName,
                           mobile: m.customerMobile ?? null,
-                          ref: (m as typeof m & { referenceNumber?: string }).referenceNumber ?? "",
+                          ref: (m as typeof m & { referenceNumber?: string }).referenceNumber ?? `CUST-${m.customerId}`,
                           tokens: [],
-                          status: m.status ?? "active",
                         });
                       }
-                      grouped.get(m.customerId)!.tokens.push(m.tokenNumber);
+                      grouped.get(m.customerId)!.tokens.push({ number: m.tokenNumber, status: m.status ?? "active" });
                     }
-                    return [...grouped.values()].map((g) => (
-                      <TableRow key={g.customerId} className="hover:bg-muted/50">
-                        <TableCell className="pl-4 font-mono text-xs text-muted-foreground">{g.ref || "—"}</TableCell>
-                        <TableCell>
-                          <Link href={`/customers/${g.customerId}`}>
-                            <span className="font-medium hover:underline cursor-pointer text-primary">{g.name}</span>
-                          </Link>
-                        </TableCell>
-                        <TableCell className="text-muted-foreground text-sm">{g.mobile ?? "—"}</TableCell>
-                        <TableCell>
-                          <div className="flex flex-wrap gap-1">
-                            {g.tokens.sort((a, b) => parseInt(a) - parseInt(b)).map(t => (
-                              <span key={t} className="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-mono font-semibold bg-primary/10 text-primary border border-primary/20">
-                                {t}
-                              </span>
-                            ))}
-                          </div>
-                        </TableCell>
-                        <TableCell className="pr-4">
-                          <Badge variant={g.status === "active" ? "default" : "secondary"}>{g.status}</Badge>
-                        </TableCell>
-                      </TableRow>
-                    ));
+                    return [...grouped.values()].map((g) => {
+                      const totalTokens = g.tokens.length;
+                      const paidTokens = g.tokens.filter(t => t.status === "completed" || t.status === "paid" || t.status === "lucky").length;
+                      const pendingTokens = totalTokens - paidTokens;
+
+                      return (
+                        <TableRow key={g.customerId} className="hover:bg-muted/50">
+                          <TableCell className="pl-4 font-mono text-xs text-muted-foreground">{g.ref || `CUST-${g.customerId}`}</TableCell>
+                          <TableCell>
+                            <Link href={`/customers/${g.customerId}`}>
+                              <span className="font-semibold hover:underline cursor-pointer text-primary">{g.name}</span>
+                            </Link>
+                          </TableCell>
+                          <TableCell className="text-muted-foreground text-sm font-mono">{g.mobile ?? "—"}</TableCell>
+                          <TableCell>
+                            <div className="flex flex-wrap items-center gap-1.5">
+                              <Badge variant="outline" className="font-mono text-xs bg-primary/5 text-primary border-primary/20">
+                                Total Tokens: {totalTokens}
+                              </Badge>
+                              {paidTokens > 0 && (
+                                <Badge variant="outline" className="text-[10px] bg-emerald-500/10 text-emerald-600 border-emerald-500/20">
+                                  Paid: {paidTokens}
+                                </Badge>
+                              )}
+                              {pendingTokens > 0 && (
+                                <Badge variant="outline" className="text-[10px] bg-amber-500/10 text-amber-600 border-amber-500/20">
+                                  Pending: {pendingTokens}
+                                </Badge>
+                              )}
+                            </div>
+                          </TableCell>
+                          <TableCell className="pr-4">
+                            <div className="flex flex-wrap gap-1">
+                              {g.tokens.sort((a, b) => parseInt(a.number) - parseInt(b.number)).map(t => (
+                                <span key={t.number} className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-mono font-bold border ${t.status === "lucky" ? "bg-amber-500/10 text-amber-700 border-amber-300" : t.status === "completed" ? "bg-emerald-500/10 text-emerald-700 border-emerald-300" : "bg-primary/10 text-primary border-primary/20"}`}>
+                                  Token #{t.number} ({t.status})
+                                </span>
+                              ))}
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      );
+                    });
                   })()}
                 </TableBody>
               </Table>

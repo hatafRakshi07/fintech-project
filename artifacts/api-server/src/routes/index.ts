@@ -24,6 +24,7 @@ import accountingRouter from "./accounting";
 import kycRouter from "./kyc";
 import agentsRouter from "./agents";
 import accountsRouter from "./accounts";
+import searchRouter from "./search";
 
 const router: IRouter = Router();
 
@@ -33,6 +34,7 @@ router.use(authRouter);
 // All routes below require a valid session token
 router.use(requireAuth);
 
+router.use(searchRouter);
 router.use(accountsRouter);
 router.use(dashboardRouter);
 router.use(kycRouter);

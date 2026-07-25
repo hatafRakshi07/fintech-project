@@ -10,7 +10,7 @@ const pool = new Pool({
   ssl: { rejectUnauthorized: false }
 });
 
-const filePath = 'C:\\Users\\iSN_kota_T52\\Downloads\\Bissi folder.xlsx';
+const filePath = 'C:\\Users\\lenovo\\Downloads\\Bissi folder (2).xlsx';
 
 function cleanPhone(raw) {
   if (!raw) return null;
