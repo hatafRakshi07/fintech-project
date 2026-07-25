@@ -118,7 +118,7 @@ const otpLimiter = rateLimit({
 // Helper: Send Real SMS via SMS Gateway (Fast2SMS / MSG91 / Twilio)
 async function sendRealSmsOtp(phone: string, code: string): Promise<boolean> {
   const provider = process.env.SMS_PROVIDER || "fast2sms";
-  const apiKey = process.env.SMS_API_KEY || process.env.FAST2SMS_API_KEY;
+  const apiKey = process.env.SMS_API_KEY || process.env.FAST2SMS_API_KEY || process.env.TWO_FACTOR_API_KEY || process.env["2FACTOR_API_KEY"];
 
   if (!apiKey) {
     console.log(`[SMS GATEWAY NOTICE] No SMS_API_KEY configured. Real-time OTP ${code} generated for mobile +91 ${phone}`);
@@ -126,7 +126,16 @@ async function sendRealSmsOtp(phone: string, code: string): Promise<boolean> {
   }
 
   try {
-    if (provider === "fast2sms" || process.env.FAST2SMS_API_KEY) {
+    const twoFactorKey = process.env.TWO_FACTOR_API_KEY || process.env["2FACTOR_API_KEY"];
+    if (twoFactorKey || provider === "2factor") {
+      const key = twoFactorKey || apiKey;
+      const response = await fetch(`https://2factor.in/API/V1/${key}/SMS/${phone}/${code}/AUTOGEN`, {
+        method: "GET",
+      });
+      const data: any = await response.json();
+      console.log(`[2FACTOR GATEWAY RESPONSE]`, data);
+      return data?.Status === "Success";
+    } else if (provider === "fast2sms" || process.env.FAST2SMS_API_KEY) {
       const response = await fetch("https://www.fast2sms.com/dev/bulkV2", {
         method: "POST",
         headers: {
