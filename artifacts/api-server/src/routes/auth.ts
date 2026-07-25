@@ -49,6 +49,106 @@ const loginLimiter = rateLimit({
 });
 
 // ---------------------------------------------------------------------------
+// Clerk Sync Route (Instant Database Sync for Existing & New Users)
+// ---------------------------------------------------------------------------
+router.post("/auth/clerk-sync", async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { clerkId, phone, email, name } = req.body;
+    const cleanPhone = phone ? phone.replace(/\D/g, "").slice(-10) : "";
+
+    let user: any = null;
+
+    // 1. Search existing user in public.users by phone, email, or username
+    if (cleanPhone || email || clerkId) {
+      const userRes = await db.execute(
+        sql`SELECT id, username, name, role, branch_id as "branchId", customer_id as "customerId", agent_id as "agentId", email, phone FROM public.users WHERE (phone IS NOT NULL AND phone = ${cleanPhone}) OR (email IS NOT NULL AND LOWER(email) = ${email?.toLowerCase() ?? ""}) OR username = ${cleanPhone || email || clerkId} LIMIT 1`
+      );
+      user = userRes.rows[0] ?? null;
+    }
+
+    // 2. If user not found, check existing customers table by phone or email
+    if (!user && (cleanPhone || email)) {
+      const custRes = await db.execute(
+        sql`SELECT id, name, mobile, branch_id as "branchId", email FROM public.customers WHERE (mobile IS NOT NULL AND mobile = ${cleanPhone}) OR (email IS NOT NULL AND LOWER(email) = ${email?.toLowerCase() ?? ""}) LIMIT 1`
+      );
+      const customer: any = custRes.rows[0] ?? null;
+
+      if (customer) {
+        const [newUser] = await db
+          .insert(usersTable)
+          .values({
+            username: cleanPhone || email || clerkId,
+            passwordHash: await hashPassword(randomBytes(16).toString("hex")),
+            name: customer.name || name || "Customer",
+            role: "customer",
+            branchId: customer.branchId,
+            customerId: customer.id,
+            phone: cleanPhone || customer.mobile,
+            email: email || customer.email ?? null,
+          })
+          .returning();
+        user = newUser;
+      }
+    }
+
+    // 3. If still not found (New User), auto-create customer and user record
+    if (!user) {
+      const displayName = name || `User ${cleanPhone || "New"}`;
+      const [newCust] = await db
+        .insert(customersTable)
+        .values({
+          name: displayName,
+          mobile: cleanPhone || null,
+          email: email || null,
+        })
+        .returning();
+
+      const [newUser] = await db
+        .insert(usersTable)
+        .values({
+          username: cleanPhone || email || clerkId,
+          passwordHash: await hashPassword(randomBytes(16).toString("hex")),
+          name: displayName,
+          role: "customer",
+          customerId: newCust.id,
+          phone: cleanPhone || null,
+          email: email || null,
+        })
+        .returning();
+      user = newUser;
+    }
+
+    // 4. Create session token
+    const token = generateToken();
+    const expiresAt = new Date(Date.now() + SESSION_TTL_MS);
+
+    await purgeExpiredSessions();
+    await db.insert(sessionsTable).values({
+      token,
+      userId: user.id,
+      expiresAt,
+    });
+
+    res.json({
+      token,
+      user: {
+        id: user.id,
+        username: user.username,
+        name: user.name,
+        role: user.role,
+        branchId: user.branchId,
+        customerId: user.customerId,
+        email: user.email,
+        phone: user.phone,
+      },
+    });
+  } catch (err: any) {
+    console.error("[clerk-sync error]:", err);
+    res.status(500).json({ error: err?.message || "Failed to sync Clerk authentication" });
+  }
+});
+
+// ---------------------------------------------------------------------------
 // Routes
 // ---------------------------------------------------------------------------
 
