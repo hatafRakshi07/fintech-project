@@ -102,22 +102,33 @@ router.patch("/lotteries/:id", async (req, res): Promise<void> => {
 router.post("/lotteries/:id/draw", async (req, res): Promise<void> => {
   try {
     const id = parseInt(Array.isArray(req.params.id) ? req.params.id[0] : req.params.id, 10);
-    const { rewardType, cashTaken } = req.body as { rewardType?: "cash" | "gift"; cashTaken?: number };
-    const [lottery] = await db.select().from(lotteriesTable).where(eq(lotteriesTable.id, id)).catch(() => []);
+    const { rewardType, cashTaken, winnerId } = req.body as { rewardType?: "cash" | "gift"; cashTaken?: number; winnerId?: number };
+    const [lottery] = await db.select().from(lotteriesTable).where(eq(lotteriesTable.id, id));
     if (!lottery) { res.status(404).json({ error: "Lottery not found" }); return; }
 
     const members = await db
       .select()
       .from(committeeMembersTable)
-      .where(eq(committeeMembersTable.committeeId, lottery.committeeId))
-      .catch(() => []);
+      .where(eq(committeeMembersTable.committeeId, lottery.committeeId));
 
     if (members.length === 0) {
       res.status(400).json({ error: "No members in committee" });
       return;
     }
 
-    const winner = members[Math.floor(Math.random() * members.length)];
+    let winner;
+    if (winnerId) {
+      const wId = parseInt(String(winnerId), 10);
+      const matched = members.find((m) => m.customerId === wId);
+      if (!matched) {
+        res.status(400).json({ error: "Selected winner is not a member of this committee" });
+        return;
+      }
+      winner = matched;
+    } else {
+      winner = members[Math.floor(Math.random() * members.length)];
+    }
+
     const [updated] = await db
       .update(lotteriesTable)
       .set({

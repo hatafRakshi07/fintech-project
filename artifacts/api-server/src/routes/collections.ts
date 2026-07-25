@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { db, collectionsTable, customersTable, collectorsTable, committeesTable, branchesTable, loansTable, usersTable } from "@workspace/db";
+import { db, collectionsTable, customersTable, collectorsTable, committeesTable, branchesTable, loansTable, usersTable, tokensTable } from "@workspace/db";
 import { eq, and, gte, lte, sql, desc } from "drizzle-orm";
 import { createNotification, notifyManagers } from "./notifications";
 
@@ -299,6 +299,15 @@ router.get("/collections/due-today", async (req, res): Promise<void> => {
     if (!isNaN(bId)) customers = customers.filter(c => c.branchId === bId);
   }
 
+  // Load all active tokens
+  const tokens = await db.select().from(tokensTable).where(eq(tokensTable.status, "active"));
+  const tokensMap = new Map<number, string[]>();
+  tokens.forEach((t) => {
+    const list = tokensMap.get(t.customerId) || [];
+    list.push(t.tokenNumber);
+    tokensMap.set(t.customerId, list);
+  });
+
   const today = new Date();
   today.setHours(0, 0, 0, 0);
 
@@ -312,6 +321,7 @@ router.get("/collections/due-today", async (req, res): Promise<void> => {
 
   let targetList = customers.map((c) => {
     const payment = paidMap.get(c.id);
+    const customerTokens = tokensMap.get(c.id) || [];
     return {
       customerId: c.id,
       customerName: c.name,
@@ -326,6 +336,7 @@ router.get("/collections/due-today", async (req, res): Promise<void> => {
       paymentModeToday: payment ? payment.paymentMode : null,
       paidAtToday: payment ? safeIso(payment.collectedAt) : null,
       lastPaymentDate: payment ? safeIso(payment.collectedAt) : null,
+      tokens: customerTokens,
     };
   });
 

@@ -1,7 +1,8 @@
 import React, { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { getStoredToken } from "@/lib/api";
-import { ShieldCheck, Upload, CreditCard, Building2, CheckCircle2, Clock, XCircle } from "lucide-react";
+import { ShieldCheck, CreditCard, Building2, CheckCircle2, Clock } from "lucide-react";
+import Header from "@/components/Header";
 
 export default function CollectorKycPage() {
   const queryClient = useQueryClient();
@@ -26,10 +27,10 @@ export default function CollectorKycPage() {
   const [bankAccountNo, setBankAccountNo] = useState(kyc?.bankAccountNo || "");
   const [bankIfsc, setBankIfsc] = useState(kyc?.bankIfsc || "");
   const [bankName, setBankName] = useState(kyc?.bankName || "");
-  const [aadhaarFrontUrl, setAadhaarFrontUrl] = useState(kyc?.aadhaarFrontUrl || "");
-  const [aadhaarBackUrl, setAadhaarBackUrl] = useState(kyc?.aadhaarBackUrl || "");
-  const [panCardUrl, setPanCardUrl] = useState(kyc?.panCardUrl || "");
-  const [selfieUrl, setSelfieUrl] = useState(kyc?.selfieUrl || "");
+  const [aadhaarFrontUrl] = useState(kyc?.aadhaarFrontUrl || "");
+  const [aadhaarBackUrl] = useState(kyc?.aadhaarBackUrl || "");
+  const [panCardUrl] = useState(kyc?.panCardUrl || "");
+  const [selfieUrl] = useState(kyc?.selfieUrl || "");
 
   const [message, setMessage] = useState("");
 
@@ -69,101 +70,128 @@ export default function CollectorKycPage() {
   });
 
   return (
-    <div className="p-4 space-y-6 max-w-lg mx-auto">
-      <div className="bg-gradient-to-r from-blue-600 to-indigo-700 text-white p-5 rounded-2xl shadow-md">
-        <div className="flex items-center gap-3">
-          <div className="p-2.5 bg-white/20 rounded-xl">
-            <ShieldCheck className="w-6 h-6" />
-          </div>
-          <div>
-            <h1 className="text-xl font-bold">Collector KYC Verification</h1>
-            <p className="text-xs text-blue-100">Submit your identity & bank verification</p>
-          </div>
-        </div>
-      </div>
+    <>
+      <Header title="KYC Verification" />
 
-      {status === "approved" && (
-        <div className="p-4 bg-emerald-50 text-emerald-800 rounded-xl border border-emerald-200 flex items-center gap-2 text-sm font-medium">
-          <CheckCircle2 className="w-5 h-5 text-emerald-600" />
-          Your Collector KYC is verified and active.
-        </div>
-      )}
-
-      {status === "pending" && (
-        <div className="p-4 bg-amber-50 text-amber-800 rounded-xl border border-amber-200 flex items-center gap-2 text-sm font-medium">
-          <Clock className="w-5 h-5 text-amber-600 animate-pulse" />
-          KYC application under review by office admins.
-        </div>
-      )}
-
-      {message && (
-        <div className="p-3 bg-blue-50 text-blue-800 rounded-lg text-xs font-medium">{message}</div>
-      )}
-
-      <div className="bg-white dark:bg-slate-900 border rounded-2xl p-5 shadow-sm space-y-4">
-        <h3 className="text-sm font-bold flex items-center gap-2 border-b pb-2">
-          <CreditCard className="w-4 h-4 text-blue-600" /> Identity Details
-        </h3>
-        <div>
-          <label className="text-xs font-medium text-slate-600 block mb-1">Aadhaar Number (12 digits)</label>
-          <input
-            className="w-full px-3 py-2 border rounded-lg text-sm"
-            placeholder="1234 5678 9012"
-            value={aadhaarNumber}
-            onChange={(e) => setAadhaarNumber(e.target.value)}
-          />
-        </div>
-        <div>
-          <label className="text-xs font-medium text-slate-600 block mb-1">PAN Card Number</label>
-          <input
-            className="w-full px-3 py-2 border rounded-lg text-sm"
-            placeholder="ABCDE1234F"
-            value={panNumber}
-            onChange={(e) => setPanNumber(e.target.value.toUpperCase())}
-          />
-        </div>
-
-        <h3 className="text-sm font-bold flex items-center gap-2 border-b pb-2 pt-2">
-          <Building2 className="w-4 h-4 text-blue-600" /> Bank Details
-        </h3>
-        <div>
-          <label className="text-xs font-medium text-slate-600 block mb-1">Bank Name</label>
-          <input
-            className="w-full px-3 py-2 border rounded-lg text-sm"
-            placeholder="Bank Name"
-            value={bankName}
-            onChange={(e) => setBankName(e.target.value)}
-          />
-        </div>
-        <div className="grid grid-cols-2 gap-2">
-          <div>
-            <label className="text-xs font-medium text-slate-600 block mb-1">Account No.</label>
-            <input
-              className="w-full px-3 py-2 border rounded-lg text-sm"
-              placeholder="Account No."
-              value={bankAccountNo}
-              onChange={(e) => setBankAccountNo(e.target.value)}
-            />
-          </div>
-          <div>
-            <label className="text-xs font-medium text-slate-600 block mb-1">IFSC Code</label>
-            <input
-              className="w-full px-3 py-2 border rounded-lg text-sm"
-              placeholder="IFSC"
-              value={bankIfsc}
-              onChange={(e) => setBankIfsc(e.target.value.toUpperCase())}
-            />
-          </div>
-        </div>
-
-        <button
-          onClick={() => submitMutation.mutate()}
-          disabled={submitMutation.isPending}
-          className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2.5 rounded-xl shadow-sm text-sm mt-4"
+      <div className="p-4 space-y-5 max-w-lg mx-auto float-up">
+        {/* Banner */}
+        <div
+          className="p-5 rounded-2xl relative overflow-hidden"
+          style={{
+            background: "linear-gradient(135deg, rgba(212, 160, 23, 0.15) 0%, rgba(20, 10, 8, 0.05) 50%, rgba(20, 10, 8, 0.02) 100%)",
+            border: "1px solid rgba(212, 160, 23, 0.25)",
+          }}
         >
-          {submitMutation.isPending ? "Submitting..." : "Submit KYC Request"}
-        </button>
+          <div className="flex items-center gap-3">
+            <div className="p-2.5 bg-amber-500/15 rounded-xl border border-amber-500/20">
+              <ShieldCheck className="w-6 h-6 text-amber-500 dark:text-amber-400" />
+            </div>
+            <div>
+              <h2 className="text-lg font-extrabold text-foreground dark:text-white">Collector KYC Verification</h2>
+              <p className="text-xs text-slate-500 dark:text-slate-400">Submit your identity & bank verification</p>
+            </div>
+          </div>
+        </div>
+
+        {status === "approved" && (
+          <div className="p-4 bg-emerald-500/10 text-emerald-400 rounded-xl border border-emerald-500/20 flex items-center gap-2.5 text-xs font-semibold">
+            <CheckCircle2 className="w-5 h-5 text-emerald-400 shrink-0" />
+            Your Collector KYC is verified and active.
+          </div>
+        )}
+
+        {status === "pending" && (
+          <div className="p-4 bg-amber-500/10 text-amber-400 rounded-xl border border-amber-500/20 flex items-center gap-2.5 text-xs font-semibold">
+            <Clock className="w-5 h-5 text-amber-400 animate-pulse shrink-0" />
+            KYC application under review by office admins.
+          </div>
+        )}
+
+        {message && (
+          <div className="p-3 bg-amber-500/10 border border-amber-500/20 text-amber-550 dark:text-amber-400 rounded-xl text-xs font-medium">
+            {message}
+          </div>
+        )}
+
+        <div className="glass-card rounded-2xl p-5 space-y-4 bg-card">
+          <h3 className="text-xs font-extrabold text-foreground dark:text-white flex items-center gap-2 border-b border-border dark:border-slate-700/40 pb-2.5 uppercase tracking-wider">
+            <CreditCard className="w-4 h-4 text-amber-500 dark:text-amber-400" /> Identity Details
+          </h3>
+          
+          <div>
+            <label className="text-[10px] font-bold text-slate-500 dark:text-slate-400 block mb-1.5 uppercase tracking-wider">
+              Aadhaar Number (12 digits)
+            </label>
+            <input
+              className="w-full px-3 h-10 bg-slate-100 dark:bg-slate-800/40 border border-border dark:border-slate-700/50 text-foreground dark:text-white rounded-lg text-sm focus:outline-none focus:border-amber-500/50 focus:ring-1 focus:ring-amber-500/30"
+              placeholder="1234 5678 9012"
+              value={aadhaarNumber}
+              onChange={(e) => setAadhaarNumber(e.target.value)}
+            />
+          </div>
+          
+          <div>
+            <label className="text-[10px] font-bold text-slate-500 dark:text-slate-400 block mb-1.5 uppercase tracking-wider">
+              PAN Card Number
+            </label>
+            <input
+              className="w-full px-3 h-10 bg-slate-100 dark:bg-slate-800/40 border border-border dark:border-slate-700/50 text-foreground dark:text-white rounded-lg text-sm focus:outline-none focus:border-amber-500/50 focus:ring-1 focus:ring-amber-500/30"
+              placeholder="ABCDE1234F"
+              value={panNumber}
+              onChange={(e) => setPanNumber(e.target.value.toUpperCase())}
+            />
+          </div>
+
+          <h3 className="text-xs font-extrabold text-foreground dark:text-white flex items-center gap-2 border-b border-border dark:border-slate-700/40 pb-2.5 pt-2 uppercase tracking-wider">
+            <Building2 className="w-4 h-4 text-amber-500 dark:text-amber-400" /> Bank Details
+          </h3>
+          
+          <div>
+            <label className="text-[10px] font-bold text-slate-500 dark:text-slate-400 block mb-1.5 uppercase tracking-wider">
+              Bank Name
+            </label>
+            <input
+              className="w-full px-3 h-10 bg-slate-100 dark:bg-slate-800/40 border border-border dark:border-slate-700/50 text-foreground dark:text-white rounded-lg text-sm focus:outline-none focus:border-amber-500/50 focus:ring-1 focus:ring-amber-500/30"
+              placeholder="State Bank of India"
+              value={bankName}
+              onChange={(e) => setBankName(e.target.value)}
+            />
+          </div>
+          
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="text-[10px] font-bold text-slate-500 dark:text-slate-400 block mb-1.5 uppercase tracking-wider">
+                Account No.
+              </label>
+              <input
+                className="w-full px-3 h-10 bg-slate-100 dark:bg-slate-800/40 border border-border dark:border-slate-700/50 text-foreground dark:text-white rounded-lg text-sm focus:outline-none focus:border-amber-500/50 focus:ring-1 focus:ring-amber-500/30"
+                placeholder="Account No."
+                value={bankAccountNo}
+                onChange={(e) => setBankAccountNo(e.target.value)}
+              />
+            </div>
+            <div>
+              <label className="text-[10px] font-bold text-slate-500 dark:text-slate-400 block mb-1.5 uppercase tracking-wider">
+                IFSC Code
+              </label>
+              <input
+                className="w-full px-3 h-10 bg-slate-100 dark:bg-slate-800/40 border border-border dark:border-slate-700/50 text-foreground dark:text-white rounded-lg text-sm focus:outline-none focus:border-amber-500/50 focus:ring-1 focus:ring-amber-500/30"
+                placeholder="SBIN0001234"
+                value={bankIfsc}
+                onChange={(e) => setBankIfsc(e.target.value.toUpperCase())}
+              />
+            </div>
+          </div>
+
+          <button
+            onClick={() => submitMutation.mutate()}
+            disabled={submitMutation.isPending}
+            className="w-full bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-550 text-slate-950 font-extrabold py-3 rounded-xl shadow-lg shadow-amber-500/20 text-xs transition-all active:scale-[0.98] mt-4"
+          >
+            {submitMutation.isPending ? "Submitting..." : "Submit KYC Request"}
+          </button>
+        </div>
       </div>
-    </div>
+    </>
   );
 }

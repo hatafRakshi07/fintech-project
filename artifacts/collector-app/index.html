@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en" class="dark">
+<html lang="en">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
@@ -16,9 +16,23 @@
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
     <script>
+      // Clear service workers and caches on load to avoid caching bugs
       if ('serviceWorker' in navigator) {
-        window.addEventListener('load', () => {
-          navigator.serviceWorker.register('/collector/sw.js').catch(() => {});
+        navigator.serviceWorker.getRegistrations().then((registrations) => {
+          for (const r of registrations) {
+            r.unregister().then(() => {
+              console.log("Unregistered service worker:", r);
+            });
+          }
+        });
+      }
+      if ('caches' in window) {
+        caches.keys().then((keys) => {
+          for (const k of keys) {
+            caches.delete(k).then(() => {
+              console.log("Cleared cache:", k);
+            });
+          }
         });
       }
     </script>

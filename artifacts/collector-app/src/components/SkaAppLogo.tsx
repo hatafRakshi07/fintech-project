@@ -6,7 +6,7 @@ export function SkaAppLogo({ size = 36, className = "" }: { size?: number; class
   if (!imgFailed) {
     return (
       <img
-        src="/ska-logo.png"
+        src="/collector/ska-logo.png"
         alt="SKA Logo"
         style={{ width: size, height: size }}
         className={`object-contain rounded-lg shadow-sm ${className}`}

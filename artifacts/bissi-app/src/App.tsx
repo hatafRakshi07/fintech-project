@@ -87,14 +87,17 @@ function AppRoutes() {
 
   React.useEffect(() => {
     const token = localStorage.getItem("auth_token");
-    if (!token && location !== "/login") {
+    if (!token && location !== "/login" && location !== "/customer-portal") {
       setLocation("/login");
     }
   }, [location, setLocation]);
 
-  // Direct bypass: /login redirects straight to Dashboard for presentation
+  if (location === "/customer-portal") {
+    return <CustomerPortalPage />;
+  }
+
   if (location === "/login") {
-    return <Redirect to="/" />;
+    return <LoginPage />;
   }
 
   return (

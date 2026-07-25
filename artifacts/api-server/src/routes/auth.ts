@@ -2,6 +2,7 @@ import { Router, type IRouter, type Request, type Response, type NextFunction } 
 import { db, usersTable, sessionsTable, otpsTable, customersTable } from "@workspace/db";
 import { eq, lt, gt, and, or, sql } from "drizzle-orm";
 import { requireAuth } from "../middleware/auth";
+import { log } from "../../utils/log";
 
 import { randomBytes } from "crypto";
 import bcrypt from "bcryptjs";
@@ -143,7 +144,7 @@ async function sendRealSmsOtp(phone: string, code: string): Promise<boolean> {
   const apiKey = process.env.SMS_API_KEY || process.env.FAST2SMS_API_KEY;
 
   if (!apiKey) {
-    console.log(`[SMS GATEWAY NOTICE] No SMS_API_KEY configured. Real-time OTP ${code} generated for mobile +91 ${phone}`);
+    log('api-server', `[SMS GATEWAY NOTICE] No SMS_API_KEY configured. Real-time OTP ${code} generated for mobile +91 ${phone}`);
     return false;
   }
 
@@ -162,7 +163,7 @@ async function sendRealSmsOtp(phone: string, code: string): Promise<boolean> {
         }),
       });
       const data: any = await response.json();
-      console.log(`[FAST2SMS GATEWAY RESPONSE]`, data);
+      log('api-server', `[FAST2SMS GATEWAY RESPONSE]`, data);
       return data?.return === true;
     } else if (provider === "msg91") {
       const templateId = process.env.MSG91_TEMPLATE_ID || "";
@@ -174,11 +175,11 @@ async function sendRealSmsOtp(phone: string, code: string): Promise<boolean> {
         }
       );
       const data: any = await response.json();
-      console.log(`[MSG91 GATEWAY RESPONSE]`, data);
+      log('api-server', `[MSG91 GATEWAY RESPONSE]`, data);
       return data?.type === "success";
     }
   } catch (err) {
-    console.error(`[SMS GATEWAY ERROR] Failed to send SMS to +91 ${phone}:`, err);
+    log('api-server', `[SMS GATEWAY ERROR] Failed to send SMS to +91 ${phone}:`, err);
   }
   return false;
 }

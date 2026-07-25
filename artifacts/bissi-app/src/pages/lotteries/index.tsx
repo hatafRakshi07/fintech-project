@@ -59,6 +59,7 @@ export default function LotteriesPage() {
   const [drawRewardType, setDrawRewardType] = useState<"cash" | "gift">("cash");
   const [drawCashTaken, setDrawCashTaken] = useState("");
   const [membersLotteryId, setMembersLotteryId] = useState<number | null>(null);
+  const [selectedWinnerId, setSelectedWinnerId] = useState<string>("random");
 
   const { data: rawLotteries, isLoading } = useListLotteries({
     status: statusFilter !== "all" ? statusFilter : undefined,
@@ -81,7 +82,15 @@ export default function LotteriesPage() {
     enabled: membersLotteryId !== null,
   });
 
+  // Members for draw modal selection
+  const { data: rawDrawMembers = [] } = useQuery<any[]>({
+    queryKey: ["lottery-draw-members", drawConfirmId],
+    queryFn: () => api.get(`/lotteries/${drawConfirmId}/members`),
+    enabled: drawConfirmId !== null,
+  });
+
   const members = safeArray<any>(rawMembers);
+  const drawMembers = safeArray<any>(rawDrawMembers);
 
   const form = useForm<z.infer<typeof lotterySchema>>({
     resolver: zodResolver(lotterySchema),
@@ -111,11 +120,19 @@ export default function LotteriesPage() {
   const handleConductDraw = () => {
     if (!drawConfirmId) return;
     conductDraw.mutate(
-      { id: drawConfirmId, data: { rewardType: drawRewardType, cashTaken: drawRewardType === "cash" && drawCashTaken ? parseFloat(drawCashTaken) : undefined } } as any,
+      {
+        id: drawConfirmId,
+        data: {
+          rewardType: drawRewardType,
+          cashTaken: drawRewardType === "cash" && drawCashTaken ? parseFloat(drawCashTaken) : undefined,
+          winnerId: selectedWinnerId !== "random" ? parseInt(selectedWinnerId, 10) : undefined,
+        },
+      } as any,
       {
         onSuccess: (result: any) => {
           toast({ title: `🎉 Winner: ${result.winnerName ?? "Selected!"}`, description: `Token: ${result.winnerToken ?? "—"} | Reward: ${drawRewardType === "cash" ? `Cash ₹${drawCashTaken || result.prizeAmount}` : "Gift"}` });
           setDrawConfirmId(null);
+          setSelectedWinnerId("random");
           queryClient.invalidateQueries({ queryKey: getListLotteriesQueryKey() });
         },
         onError: () => toast({ title: "Draw failed — ensure committee has members", variant: "destructive" }),
@@ -233,6 +250,21 @@ export default function LotteriesPage() {
                   <Gift className="h-4 w-4" /> Gift Item
                 </button>
               </div>
+            </div>
+            <div>
+              <Label className="text-sm font-medium">Select Winner Mode (विजेता चुनें)</Label>
+              <select
+                value={selectedWinnerId}
+                onChange={(e) => setSelectedWinnerId(e.target.value)}
+                className="w-full h-10 border border-input bg-background rounded-md px-3 text-sm focus:outline-none focus:ring-1 focus:ring-ring mt-1.5 font-bold text-foreground"
+              >
+                <option value="random">🎲 Random Draw (Automatic)</option>
+                {drawMembers.map((m: any) => (
+                  <option key={m.id} value={m.customerId}>
+                    👤 {m.customerName || `Member #${m.customerId}`} (Token: {m.tokenNumber || "—"})
+                  </option>
+                ))}
+              </select>
             </div>
             {drawRewardType === "cash" && (
               <div>
