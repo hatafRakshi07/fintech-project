@@ -1,0 +1,17 @@
+{
+  "short_name": "SK Association",
+  "name": "Shree Krishna Association Fintech",
+  "icons": [
+    {
+      "src": "/ska-logo.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "start_url": "/",
+  "background_color": "#090d16",
+  "theme_color": "#f59e0b",
+  "display": "standalone",
+  "orientation": "portrait"
+}

@@ -1,27 +1,17 @@
 {
-  "name": "Bissi Collector",
-  "short_name": "Collector",
-  "description": "Field Collection App for Bissi/Committee agents",
-  "start_url": "/collector/",
-  "scope": "/collector/",
-  "display": "standalone",
-  "orientation": "portrait",
-  "background_color": "#4f46e5",
-  "theme_color": "#4f46e5",
+  "short_name": "Collector App",
+  "name": "Field Collector App - Shree Krishna Association",
   "icons": [
     {
-      "src": "/collector/icon-192.png",
+      "src": "/favicon.svg",
       "sizes": "192x192",
-      "type": "image/png",
-      "purpose": "any maskable"
-    },
-    {
-      "src": "/collector/icon-512.png",
-      "sizes": "512x512",
-      "type": "image/png",
+      "type": "image/svg+xml",
       "purpose": "any maskable"
     }
   ],
-  "categories": ["finance", "business"],
-  "lang": "en-IN"
+  "start_url": "/collector/",
+  "background_color": "#090d16",
+  "theme_color": "#10b981",
+  "display": "standalone",
+  "orientation": "portrait"
 }
