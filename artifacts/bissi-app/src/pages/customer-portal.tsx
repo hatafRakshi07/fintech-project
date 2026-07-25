@@ -533,7 +533,8 @@ export default function CustomerPortalPage() {
                     </div>
                   )}
                 </CardContent>
-              </TabsContent>
+              </Card>
+            </TabsContent>
 
             {/* 5. Profile Info */}
             <TabsContent value="profile" className="mt-6">
