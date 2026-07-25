@@ -463,7 +463,7 @@ export default function AccountingPage() {
                   <span className="text-muted-foreground">Trial Balance Discrepancy</span>
                   <span className="font-semibold text-amber-600">
                     {formatCurrency(
-                      Math.abs((trialBalance?.totals.closingDebit ?? 0) - (trialBalance?.totals.closingCredit ?? 0))
+                      Math.abs((trialBalance?.totals?.closingDebit ?? 0) - (trialBalance?.totals?.closingCredit ?? 0))
                     )}
                   </span>
                 </div>
