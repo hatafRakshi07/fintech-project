@@ -25,7 +25,6 @@ app.use(
         scriptSrc: [
           "'self'",
           "'unsafe-inline'",
-          // SECURITY: Removed 'unsafe-eval' — not required by Clerk or Firebase
           "https://www.google.com/recaptcha/",
           "https://www.gstatic.com/",
           "https://*.firebaseapp.com",
@@ -33,13 +32,14 @@ app.use(
           "https://*.clerk.accounts.dev",
           "https://clerk.com",
           "https://*.clerk.com",
+          "https://challenges.cloudflare.com",
+          "https://*.cloudflare.com",
         ],
         styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
         imgSrc: ["'self'", "data:", "blob:", "https://*.clerk.com", "https://*.googleapis.com"],
         fontSrc: ["'self'", "data:", "https://fonts.gstatic.com"],
         connectSrc: [
           "'self'",
-          // SECURITY: Specific domains only — no wildcard https: / http:
           "https://*.googleapis.com",
           "https://*.firebaseio.com",
           "https://*.clerk.accounts.dev",
@@ -49,6 +49,8 @@ app.use(
           "https://2factor.in",
           "https://control.msg91.com",
           "https://*.supabase.co",
+          "https://challenges.cloudflare.com",
+          "https://*.cloudflare.com",
         ],
         frameSrc: [
           "'self'",
@@ -57,7 +59,9 @@ app.use(
           "https://*.firebaseapp.com",
           "https://*.clerk.accounts.dev",
           "https://clerk.com",
-          "https://*.clerk.com"
+          "https://*.clerk.com",
+          "https://challenges.cloudflare.com",
+          "https://*.cloudflare.com",
         ],
         workerSrc: ["'self'", "blob:"],
         frameAncestors: ["'none'"],
