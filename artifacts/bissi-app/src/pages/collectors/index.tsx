@@ -40,8 +40,11 @@ export default function CollectorsPage() {
   const [search, setSearch] = useState("");
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   
-  const { data: collectors, isLoading } = useListCollectors({ search });
-  const { data: branches } = useListBranches();
+  const { data: rawCollectors, isLoading } = useListCollectors({ search });
+  const { data: rawBranches } = useListBranches();
+
+  const collectors = Array.isArray(rawCollectors) ? rawCollectors : [];
+  const branches = Array.isArray(rawBranches) ? rawBranches : [];
   
   const createCollector = useCreateCollector();
   const queryClient = useQueryClient();

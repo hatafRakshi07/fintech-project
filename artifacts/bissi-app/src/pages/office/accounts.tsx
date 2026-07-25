@@ -44,10 +44,11 @@ export default function BankAccountsPage() {
     notes: "",
   });
 
-  const { data: accounts = [], isLoading } = useQuery<BankAccount[]>({
+  const { data: accountsData = [], isLoading } = useQuery<BankAccount[]>({
     queryKey: ["bank-accounts"],
     queryFn: () => customFetch("/api/accounts"),
   });
+  const accounts = Array.isArray(accountsData) ? accountsData : [];
 
   const saveMutation = useMutation({
     mutationFn: (data: object) =>

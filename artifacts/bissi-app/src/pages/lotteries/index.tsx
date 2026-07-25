@@ -59,11 +59,14 @@ export default function LotteriesPage() {
   const [drawCashTaken, setDrawCashTaken] = useState("");
   const [membersLotteryId, setMembersLotteryId] = useState<number | null>(null);
 
-  const { data: lotteries, isLoading } = useListLotteries({
+  const { data: rawLotteries, isLoading } = useListLotteries({
     status: statusFilter !== "all" ? statusFilter : undefined,
     committeeId: committeeFilter !== "all" ? parseInt(committeeFilter, 10) : undefined,
   });
-  const { data: committees } = useListCommittees();
+  const { data: rawCommittees } = useListCommittees();
+
+  const lotteries = Array.isArray(rawLotteries) ? rawLotteries : [];
+  const committees = Array.isArray(rawCommittees) ? rawCommittees : [];
 
   const createLottery = useCreateLottery();
   const conductDraw = useConductDraw();
@@ -71,11 +74,13 @@ export default function LotteriesPage() {
   const { toast } = useToast();
 
   // Members for selected lottery
-  const { data: members = [] } = useQuery<any[]>({
+  const { data: rawMembers = [] } = useQuery<any[]>({
     queryKey: ["lottery-members", membersLotteryId],
     queryFn: () => api.get(`/lotteries/${membersLotteryId}/members`),
     enabled: membersLotteryId !== null,
   });
+
+  const members = Array.isArray(rawMembers) ? rawMembers : [];
 
   const form = useForm<z.infer<typeof lotterySchema>>({
     resolver: zodResolver(lotterySchema),

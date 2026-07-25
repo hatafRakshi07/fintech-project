@@ -66,13 +66,16 @@ export default function TokensPage() {
 
   const { role, user, isCustomer } = useRole();
 
-  const { data: tokens, isLoading } = useListTokens({
+  const { data: rawTokens, isLoading } = useListTokens({
     committeeId: committeeFilter !== "all" ? parseInt(committeeFilter, 10) : undefined,
     status: statusFilter !== "all" ? statusFilter : undefined,
     customerId: isCustomer ? user?.customerId ?? undefined : undefined,
   } as any);
-  const { data: committees } = useListCommittees();
+  const { data: rawCommittees } = useListCommittees();
   const { data: customers } = useListCustomers({ limit: 200 });
+
+  const tokens = Array.isArray(rawTokens) ? rawTokens : [];
+  const committees = Array.isArray(rawCommittees) ? rawCommittees : [];
   const createToken = useCreateToken();
   const updateToken = useUpdateToken();
   const queryClient = useQueryClient();

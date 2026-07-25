@@ -42,7 +42,8 @@ export default function BranchesPage() {
   const [search, setSearch] = useState("");
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   
-  const { data: branches, isLoading } = useListBranches({ search });
+  const { data: rawBranches, isLoading } = useListBranches({ search });
+  const branches = Array.isArray(rawBranches) ? rawBranches : [];
   const createBranch = useCreateBranch();
   const queryClient = useQueryClient();
   const { toast } = useToast();

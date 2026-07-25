@@ -42,8 +42,11 @@ export default function CommitteesPage() {
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [typeFilter, setTypeFilter] = useState<string>("all");
   
-  const { data: committees, isLoading } = useListCommittees({ type: typeFilter !== "all" ? typeFilter : undefined });
-  const { data: branches } = useListBranches();
+  const { data: rawCommittees, isLoading } = useListCommittees({ type: typeFilter !== "all" ? typeFilter : undefined });
+  const { data: rawBranches } = useListBranches();
+  
+  const committees = Array.isArray(rawCommittees) ? rawCommittees : [];
+  const branches = Array.isArray(rawBranches) ? rawBranches : [];
   
   const createCommittee = useCreateCommittee();
   const queryClient = useQueryClient();
