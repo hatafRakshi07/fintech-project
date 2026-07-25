@@ -23,11 +23,11 @@ app.use(
       ? {
           directives: {
             defaultSrc: ["'self'"],
-            scriptSrc: ["'self'"],
-            styleSrc: ["'self'", "'unsafe-inline'"], // Tailwind CSS requires this
-            imgSrc: ["'self'", "data:", "blob:"],
-            fontSrc: ["'self'", "data:"],
-            connectSrc: ["'self'"],
+            scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'"],
+            styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
+            imgSrc: ["'self'", "data:", "blob:", "https:", "http:"],
+            fontSrc: ["'self'", "data:", "https://fonts.gstatic.com"],
+            connectSrc: ["'self'", "https:", "http:", "ws:", "wss:"],
             frameAncestors: ["'none'"],
           },
         }
