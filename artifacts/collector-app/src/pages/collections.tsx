@@ -93,6 +93,19 @@ export default function CollectionsPage() {
 
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
 
+  // Predefined Collection Type & Committee Selection
+  const [collectionType, setCollectionType] = useState<"daily" | "monthly">("daily");
+  const [selectedCommitteeId, setSelectedCommitteeId] = useState<number | undefined>(undefined);
+  const [utrNumber, setUtrNumber] = useState("");
+  const [screenshotPreview, setScreenshotPreview] = useState<string | null>(null);
+
+  // Fetch Bissi Schemes / Committees
+  const { data: rawCommittees } = useQuery<any[]>({
+    queryKey: ["committees-list"],
+    queryFn: () => api.get("/committees"),
+  });
+  const committees = safeArray<any>(rawCommittees);
+
   // Query Destination Bank / Cash Accounts
   const { data: rawBankAccounts } = useQuery<BankAccount[]>({
     queryKey: ["bank-accounts"],
@@ -186,20 +199,41 @@ export default function CollectionsPage() {
       tokenId: undefined,
       notes: "",
     });
+    setUtrNumber("");
+    setScreenshotPreview(null);
+    setSelectedCommitteeId("committeeId" in item ? (item.committeeId ?? undefined) : undefined);
     setModalCustomer(item);
+  }
+
+  function handleScreenshotFile(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onload = (ev) => {
+        setScreenshotPreview(ev.target?.result as string);
+      };
+      reader.readAsDataURL(file);
+    }
   }
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!form.customerId || !form.amount) return;
 
+    const commId = selectedCommitteeId || form.committeeId;
+
+    const noteParts = [];
+    if (utrNumber.trim()) noteParts.push(`UTR: ${utrNumber.trim()}`);
+    if (form.notes.trim()) noteParts.push(form.notes.trim());
+    const finalNotes = noteParts.join(" | ");
+
     // Check if submitting batch multi-token allocation
     if (useMultiTokenSplit && customerTokens.length > 1 && tokenSplits.length > 0) {
       const tokenAllocations = tokenSplits.map((s) => ({
         tokenId: s.tokenId,
-        committeeId: s.committeeId,
+        committeeId: commId || s.committeeId,
         amount: parseFloat(s.amount) || 0,
-        notes: `Token #${s.tokenNumber} split`,
+        notes: `Token #${s.tokenNumber}${finalNotes ? ` (${finalNotes})` : ""}`,
       }));
 
       recordMutation.mutate({
@@ -208,6 +242,7 @@ export default function CollectionsPage() {
         paymentMode: form.paymentMode,
         accountId: form.accountId,
         accountName: form.accountName,
+        committeeId: commId,
         branchId: user?.branchId ?? undefined,
         collectedAt: new Date().toISOString(),
         tokenAllocations,
@@ -220,10 +255,10 @@ export default function CollectionsPage() {
         paymentMode: form.paymentMode,
         accountId: form.accountId,
         accountName: form.accountName,
-        committeeId: form.committeeId,
+        committeeId: commId,
         loanId: form.loanId,
         tokenId: form.tokenId,
-        notes: form.notes || undefined,
+        notes: finalNotes || undefined,
         branchId: user?.branchId ?? undefined,
         collectedAt: new Date().toISOString(),
       });
@@ -503,6 +538,58 @@ export default function CollectionsPage() {
 
             {form.customerId !== 0 && (
               <form onSubmit={handleSubmit} className="space-y-4">
+                {/* PREDEFINED COLLECTION TYPE SELECTOR */}
+                <div>
+                  <label className="block text-xs font-bold text-muted-foreground uppercase tracking-wider mb-2">
+                    Collection Type (कलेक्शन का प्रकार)
+                  </label>
+                  <div className="grid grid-cols-2 gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setCollectionType("daily")}
+                      className={`py-2.5 rounded-xl text-xs font-bold transition-all border flex items-center justify-center gap-2 ${
+                        collectionType === "daily"
+                          ? "bg-amber-500 text-slate-950 border-amber-500 shadow-md shadow-amber-500/20"
+                          : "bg-muted/40 border-border text-muted-foreground hover:text-foreground"
+                      }`}
+                    >
+                      <span>📅</span> Daily Collection
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setCollectionType("monthly")}
+                      className={`py-2.5 rounded-xl text-xs font-bold transition-all border flex items-center justify-center gap-2 ${
+                        collectionType === "monthly"
+                          ? "bg-amber-500 text-slate-950 border-amber-500 shadow-md shadow-amber-500/20"
+                          : "bg-muted/40 border-border text-muted-foreground hover:text-foreground"
+                      }`}
+                    >
+                      <span>🗓️</span> Monthly Bissi
+                    </button>
+                  </div>
+                </div>
+
+                {/* PREDEFINED BISSI SCHEME / COMMITTEE SELECTOR */}
+                {committees.length > 0 && (
+                  <div>
+                    <label className="block text-xs font-bold text-muted-foreground uppercase tracking-wider mb-1.5 flex items-center gap-1.5">
+                      <Layers size={14} className="text-amber-500" /> Bissi Scheme / Committee (बिस्सी स्कीम चुनें)
+                    </label>
+                    <select
+                      value={selectedCommitteeId || ""}
+                      onChange={(e) => setSelectedCommitteeId(e.target.value ? Number(e.target.value) : undefined)}
+                      className="w-full h-11 bg-muted/40 border border-border text-foreground rounded-xl px-3.5 text-xs font-bold focus:outline-none focus:border-amber-500"
+                    >
+                      <option value="">Select Bissi Scheme (Optional / Auto-detect)</option>
+                      {committees.map((c) => (
+                        <option key={c.id} value={c.id}>
+                          {c.name} (Installment: ₹{c.installmentAmount || 3000})
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+
                 {/* Total Lump-Sum Amount Input */}
                 <div>
                   <label className="block text-xs font-bold text-muted-foreground uppercase tracking-wider mb-1.5">
@@ -628,6 +715,54 @@ export default function CollectionsPage() {
                     ))}
                   </div>
                 </div>
+
+                {/* ONLINE DETAILS: UTR NUMBER & SCREENSHOT UPLOAD */}
+                {form.paymentMode !== "cash" && (
+                  <div className="bg-amber-500/10 border border-amber-500/25 rounded-2xl p-3.5 space-y-3">
+                    <div className="flex items-center gap-1.5 text-xs font-bold text-amber-500 dark:text-amber-400">
+                      <CreditCard size={15} /> Online Payment Verification Details
+                    </div>
+
+                    {/* UTR / Transaction Reference Number */}
+                    <div>
+                      <label className="block text-[11px] font-bold text-muted-foreground uppercase tracking-wider mb-1">
+                        UTR / Transaction Reference No. (ऑनलाइन UTR नंबर)
+                      </label>
+                      <input
+                        type="text"
+                        value={utrNumber}
+                        onChange={(e) => setUtrNumber(e.target.value)}
+                        placeholder="e.g. UTR9876543210 / Ref #12345"
+                        className="w-full h-10 bg-card border border-border text-foreground rounded-xl px-3.5 text-xs font-bold font-mono focus:outline-none focus:border-amber-500"
+                      />
+                    </div>
+
+                    {/* Screenshot Upload */}
+                    <div>
+                      <label className="block text-[11px] font-bold text-muted-foreground uppercase tracking-wider mb-1">
+                        Payment Screenshot / Receipt Proof (स्क्रीनशॉट / रसीद)
+                      </label>
+                      <input
+                        type="file"
+                        accept="image/*"
+                        onChange={handleScreenshotFile}
+                        className="w-full text-xs text-muted-foreground file:mr-3 file:py-1.5 file:px-3 file:rounded-xl file:border-0 file:text-xs file:font-bold file:bg-amber-500 file:text-slate-950 hover:file:bg-amber-400 cursor-pointer"
+                      />
+                      {screenshotPreview && (
+                        <div className="mt-2.5 relative w-24 h-24 rounded-xl border-2 border-amber-500 overflow-hidden shadow-md">
+                          <img src={screenshotPreview} alt="Payment Proof" className="w-full h-full object-cover" />
+                          <button
+                            type="button"
+                            onClick={() => setScreenshotPreview(null)}
+                            className="absolute top-1 right-1 bg-rose-500 text-white rounded-full p-1 text-xs font-bold shadow-md"
+                          >
+                            ✕
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
 
                 {/* Notes */}
                 <div>

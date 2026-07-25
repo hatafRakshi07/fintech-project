@@ -1,5 +1,6 @@
 import React from "react";
 import { Link, useLocation } from "wouter";
+import { SkaAppLogo } from "@/components/SkaAppLogo";
 import { useGetMe, useLogout } from "@workspace/api-client-react";
 import { useRole } from "@/hooks/use-role";
 import { Button } from "@/components/ui/button";
@@ -175,8 +176,8 @@ export function Shell({ children }: { children: React.ReactNode }) {
       {/* ── Desktop sidebar ── */}
       <aside className="hidden md:flex flex-col w-64 bg-sidebar border-r border-sidebar-border h-full shrink-0">
         <div className="p-4 border-b border-sidebar-border flex items-center gap-2">
-          <div className="w-8 h-8 rounded bg-primary flex items-center justify-center text-primary-foreground font-bold text-sm">K</div>
-          <span className="font-semibold text-sm text-sidebar-foreground flex-1 truncate">Krishna Assoc.</span>
+          <SkaAppLogo size={32} />
+          <span className="font-semibold text-sm text-sidebar-foreground flex-1 truncate">Shree Krishna Assoc.</span>
           <NotificationBell />
         </div>
         <div className="flex-1 overflow-y-auto py-4">
@@ -235,8 +236,8 @@ export function Shell({ children }: { children: React.ReactNode }) {
       {/* ── Mobile top header ── */}
       <div className="md:hidden fixed top-0 left-0 right-0 h-14 bg-sidebar border-b border-sidebar-border z-40 flex items-center justify-between px-4 safe-top">
         <div className="flex items-center gap-2">
-          <div className="w-7 h-7 rounded bg-primary flex items-center justify-center text-primary-foreground font-bold text-xs">K</div>
-          <span className="font-semibold text-sm text-sidebar-foreground truncate">Krishna Assoc.</span>
+          <SkaAppLogo size={28} />
+          <span className="font-semibold text-sm text-sidebar-foreground truncate">Shree Krishna Assoc.</span>
         </div>
         <div className="flex items-center gap-1">
           <Button variant="ghost" size="icon" onClick={toggleDark} className="h-9 w-9">

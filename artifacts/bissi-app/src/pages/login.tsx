@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import { SkaAppLogo } from "@/components/SkaAppLogo";
 import { useLocation } from "wouter";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -122,9 +123,7 @@ export default function LoginPage() {
 
       <div className="w-full max-w-md space-y-6 relative z-10">
         <div className="text-center space-y-2">
-          <div className="inline-flex items-center justify-center p-3 bg-primary/10 rounded-2xl border border-primary/20 mb-2">
-            <ShieldCheck className="h-10 w-10 text-primary" />
-          </div>
+          <SkaAppLogo size={64} className="mx-auto mb-2" />
           <h1 className="text-2xl font-black tracking-tight text-white">Shree Krishna Association</h1>
           <p className="text-xs text-muted-foreground">Bissi & Committee Management System</p>
         </div>

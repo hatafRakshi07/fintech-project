@@ -91,11 +91,11 @@ router.post("/import/customers", async (req, res): Promise<void> => {
         continue;
       }
 
-      // Check for duplicate by mobile
+      // Check for duplicate by mobile or name match (strict update mode)
       const [existing] = await db
         .select()
         .from(customersTable)
-        .where(eq(customersTable.mobile, mobile))
+        .where(or(eq(customersTable.mobile, mobile), ilike(customersTable.name, name)))
         .limit(1);
 
       if (existing) {

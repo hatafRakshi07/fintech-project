@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import { SkaAppLogo } from "@/components/SkaAppLogo";
 import { clearToken, getStoredUser } from "@/lib/api";
 import { useLocation } from "wouter";
 import { LogOut, ChevronLeft, Sun, Moon } from "lucide-react";
@@ -46,9 +47,7 @@ export default function Header({ title, back }: Props) {
             <ChevronLeft size={22} />
           </button>
         ) : (
-          <div className="w-8 h-8 rounded-lg bg-amber-500 text-slate-950 font-extrabold flex items-center justify-center text-xs shadow-md shadow-amber-500/20 shrink-0">
-            SKA
-          </div>
+          <SkaAppLogo size={32} />
         )}
 
         <div className="flex-1 min-w-0">

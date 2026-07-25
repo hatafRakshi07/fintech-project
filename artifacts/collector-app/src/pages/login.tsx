@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import { SkaAppLogo } from "@/components/SkaAppLogo";
 import { useLocation } from "wouter";
 import { api, setToken, setStoredUser } from "@/lib/api";
 import { Flame, KeyRound, Phone, ShieldCheck, RefreshCw, MessageCircle, ArrowRight, LogIn, Eye, EyeOff } from "lucide-react";
@@ -89,9 +90,7 @@ export default function LoginPage() {
 
       {/* Brand logo & header */}
       <div className="mb-6 text-center z-10">
-        <div className="w-16 h-16 bg-amber-500 text-slate-950 font-extrabold text-2xl flex items-center justify-center rounded-2xl mx-auto mb-3 shadow-xl shadow-amber-500/25">
-          SKA
-        </div>
+        <SkaAppLogo size={64} className="mx-auto mb-3" />
         <h1 className="text-2xl font-black tracking-tight text-foreground">Shree Krishna Association</h1>
         <p className="text-amber-500 dark:text-amber-400 text-xs font-semibold mt-1 tracking-wide uppercase">
           Field Collector Portal
@@ -261,7 +260,7 @@ export default function LoginPage() {
                 />
                 <button
                   type="button"
-                  onClick={() => setShowPwd((p) => !p)}
+                  onClick={() => setShowPwd((p: boolean) => !p)}
                   className="absolute right-3.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
                 >
                   {showPwd ? <EyeOff size={18} /> : <Eye size={18} />}

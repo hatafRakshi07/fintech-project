@@ -9,12 +9,7 @@ let poolInstance: pg.Pool | null = null;
 let dbInstance: any = null;
 
 function getPool() {
-  const url = process.env.DATABASE_URL;
-  if (!url) {
-    throw new Error(
-      "DATABASE_URL must be set. Did you forget to provision a database?",
-    );
-  }
+  const url = process.env.DATABASE_URL || "postgresql://neondb_owner:npg_qSQN29ZxTKzt@ep-frosty-cloud-at51tjed.c-9.us-east-1.aws.neon.tech/neondb?sslmode=require";
   if (!poolInstance) {
     poolInstance = new Pool({
       connectionString: url,
