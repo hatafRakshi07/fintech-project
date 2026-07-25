@@ -77,12 +77,13 @@ onlyBuiltDependencies:
   - unrs-resolver
   - '@firebase/util'
   - protobufjs
+  - '@clerk/shared'
 
 allowBuilds:
+  '@clerk/shared': true
   '@firebase/util': true
   esbuild: true
   protobufjs: true
-
 
 overrides:
   # replit uses linux-x64 only, we can exclude all other platforms
@@ -165,4 +166,3 @@ overrides:
   "@esbuild-kit/esm-loader": "npm:tsx@^4.21.0"
   esbuild: "0.27.3"
   zod: "3.25.76"
-

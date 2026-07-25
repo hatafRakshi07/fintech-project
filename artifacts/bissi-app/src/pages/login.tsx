@@ -12,7 +12,8 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
-import { Building2, KeyRound, Phone, ShieldCheck, ArrowRight, RefreshCw, Flame, MessageCircle } from "lucide-react";
+import { SignInButton, SignedIn, SignedOut, UserButton } from "@clerk/clerk-react";
+import { Building2, KeyRound, Phone, ShieldCheck, ArrowRight, RefreshCw, Flame, MessageCircle, UserCheck } from "lucide-react";
 
 declare global {
   interface Window {
@@ -197,12 +198,15 @@ export default function LoginPage() {
           </CardHeader>
           <CardContent className="px-5 pb-5 pt-2">
             <Tabs defaultValue="password" className="w-full">
-              <TabsList className="grid w-full grid-cols-2 mb-4 h-11">
-                <TabsTrigger value="password" className="text-xs sm:text-sm font-bold gap-1 text-amber-500">
-                  <KeyRound className="h-4 w-4" /> Password / Phone Login
+              <TabsList className="grid w-full grid-cols-3 mb-4 h-11">
+                <TabsTrigger value="password" className="text-xs font-bold gap-1 text-amber-500">
+                  <KeyRound className="h-3.5 w-3.5" /> Password
                 </TabsTrigger>
-                <TabsTrigger value="otp" className="text-xs sm:text-sm font-semibold gap-1">
-                  <Flame className="h-4 w-4 text-emerald-500" /> WhatsApp / SMS OTP
+                <TabsTrigger value="otp" className="text-xs font-semibold gap-1 text-emerald-500">
+                  <Flame className="h-3.5 w-3.5" /> OTP / WA
+                </TabsTrigger>
+                <TabsTrigger value="clerk" className="text-xs font-semibold gap-1 text-indigo-500">
+                  <UserCheck className="h-3.5 w-3.5" /> Clerk Auth
                 </TabsTrigger>
               </TabsList>
 

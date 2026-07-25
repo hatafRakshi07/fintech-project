@@ -83,6 +83,7 @@
     "zod": "catalog:"
   },
   "dependencies": {
+    "@clerk/clerk-react": "^5.61.3",
     "firebase": "^12.16.0"
   }
 }
