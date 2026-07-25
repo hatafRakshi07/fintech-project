@@ -27,6 +27,16 @@ import { eq, and, desc, sql } from "drizzle-orm";
 
 const router: IRouter = Router();
 
+function safeIso(d: any): string {
+  if (!d) return new Date().toISOString();
+  if (d instanceof Date) return d.toISOString();
+  if (typeof d === "string") {
+    const parsed = new Date(d);
+    return isNaN(parsed.getTime()) ? new Date().toISOString() : parsed.toISOString();
+  }
+  return new Date().toISOString();
+}
+
 // ---------------------------------------------------------------------------
 // Helper — resolve customer record for the current user
 // ---------------------------------------------------------------------------
