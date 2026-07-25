@@ -1218,6 +1218,8 @@ components:
           enum: [super_admin, owner, branch_manager, collector, accountant, customer]
         branchId:
           type: ["integer", "null"]
+        customerId:
+          type: ["integer", "null"]
         branchName:
           type: ["string", "null"]
         email:

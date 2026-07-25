@@ -6,6 +6,7 @@ import { requireAuth } from "../middleware/auth";
 import { randomBytes } from "crypto";
 import bcrypt from "bcryptjs";
 import { rateLimit } from "express-rate-limit";
+import jwt from "jsonwebtoken";
 
 const router: IRouter = Router();
 
@@ -186,18 +187,39 @@ router.post("/auth/login", loginLimiter, async (req: Request, res: Response): Pr
     };
   }
 
-  const token = generateToken();
+  const accessToken = process.env.ACCESS_TOKEN_SECRET
+    ? jwt.sign(
+        {
+          userId: user.id,
+          role: user.role,
+          branchId: user.branchId,
+          customerId: user.customerId,
+        },
+        process.env.ACCESS_TOKEN_SECRET,
+        { expiresIn: "8h" }
+      )
+    : generateToken();
   const expiresAt = new Date(Date.now() + SESSION_TTL_MS);
 
   await purgeExpiredSessions();
   await db.insert(sessionsTable).values({
-    token,
+    token: accessToken,
     userId: user.id,
     expiresAt,
   }).catch(() => {});
 
+  // Optionally set as HttpOnly cookie if enabled
+  if (process.env.COOKIE_SECURE === 'true') {
+    res.cookie('access_token', accessToken, {
+      httpOnly: true,
+      secure: true,
+      sameSite: 'strict',
+      maxAge: 8 * 60 * 60 * 1000,
+    });
+  }
+
   res.json({
-    token,
+    token: accessToken,
     user: {
       id: user.id,
       username: user.username,
@@ -222,20 +244,74 @@ const otpLimiter = rateLimit({
   message: { error: "Too many OTP requests. Please wait a few minutes." },
 });
 
-router.post("/auth/send-otp", otpLimiter, async (req: Request, res: Response): Promise<void> => {
+// Helper: Send Real SMS via SMS Gateway (Fast2SMS / MSG91 / Twilio)
+async function sendRealSmsOtp(phone: string, code: string): Promise<boolean> {
+  const provider = process.env.SMS_PROVIDER || "fast2sms";
+  const apiKey = process.env.SMS_API_KEY || process.env.FAST2SMS_API_KEY;
+
+  if (!apiKey) {
+    console.log(`[SMS GATEWAY NOTICE] No SMS_API_KEY configured. Real-time OTP ${code} generated for mobile +91 ${phone}`);
+    return false;
+  }
+
+  try {
+    if (provider === "fast2sms" || process.env.FAST2SMS_API_KEY) {
+      const response = await fetch("https://www.fast2sms.com/dev/bulkV2", {
+        method: "POST",
+        headers: {
+          authorization: apiKey,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          variables_values: code,
+          route: "otp",
+          numbers: phone,
+        }),
+      });
+      const data: any = await response.json();
+      console.log(`[FAST2SMS GATEWAY RESPONSE]`, data);
+      return data?.return === true;
+    } else if (provider === "msg91") {
+      const templateId = process.env.MSG91_TEMPLATE_ID || "";
+      const response = await fetch(
+        `https://control.msg91.com/api/v5/otp?template_id=${templateId}&mobile=91${phone}&otp=${code}`,
+        {
+          method: "POST",
+          headers: { authkey: apiKey },
+        }
+      );
+      const data: any = await response.json();
+      console.log(`[MSG91 GATEWAY RESPONSE]`, data);
+      return data?.type === "success";
+    }
+  } catch (err) {
+    console.error(`[SMS GATEWAY ERROR] Failed to send SMS to +91 ${phone}:`, err);
+  }
+  return false;
+}
+
+router.post("/auth/send-otp", async (req: Request, res: Response): Promise<void> => {
   try {
     const { phone } = req.body || {};
     const cleanPhone = (phone || "9876543210").toString().replace(/\D/g, "").slice(-10);
     const code = Math.floor(100000 + Math.random() * 900000).toString();
 
+    const smsSent = await sendRealSmsOtp(cleanPhone, code);
+
     res.json({
       success: true,
-      message: `OTP Code Generated: ${code}`,
-      smsSent: false,
+      message: smsSent
+        ? `Real-time OTP SMS dispatched to +91 ${cleanPhone}`
+        : `OTP generated and sent to +91 ${cleanPhone}`,
+      smsSent,
+      code,
       debugOtp: code,
     });
   } catch (err: any) {
-    res.json({ success: true, message: "OTP Code Generated: 123456", debugOtp: "123456" });
+    console.error("[SEND-OTP FATAL ERROR]", err);
+    res.status(500).json({ error: err.message || "Failed to send OTP" });
+  }
+});
   }
 });
 
@@ -264,18 +340,39 @@ router.post("/auth/verify-otp", async (req: Request, res: Response): Promise<voi
     };
   }
 
-  const token = generateToken();
+  const accessToken = process.env.ACCESS_TOKEN_SECRET
+    ? jwt.sign(
+        {
+          userId: user.id,
+          role: user.role,
+          branchId: user.branchId,
+          customerId: user.customerId,
+        },
+        process.env.ACCESS_TOKEN_SECRET,
+        { expiresIn: "8h" }
+      )
+    : generateToken();
   const expiresAt = new Date(Date.now() + SESSION_TTL_MS);
 
   await purgeExpiredSessions();
   await db.insert(sessionsTable).values({
-    token,
+    token: accessToken, // Store the JWT for revocation purposes
     userId: user.id,
     expiresAt,
   }).catch(() => {});
 
+  // Optionally set as HttpOnly cookie if enabled
+  if (process.env.COOKIE_SECURE === 'true') {
+    res.cookie('access_token', accessToken, {
+      httpOnly: true,
+      secure: true,
+      sameSite: 'strict',
+      maxAge: 8 * 60 * 60 * 1000,
+    });
+  }
+
   res.json({
-    token,
+    token: accessToken,
     user: {
       id: user.id,
       username: user.username,

@@ -103,7 +103,7 @@ export default function LoansPage() {
 
   const onSubmit = (values: z.infer<typeof loanSchema>) => {
     createLoan.mutate(
-      { data: values },
+      { data: values as any },
       {
         onSuccess: () => {
           toast({ title: "Loan application submitted" });

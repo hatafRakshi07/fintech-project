@@ -34,6 +34,8 @@ export interface User {
   /** @nullable */
   branchId?: number | null;
   /** @nullable */
+  customerId?: number | null;
+  /** @nullable */
   branchName?: string | null;
   /** @nullable */
   email?: string | null;

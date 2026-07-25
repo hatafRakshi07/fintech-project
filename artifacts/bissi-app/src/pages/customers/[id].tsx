@@ -32,7 +32,7 @@ import {
 import { format } from "date-fns";
 
 export default function CustomerDetailPage() {
-  const params = useParams();
+  const params = useParams<{ id?: string }>();
   const customerId = parseInt(params.id || "0");
   const [collectionFilter, setCollectionFilter] = useState("");
 

@@ -88,20 +88,39 @@ export const officeExpensesTable = pgTable("office_expenses", {
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
+export const accountTypeEnum = pgEnum("account_type", ["bank", "cash", "upi", "wallet"]);
+
+export const bankAccountsTable = pgTable("bank_accounts", {
+  id: serial("id").primaryKey(),
+  accountName: text("account_name").notNull(),
+  accountNumber: text("account_number"),
+  bankName: text("bank_name"),
+  ifscCode: text("ifsc_code"),
+  accountType: accountTypeEnum("account_type").notNull().default("bank"),
+  branchId: integer("branch_id"),
+  isActive: boolean("is_active").notNull().default(true),
+  notes: text("notes"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
+});
+
 export const insertOfficeDiarySchema = createInsertSchema(officeDiaryTable).omit({ id: true, createdAt: true, updatedAt: true }) as any;
 export const insertOfficeTaskSchema = createInsertSchema(officeTasksTable).omit({ id: true, createdAt: true, updatedAt: true }) as any;
 export const insertComplaintSchema = createInsertSchema(complaintsTable).omit({ id: true, createdAt: true, updatedAt: true }) as any;
 export const insertDonationSchema = createInsertSchema(donationsTable).omit({ id: true, createdAt: true }) as any;
 export const insertOfficeExpenseSchema = createInsertSchema(officeExpensesTable).omit({ id: true, createdAt: true }) as any;
+export const insertBankAccountSchema = createInsertSchema(bankAccountsTable).omit({ id: true, createdAt: true, updatedAt: true }) as any;
 
 export type OfficeDiary = typeof officeDiaryTable.$inferSelect;
 export type OfficeTask = typeof officeTasksTable.$inferSelect;
 export type Complaint = typeof complaintsTable.$inferSelect;
 export type Donation = typeof donationsTable.$inferSelect;
 export type OfficeExpense = typeof officeExpensesTable.$inferSelect;
+export type BankAccount = typeof bankAccountsTable.$inferSelect;
 
 export type InsertOfficeDiary = z.infer<typeof insertOfficeDiarySchema>;
 export type InsertOfficeTask = z.infer<typeof insertOfficeTaskSchema>;
 export type InsertComplaint = z.infer<typeof insertComplaintSchema>;
 export type InsertDonation = z.infer<typeof insertDonationSchema>;
 export type InsertOfficeExpense = z.infer<typeof insertOfficeExpenseSchema>;
+export type InsertBankAccount = z.infer<typeof insertBankAccountSchema>;

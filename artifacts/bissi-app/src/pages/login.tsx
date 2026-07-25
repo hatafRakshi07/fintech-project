@@ -1,12 +1,14 @@
 import React, { useState, useEffect } from "react";
 import { useLocation } from "wouter";
-import { SignIn, SignUp, useUser } from "@clerk/clerk-react";
+import { useUser, SignIn } from "@clerk/clerk-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { ShieldCheck, UserCheck, Flame, KeyRound, MessageCircle, ArrowRight, RefreshCw } from "lucide-react";
+import { customFetch } from "@workspace/api-client-react";
 
 export default function LoginPage() {
   const [, setLocation] = useLocation();
@@ -21,6 +23,16 @@ export default function LoginPage() {
   const [otpSent, setOtpSent] = useState(false);
   const [debugOtp, setDebugOtp] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+
+  const handleRoleRedirect = (role: string) => {
+    if (role === "collector") {
+      setLocation("/collections");
+    } else if (role === "customer") {
+      setLocation("/customer-portal");
+    } else {
+      setLocation("/");
+    }
+  };
 
   // Sync Clerk Session if signed in via Clerk
   useEffect(() => {
@@ -38,177 +50,119 @@ export default function LoginPage() {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ clerkId, phone, email, name }),
         });
-        const res: any = await response.json();
-
-        if (res?.token) {
-          localStorage.setItem("auth_token", res.token);
-          toast({
-            title: "Clerk Authentication Successful",
-            description: `Welcome back, ${res.user?.name || name || "User"}!`,
-          });
-
-          const role = res.user?.role || "customer";
-          if (role === "collector") setLocation("/collector/");
-          else if (role === "customer") setLocation("/customer-portal");
-          else setLocation("/");
+        const data = await response.json();
+        if (data.token) {
+          localStorage.setItem("auth_token", data.token);
+          handleRoleRedirect(data.user?.role || "super_admin");
         }
-      } catch (err: any) {
+      } catch (err) {
         console.error("Clerk sync failed:", err);
       }
     }
-
     syncClerkUser();
   }, [isLoaded, isSignedIn, user]);
 
-  // Password Login Handler
-  async function handlePasswordSubmit(e: React.FormEvent) {
+  const handlePasswordSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!username.trim() || !password) return;
     setLoading(true);
     try {
-      const response = await fetch("/api/auth/login", {
+      const data: any = await customFetch("/api/auth/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ username: username.trim(), password }),
+        body: JSON.stringify({ username, password }),
       });
-      const res = await response.json();
-      if (!response.ok) throw new Error(res.error || "Login failed");
-
-      localStorage.setItem("auth_token", res.token);
-      toast({
-        title: "Login Successful",
-        description: `Welcome back, ${res.user?.name || "User"}!`,
-      });
-
-      const role = res.user?.role || "customer";
-      if (role === "collector") setLocation("/collector/");
-      else if (role === "customer") setLocation("/customer-portal");
-      else setLocation("/");
+      if (data.token) {
+        localStorage.setItem("auth_token", data.token);
+        toast({ title: "Login Successful", description: `Welcome back, ${data.user?.name || "User"}!` });
+        handleRoleRedirect(data.user?.role || "super_admin");
+      }
     } catch (err: any) {
-      toast({
-        title: "Login Failed",
-        description: err.message,
-        variant: "destructive",
-      });
+      toast({ title: "Login Failed", description: err.message || "Invalid credentials", variant: "destructive" });
     } finally {
       setLoading(false);
     }
-  }
+  };
 
-  // Send OTP Handler
-  async function handleSendOtp(e?: React.FormEvent, viaWhatsApp = false) {
-    if (e) e.preventDefault();
+  const handleSendOtp = async (e: React.FormEvent, isWhatsapp = false) => {
+    e.preventDefault();
     const cleanPhone = phone.replace(/\D/g, "").slice(-10);
     if (cleanPhone.length !== 10) {
-      toast({
-        title: "Invalid Phone Number",
-        description: "Please enter a valid 10-digit mobile number.",
-        variant: "destructive",
-      });
+      toast({ title: "Invalid Mobile Number", description: "Please enter a valid 10-digit mobile number", variant: "destructive" });
       return;
     }
+
     setLoading(true);
     try {
-      const response = await fetch("/api/auth/send-otp", {
+      const res: any = await customFetch("/api/auth/send-otp", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ phone: cleanPhone }),
+        body: JSON.stringify({ phone: cleanPhone, channel: isWhatsapp ? "whatsapp" : "sms" }),
       });
-      const res = await response.json();
-      if (!response.ok) throw new Error(res.error || "Failed to send OTP");
 
       setOtpSent(true);
-      if (res?.debugOtp) {
-        setDebugOtp(res.debugOtp);
-      }
-
-      if (viaWhatsApp) {
-        const msg = encodeURIComponent(`Your Shree Krishna Association OTP verification code is: ${res.debugOtp || "sent via SMS"}`);
-        window.open(`https://wa.me/91${cleanPhone}?text=${msg}`, "_blank");
-      }
+      const code = res?.debugOtp || res?.code;
+      setDebugOtp(code || null);
 
       toast({
-        title: "OTP Dispatched",
-        description: res.message || `Verification code sent to +91 ${cleanPhone}`,
+        title: isWhatsapp ? "WhatsApp OTP Dispatched" : "SMS OTP Code Sent",
+        description: code ? `Verification Code: ${code}` : `OTP sent to +91 ${cleanPhone}`,
       });
     } catch (err: any) {
-      toast({
-        title: "OTP Error",
-        description: err.message,
-        variant: "destructive",
-      });
+      toast({ title: "Failed to Send OTP", description: err.message || "System error", variant: "destructive" });
     } finally {
       setLoading(false);
     }
-  }
+  };
 
-  // Verify OTP Handler
-  async function handleVerifyOtp(e: React.FormEvent) {
+  const handleVerifyOtp = async (e: React.FormEvent) => {
     e.preventDefault();
     const cleanPhone = phone.replace(/\D/g, "").slice(-10);
     if (!otp.trim()) return;
+
     setLoading(true);
     try {
-      const response = await fetch("/api/auth/verify-otp", {
+      const res: any = await customFetch("/api/auth/verify-otp", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ phone: cleanPhone, otp: otp.trim() }),
       });
-      const res = await response.json();
-      if (!response.ok) throw new Error(res.error || "OTP verification failed");
 
-      localStorage.setItem("auth_token", res.token);
-      toast({
-        title: "OTP Verified Successfully",
-        description: `Welcome back, ${res.user?.name || "User"}!`,
-      });
-
-      const role = res.user?.role || "customer";
-      if (role === "collector") setLocation("/collector/");
-      else if (role === "customer") setLocation("/customer-portal");
-      else setLocation("/");
+      if (res?.token) {
+        localStorage.setItem("auth_token", res.token);
+        toast({ title: "Verification Successful", description: `Welcome back!` });
+        handleRoleRedirect(res.user?.role || "super_admin");
+      }
     } catch (err: any) {
-      toast({
-        title: "Verification Failed",
-        description: err.message,
-        variant: "destructive",
-      });
+      toast({ title: "OTP Verification Failed", description: err.message || "Invalid OTP", variant: "destructive" });
     } finally {
       setLoading(false);
     }
-  }
+  };
 
   return (
-    <div className="min-h-dvh bg-muted/30 flex flex-col justify-center p-4 safe-top safe-bottom">
-      <div className="w-full max-w-md mx-auto">
-        {/* Brand */}
-        <div className="flex justify-center mb-6">
-          <div className="flex flex-col items-center gap-2">
-            <div className="w-14 h-14 rounded-2xl bg-primary flex items-center justify-center text-primary-foreground font-bold text-xl shadow-lg">
-              SKA
-            </div>
-            <span className="font-bold text-2xl tracking-tight text-foreground">Shree Krishna Association</span>
+    <div className="min-h-screen flex items-center justify-center p-4 bg-gradient-to-br from-slate-950 via-slate-900 to-indigo-950 text-white">
+      <div className="w-full max-w-md space-y-6">
+        <div className="text-center space-y-2">
+          <div className="inline-flex items-center justify-center p-3 rounded-2xl bg-gradient-to-br from-amber-500 to-amber-600 shadow-lg shadow-amber-500/20 mb-2">
+            <Flame className="h-8 w-8 text-slate-950" />
           </div>
+          <h1 className="text-2xl font-bold tracking-tight">Shree Krishna Association</h1>
+          <p className="text-xs text-muted-foreground">Bissi & Committee Management System</p>
         </div>
 
-        <Card className="border-border shadow-xl overflow-hidden">
-          <CardHeader className="space-y-1 pb-3 pt-5 px-5 text-center">
-            <CardTitle className="text-xl font-bold flex items-center justify-center gap-2">
-              <ShieldCheck className="h-5 w-5 text-amber-500" />
-              Sign In to Account
-            </CardTitle>
-            <CardDescription className="text-sm">
-              Access your portal via Real-Time OTP, Password, or Clerk Auth
-            </CardDescription>
+        <Card className="border-border shadow-2xl bg-card/90 backdrop-blur">
+          <CardHeader className="pb-3 text-center">
+            <CardTitle className="text-lg">Sign In</CardTitle>
+            <CardDescription>Select authentication method to continue</CardDescription>
           </CardHeader>
-          <CardContent className="px-5 pb-5 pt-2">
+          <CardContent>
             <Tabs defaultValue="otp" className="w-full">
-              <TabsList className="grid w-full grid-cols-3 mb-4 h-11">
-                <TabsTrigger value="otp" className="text-xs font-bold gap-1 text-emerald-500">
-                  <Flame className="h-3.5 w-3.5" /> Mobile OTP
+              <TabsList className="grid w-full grid-cols-3 mb-6">
+                <TabsTrigger value="otp" className="text-xs font-bold gap-1">
+                  <ShieldCheck className="h-3.5 w-3.5" /> Mobile OTP
                 </TabsTrigger>
-                <TabsTrigger value="password" className="text-xs font-bold gap-1 text-amber-500">
-                  <KeyRound className="h-3.5 w-3.5" /> Password
+                <TabsTrigger value="password" className="text-xs font-bold gap-1">
+                  <KeyRound className="h-3.5 w-3.5" /> Name/Pass
                 </TabsTrigger>
                 <TabsTrigger value="clerk" className="text-xs font-bold gap-1 text-indigo-500">
                   <UserCheck className="h-3.5 w-3.5" /> Clerk Auth
@@ -220,7 +174,7 @@ export default function LoginPage() {
                 {!otpSent ? (
                   <form onSubmit={(e) => handleSendOtp(e, false)} className="space-y-4">
                     <div className="space-y-2">
-                      <label className="text-xs font-semibold">10-Digit Mobile Number</label>
+                      <Label className="text-sm font-medium">10-Digit Mobile Number</Label>
                       <div className="relative">
                         <span className="absolute left-3 top-3 text-sm font-bold text-muted-foreground">+91</span>
                         <Input
@@ -250,8 +204,12 @@ export default function LoginPage() {
                   <form onSubmit={handleVerifyOtp} className="space-y-4">
                     <div className="space-y-2">
                       <div className="flex justify-between items-center">
-                        <label className="text-xs font-semibold">Enter 6-Digit OTP</label>
-                        <button type="button" onClick={() => setOtpSent(false)} className="text-xs text-primary font-medium hover:underline flex items-center gap-1">
+                        <Label className="text-sm font-medium">Enter 6-Digit OTP</Label>
+                        <button
+                          type="button"
+                          onClick={() => setOtpSent(false)}
+                          className="text-xs text-primary font-medium hover:underline flex items-center gap-1"
+                        >
                           <RefreshCw className="h-3 w-3" /> Change Number
                         </button>
                       </div>
@@ -281,12 +239,12 @@ export default function LoginPage() {
               <TabsContent value="password">
                 <form onSubmit={handlePasswordSubmit} className="space-y-4">
                   <div className="space-y-2">
-                    <label className="text-xs font-semibold">Customer Name or Mobile Number</label>
+                    <Label className="text-xs font-semibold">Customer Name or Mobile Number</Label>
                     <Input className="h-11 text-base" placeholder="e.g. Ramesh Kumar or 9876543210" value={username} onChange={(e) => setUsername(e.target.value)} required />
                   </div>
 
                   <div className="space-y-2">
-                    <label className="text-xs font-semibold">Phone Number or Password</label>
+                    <Label className="text-xs font-semibold">Phone Number or Password</Label>
                     <Input className="h-11 text-base" type="password" placeholder="Enter Mobile Number" value={password} onChange={(e) => setPassword(e.target.value)} required />
                   </div>
 

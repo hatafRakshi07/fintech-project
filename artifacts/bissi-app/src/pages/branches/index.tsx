@@ -60,7 +60,7 @@ export default function BranchesPage() {
   });
 
   const onSubmit = (values: z.infer<typeof branchSchema>) => {
-    createBranch.mutate({ data: { ...values, status: 'active' } }, {
+    createBranch.mutate({ data: { ...values, status: 'active' } as any }, {
       onSuccess: () => {
         toast({ title: "Branch created successfully" });
         setIsCreateOpen(false);

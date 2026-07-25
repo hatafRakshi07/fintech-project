@@ -1,7 +1,7 @@
-import React from "react";
+import React, { useState, useEffect } from "react";
 import { clearToken, getStoredUser } from "@/lib/api";
 import { useLocation } from "wouter";
-import { LogOut, ChevronLeft } from "lucide-react";
+import { LogOut, ChevronLeft, Sun, Moon } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 
 type Props = {
@@ -12,6 +12,20 @@ type Props = {
 export default function Header({ title, back }: Props) {
   const [, setLocation] = useLocation();
   const qc = useQueryClient();
+  const [isDark, setIsDark] = useState(() => {
+    if (typeof window === "undefined") return true;
+    return document.documentElement.classList.contains("dark");
+  });
+
+  useEffect(() => {
+    if (isDark) {
+      document.documentElement.classList.add("dark");
+      localStorage.setItem("theme", "dark");
+    } else {
+      document.documentElement.classList.remove("dark");
+      localStorage.setItem("theme", "light");
+    }
+  }, [isDark]);
 
   function handleLogout() {
     clearToken();
@@ -22,26 +36,48 @@ export default function Header({ title, back }: Props) {
   const user = getStoredUser();
 
   return (
-    <header className="bg-indigo-600 text-white px-4 pt-safe-top sticky top-0 z-40">
+    <header className="bg-card/95 backdrop-blur-md text-foreground border-b border-border px-4 pt-safe-top sticky top-0 z-40">
       <div className="flex items-center h-14 gap-3">
-        {back && (
-          <button onClick={() => window.history.back()}
-            className="p-1 -ml-1 rounded-full active:bg-indigo-500">
-            <ChevronLeft size={24} />
+        {back ? (
+          <button
+            onClick={() => window.history.back()}
+            className="p-1.5 -ml-1 rounded-xl text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors"
+          >
+            <ChevronLeft size={22} />
           </button>
+        ) : (
+          <div className="w-8 h-8 rounded-lg bg-amber-500 text-slate-950 font-extrabold flex items-center justify-center text-xs shadow-md shadow-amber-500/20 shrink-0">
+            SKA
+          </div>
         )}
+
         <div className="flex-1 min-w-0">
-          <h1 className="text-base font-semibold truncate">{title}</h1>
+          <h1 className="text-sm font-bold truncate tracking-tight text-foreground">{title}</h1>
           {user && (
-            <p className="text-indigo-200 text-xs truncate">{user.name}</p>
+            <p className="text-amber-500/90 dark:text-amber-400/90 text-[11px] font-medium truncate">
+              {user.name}
+            </p>
           )}
         </div>
-        <button
-          onClick={handleLogout}
-          className="p-2 rounded-full active:bg-indigo-500"
-          aria-label="Logout">
-          <LogOut size={18} />
-        </button>
+
+        <div className="flex items-center gap-1">
+          <button
+            onClick={() => setIsDark(!isDark)}
+            className="p-2 rounded-xl text-muted-foreground hover:text-amber-400 hover:bg-amber-500/10 transition-colors"
+            title="Toggle theme"
+          >
+            {isDark ? <Sun size={18} className="text-amber-400" /> : <Moon size={18} />}
+          </button>
+
+          <button
+            onClick={handleLogout}
+            className="p-2 rounded-xl text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
+            aria-label="Logout"
+            title="Logout"
+          >
+            <LogOut size={18} />
+          </button>
+        </div>
       </div>
     </header>
   );

@@ -13,7 +13,7 @@
  * loan/gift customer. If no linked user account exists, we skip silently.
  */
 
-import { db, loansTable, giftDistributionsTable, giftInventoryTable, usersTable, notificationsTable } from "@workspace/db";
+import { db, loansTable, giftDistributionsTable, giftInventoryTable, usersTable, notificationsTable, sessionsTable } from "@workspace/db";
 import { eq, and, sql, gte, lt } from "drizzle-orm";
 import { logger } from "./logger";
 
@@ -175,6 +175,22 @@ async function runGiftWinAlerts() {
 }
 
 // ---------------------------------------------------------------------------
+// 3. Session cleanup
+// ---------------------------------------------------------------------------
+async function runSessionCleanup() {
+  if (process.env.ENABLE_SESSION_CLEANUP === "true") {
+    try {
+      await db
+        .delete(sessionsTable)
+        .where(lt(sessionsTable.expiresAt, new Date()));
+      logger.info("[scheduler] Expired sessions cleaned up");
+    } catch (err) {
+      logger.error({ err }, "[scheduler] Error during session cleanup");
+    }
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Main runner — called every hour
 // ---------------------------------------------------------------------------
 async function runScheduler() {
@@ -189,6 +205,7 @@ async function runScheduler() {
   } catch (err) {
     logger.error({ err }, "[scheduler] Error in gift win alerts");
   }
+  await runSessionCleanup();
   logger.info("[scheduler] Done");
 }
 

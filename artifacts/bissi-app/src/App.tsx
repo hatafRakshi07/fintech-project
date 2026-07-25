@@ -31,6 +31,7 @@ import GiftsPage from "@/pages/gifts";
 import InterestsPage from "@/pages/interests";
 import RecoveryPage from "@/pages/recovery";
 import OfficePage from "@/pages/office";
+import BankAccountsPage from "@/pages/office/accounts";
 import ImportPage from "@/pages/import";
 import InvoicesPage from "@/pages/invoices";
 import AccountingPage from "@/pages/accounting";
@@ -72,14 +73,24 @@ const ALL_EXCEPT_CUSTOMER: UserRole[] = ["super_admin", "owner", "branch_manager
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
-      retry: 1,
+      retry: (failureCount, error: any) => {
+        if (error?.status === 401 || error?.response?.status === 401) return false;
+        return failureCount < 1;
+      },
       refetchOnWindowFocus: false,
     },
   },
 });
 
 function AppRoutes() {
-  const [location] = useLocation();
+  const [location, setLocation] = useLocation();
+
+  React.useEffect(() => {
+    const token = localStorage.getItem("auth_token");
+    if (!token && location !== "/login") {
+      setLocation("/login");
+    }
+  }, [location, setLocation]);
 
   // Direct bypass: /login redirects straight to Dashboard for presentation
   if (location === "/login") {
@@ -204,10 +215,15 @@ function AppRoutes() {
               </RoleGate>
             </Route>
 
-            {/* Office — managers and above */}
+            {/* Office & Accounts — managers and above */}
             <Route path="/office">
               <RoleGate roles={FINANCE}>
                 <OfficePage />
+              </RoleGate>
+            </Route>
+            <Route path="/office/accounts">
+              <RoleGate roles={FINANCE}>
+                <BankAccountsPage />
               </RoleGate>
             </Route>
 

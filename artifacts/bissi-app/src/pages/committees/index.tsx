@@ -61,7 +61,7 @@ export default function CommitteesPage() {
   });
 
   const onSubmit = (values: z.infer<typeof committeeSchema>) => {
-    createCommittee.mutate({ data: { ...values, status: 'active' } }, {
+    createCommittee.mutate({ data: { ...values, status: 'active' } as any }, {
       onSuccess: () => {
         toast({ title: "Committee created successfully" });
         setIsCreateOpen(false);

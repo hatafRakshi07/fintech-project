@@ -39,6 +39,7 @@ import {
   FileText,
   UserCircle,
   Megaphone,
+  Landmark,
 } from "lucide-react";
 
 
@@ -83,6 +84,7 @@ const ALL_NAV_ITEMS: NavItem[] = [
   { icon: TrendingUp, label: "Interests", href: "/interests", roles: ["super_admin","owner","branch_manager","accountant"] },
   { icon: AlertTriangle, label: "Recovery", href: "/recovery", roles: ["super_admin","owner","branch_manager","accountant","collector"] },
   { icon: Briefcase, label: "Office", href: "/office", roles: ["super_admin","owner","branch_manager","accountant"] },
+  { icon: Landmark, label: "Bank Accounts", href: "/office/accounts", roles: ["super_admin","owner","branch_manager","accountant"] },
   { icon: Upload, label: "Import", href: "/import", roles: ["super_admin","owner","branch_manager"] },
   { icon: FileText, label: "Invoices", href: "/invoices", roles: ["super_admin","owner","branch_manager","accountant"] },
   { icon: FileText, label: "Accounting (Tally)", href: "/accounting", roles: ["super_admin","owner","branch_manager","accountant"] },

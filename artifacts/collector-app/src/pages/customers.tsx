@@ -39,45 +39,48 @@ export default function CustomersPage() {
 
   return (
     <>
-      <Header title="Customers" />
+      <Header title="Customer Directory" />
 
       {selected ? (
         <CustomerDetail customer={selected} onBack={() => setSelected(null)} />
       ) : (
-        <div className="p-4 space-y-3">
+        <div className="p-4 space-y-3 max-w-lg mx-auto">
           {/* Search bar */}
           <div className="relative">
-            <Search size={17} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+            <Search size={17} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none" />
             <input
               type="search"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search by name or mobile..."
-              className="w-full h-11 bg-white border border-gray-200 rounded-xl pl-10 pr-4 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              placeholder="Search customer name or mobile..."
+              className="w-full h-11 bg-card border border-border rounded-xl pl-10 pr-9 text-sm font-medium text-foreground focus:outline-none focus:border-amber-500 focus:ring-1 focus:ring-amber-500 shadow-sm transition-all"
               autoFocus
             />
             {search && (
-              <button onClick={() => setSearch("")} className="absolute right-3.5 top-1/2 -translate-y-1/2 text-gray-400">
+              <button
+                onClick={() => setSearch("")}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground p-1"
+              >
                 <X size={16} />
               </button>
             )}
           </div>
 
           {search.length < 2 && (
-            <div className="text-center py-16 text-gray-400">
-              <Search size={40} className="mx-auto mb-2 opacity-30" />
-              <p className="text-sm">Type at least 2 characters to search</p>
+            <div className="text-center py-16 text-muted-foreground bg-card border border-border rounded-2xl">
+              <Search size={40} className="mx-auto mb-2 opacity-30 text-amber-500" />
+              <p className="text-sm font-medium">Type at least 2 characters to search</p>
             </div>
           )}
 
           {isFetching && search.length >= 2 && (
             <div className="space-y-2">
               {[1, 2, 3].map((i) => (
-                <div key={i} className="bg-white rounded-2xl border border-gray-100 p-4 flex items-center gap-3 animate-pulse">
-                  <div className="w-10 h-10 rounded-full bg-gray-100" />
+                <div key={i} className="bg-card rounded-2xl border border-border p-4 flex items-center gap-3 animate-pulse">
+                  <div className="w-10 h-10 rounded-full bg-muted shrink-0" />
                   <div className="flex-1 space-y-2">
-                    <div className="h-3 bg-gray-100 rounded w-2/3" />
-                    <div className="h-2 bg-gray-100 rounded w-1/3" />
+                    <div className="h-3 bg-muted rounded w-2/3" />
+                    <div className="h-2 bg-muted rounded w-1/3" />
                   </div>
                 </div>
               ))}
@@ -85,9 +88,9 @@ export default function CustomersPage() {
           )}
 
           {!isFetching && search.length >= 2 && customers.length === 0 && (
-            <div className="text-center py-12 text-gray-400">
-              <User size={40} className="mx-auto mb-2 opacity-30" />
-              <p className="text-sm">No customers found</p>
+            <div className="text-center py-12 text-muted-foreground bg-card border border-border rounded-2xl">
+              <User size={40} className="mx-auto mb-2 opacity-30 text-amber-500" />
+              <p className="text-sm font-medium">No customers found matching search</p>
             </div>
           )}
 
@@ -96,21 +99,29 @@ export default function CustomersPage() {
               <button
                 key={c.id}
                 onClick={() => setSelected(c)}
-                className="w-full bg-white rounded-2xl border border-gray-100 p-4 text-left flex items-center gap-3 active:bg-gray-50">
-                <div className="w-10 h-10 rounded-full bg-indigo-100 flex items-center justify-center shrink-0">
-                  <span className="text-indigo-700 font-bold text-sm">{c.name.charAt(0).toUpperCase()}</span>
+                className="w-full bg-card rounded-2xl border border-border p-4 text-left flex items-center gap-3 hover:border-amber-500/40 active:bg-muted/40 transition-all shadow-sm"
+              >
+                <div className="w-10 h-10 rounded-full bg-amber-500/10 border border-amber-500/20 flex items-center justify-center shrink-0">
+                  <span className="text-amber-500 dark:text-amber-400 font-extrabold text-sm">
+                    {c.name.charAt(0).toUpperCase()}
+                  </span>
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className="font-medium text-gray-800 text-sm">{c.name}</p>
-                  <p className="text-xs text-gray-400">{c.mobile}</p>
-                  {c.city && <p className="text-xs text-gray-400">{c.city}</p>}
+                  <p className="font-bold text-foreground text-sm truncate">{c.name}</p>
+                  <p className="text-xs text-muted-foreground">{c.mobile}</p>
+                  {c.city && <p className="text-xs text-muted-foreground">{c.city}</p>}
                 </div>
                 <div className="flex items-center gap-2 shrink-0">
-                  <span className={`text-xs px-2 py-0.5 rounded-full font-medium
-                    ${c.status === "active" ? "bg-green-100 text-green-700" : "bg-gray-100 text-gray-500"}`}>
+                  <span
+                    className={`text-[11px] px-2 py-0.5 rounded-full font-bold uppercase tracking-wider ${
+                      c.status === "active"
+                        ? "bg-emerald-500/15 text-emerald-500 dark:text-emerald-400 border border-emerald-500/30"
+                        : "bg-muted text-muted-foreground border border-border"
+                    }`}
+                  >
                     {c.status}
                   </span>
-                  <ChevronRight size={16} className="text-gray-300" />
+                  <ChevronRight size={16} className="text-muted-foreground" />
                 </div>
               </button>
             ))}
@@ -133,57 +144,73 @@ function CustomerDetail({ customer, onBack }: { customer: Customer; onBack: () =
   return (
     <>
       <Header title={customer.name} back />
-      <div className="p-4 space-y-4">
+      <div className="p-4 space-y-4 max-w-lg mx-auto">
         {/* Info card */}
-        <div className="bg-white rounded-2xl border border-gray-100 p-4 space-y-3">
-          <div className="flex items-center gap-3">
-            <div className="w-14 h-14 rounded-2xl bg-indigo-100 flex items-center justify-center">
-              <span className="text-indigo-700 font-bold text-2xl">{customer.name.charAt(0)}</span>
+        <div className="bg-card rounded-2xl border border-border p-5 space-y-4 shadow-sm">
+          <div className="flex items-center gap-3.5">
+            <div className="w-14 h-14 rounded-2xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center shrink-0">
+              <span className="text-amber-500 dark:text-amber-400 font-black text-2xl">
+                {customer.name.charAt(0)}
+              </span>
             </div>
             <div>
-              <h2 className="font-semibold text-gray-800">{customer.name}</h2>
-              <p className="text-xs text-gray-400">#{customer.refNumber}</p>
-              <span className={`text-xs px-2 py-0.5 rounded-full font-medium inline-block mt-0.5
-                ${customer.status === "active" ? "bg-green-100 text-green-700" : "bg-gray-100 text-gray-500"}`}>
+              <h2 className="font-bold text-foreground text-lg">{customer.name}</h2>
+              <p className="text-xs text-muted-foreground font-mono">#{customer.refNumber}</p>
+              <span
+                className={`text-[11px] px-2.5 py-0.5 rounded-full font-bold uppercase tracking-wider inline-block mt-1 ${
+                  customer.status === "active"
+                    ? "bg-emerald-500/15 text-emerald-500 dark:text-emerald-400 border border-emerald-500/30"
+                    : "bg-muted text-muted-foreground border border-border"
+                }`}
+              >
                 {customer.status}
               </span>
             </div>
           </div>
 
-          <div className="space-y-2">
-            <InfoRow icon={<Phone size={14} />} value={customer.mobile} />
-            {customer.alternateMobile && <InfoRow icon={<Phone size={14} />} value={customer.alternateMobile} />}
-            {customer.address && <InfoRow icon={<MapPin size={14} />} value={customer.address + (customer.city ? `, ${customer.city}` : "")} />}
+          <div className="space-y-2.5 pt-2 border-t border-border">
+            <InfoRow icon={<Phone size={15} />} value={customer.mobile} />
+            {customer.alternateMobile && <InfoRow icon={<Phone size={15} />} value={customer.alternateMobile} />}
+            {customer.address && (
+              <InfoRow icon={<MapPin size={15} />} value={customer.address + (customer.city ? `, ${customer.city}` : "")} />
+            )}
           </div>
         </div>
 
         {/* Recent collections */}
         <div>
-          <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">
+          <h3 className="text-xs font-bold text-muted-foreground uppercase tracking-wider mb-2 px-1">
             Recent Payments
           </h3>
           {isLoading ? (
             <div className="space-y-2">
-              {[1, 2].map(i => (
-                <div key={i} className="bg-white rounded-xl border border-gray-100 p-3 h-14 animate-pulse" />
+              {[1, 2].map((i) => (
+                <div key={i} className="bg-card rounded-xl border border-border p-3 h-14 animate-pulse" />
               ))}
             </div>
           ) : collections.length === 0 ? (
-            <div className="text-center py-8 text-gray-400">
-              <CreditCard size={32} className="mx-auto mb-1 opacity-30" />
-              <p className="text-sm">No payments yet</p>
+            <div className="text-center py-8 text-muted-foreground bg-card border border-border rounded-2xl">
+              <CreditCard size={32} className="mx-auto mb-1 opacity-30 text-amber-500" />
+              <p className="text-sm font-medium">No payments recorded yet</p>
             </div>
           ) : (
             <div className="space-y-2">
               {collections.map((col) => (
-                <div key={col.id} className="bg-white rounded-xl border border-gray-100 p-3 flex items-center justify-between">
+                <div
+                  key={col.id}
+                  className="bg-card rounded-xl border border-border p-3.5 flex items-center justify-between shadow-sm"
+                >
                   <div>
-                    <p className="text-sm font-medium text-gray-800">{fmt.currency(col.amount)}</p>
-                    <p className="text-xs text-gray-400 capitalize">{col.paymentMode}</p>
+                    <p className="text-sm font-black text-foreground">{fmt.currency(col.amount)}</p>
+                    <p className="text-xs text-amber-500 dark:text-amber-400 font-bold capitalize">
+                      {col.paymentMode}
+                    </p>
                   </div>
                   <div className="text-right">
-                    <p className="text-xs text-gray-500">{fmt.date(col.collectedAt)}</p>
-                    {col.committeeName && <p className="text-xs text-indigo-500 truncate max-w-32">{col.committeeName}</p>}
+                    <p className="text-xs text-muted-foreground font-medium">{fmt.date(col.collectedAt)}</p>
+                    {col.committeeName && (
+                      <p className="text-xs text-muted-foreground truncate max-w-36">{col.committeeName}</p>
+                    )}
                   </div>
                 </div>
               ))}
@@ -197,8 +224,8 @@ function CustomerDetail({ customer, onBack }: { customer: Customer; onBack: () =
 
 function InfoRow({ icon, value }: { icon: React.ReactNode; value: string }) {
   return (
-    <div className="flex items-start gap-2 text-sm text-gray-600">
-      <span className="text-gray-400 mt-0.5 shrink-0">{icon}</span>
+    <div className="flex items-start gap-2.5 text-xs font-medium text-foreground">
+      <span className="text-amber-500 dark:text-amber-400 mt-0.5 shrink-0">{icon}</span>
       <span>{value}</span>
     </div>
   );

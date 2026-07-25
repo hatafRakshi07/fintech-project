@@ -32,6 +32,7 @@ export const LoginResponse = zod.object({
   "name": zod.string(),
   "role": zod.enum(['super_admin', 'owner', 'branch_manager', 'collector', 'accountant', 'customer']),
   "branchId": zod.number().nullish(),
+  "customerId": zod.number().nullish(),
   "branchName": zod.string().nullish(),
   "email": zod.string().nullish(),
   "phone": zod.string().nullish()
@@ -48,6 +49,7 @@ export const GetMeResponse = zod.object({
   "name": zod.string(),
   "role": zod.enum(['super_admin', 'owner', 'branch_manager', 'collector', 'accountant', 'customer']),
   "branchId": zod.number().nullish(),
+  "customerId": zod.number().nullish(),
   "branchName": zod.string().nullish(),
   "email": zod.string().nullish(),
   "phone": zod.string().nullish()
@@ -490,9 +492,9 @@ export const GetCustomerHistoryParams = zod.object({
   "id": zod.coerce.number()
 })
 
-export const GetCustomerHistoryResponse = zod.object({
+export const GetCustomerHistoryResponse = zod.looseObject({
 
-}).passthrough()
+})
 
 
 /**

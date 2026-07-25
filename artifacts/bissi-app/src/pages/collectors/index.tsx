@@ -57,7 +57,7 @@ export default function CollectorsPage() {
   });
 
   const onSubmit = (values: z.infer<typeof collectorSchema>) => {
-    createCollector.mutate({ data: { ...values, status: 'active' } }, {
+    createCollector.mutate({ data: { ...values, status: 'active' } as any }, {
       onSuccess: () => {
         toast({ title: "Collector created successfully" });
         setIsCreateOpen(false);

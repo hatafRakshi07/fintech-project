@@ -1,49 +1,21 @@
 import React, { useState, useEffect } from "react";
 import { useLocation } from "wouter";
-import { SignIn, useUser } from "@clerk/clerk-react";
 import { api, setToken, setStoredUser } from "@/lib/api";
-import { Flame, KeyRound, UserCheck, Phone, ShieldCheck, RefreshCw, MessageCircle, ArrowRight } from "lucide-react";
+import { Flame, KeyRound, Phone, ShieldCheck, RefreshCw, MessageCircle, ArrowRight, LogIn, Eye, EyeOff } from "lucide-react";
 
 export default function LoginPage() {
   const [, setLocation] = useLocation();
-  const { user, isLoaded, isSignedIn } = useUser();
-  const [tab, setTab] = useState<"otp" | "password" | "clerk">("otp");
+  const [tab, setTab] = useState<"otp" | "password">("otp");
 
-  // Custom Auth State
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
+  const [showPwd, setShowPwd] = useState(false);
   const [phone, setPhone] = useState("");
   const [otp, setOtp] = useState("");
   const [otpSent, setOtpSent] = useState(false);
   const [debugOtp, setDebugOtp] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-
-  // Sync Clerk Session if signed in via Clerk
-  useEffect(() => {
-    async function syncClerkUser() {
-      if (!isLoaded || !isSignedIn || !user) return;
-
-      try {
-        const phone = user.primaryPhoneNumber?.phoneNumber || "";
-        const email = user.primaryEmailAddress?.emailAddress || "";
-        const name = user.fullName || user.firstName || "";
-        const clerkId = user.id;
-
-        const res: any = await api.post("/auth/clerk-sync", { clerkId, phone, email, name });
-
-        if (res?.token) {
-          setToken(res.token);
-          setStoredUser(res.user);
-          setLocation("/");
-        }
-      } catch (err: any) {
-        console.error("Collector Clerk sync failed:", err);
-      }
-    }
-
-    syncClerkUser();
-  }, [isLoaded, isSignedIn, user]);
 
   // Password Login Handler
   async function handlePasswordSubmit(e: React.FormEvent) {
@@ -52,38 +24,35 @@ export default function LoginPage() {
     if (!username.trim() || !password) return;
     setLoading(true);
     try {
-      const res = await api.post<any>("/auth/login", { username: username.trim(), password });
-      setToken(res.token);
-      setStoredUser(res.user);
-      setLocation("/");
+      const res: any = await api.post("/auth/login", { username, password });
+      if (res?.token) {
+        setToken(res.token);
+        setStoredUser(res.user);
+        setLocation("/");
+      }
     } catch (err: any) {
-      setError(err?.message || "Login failed. Please check your credentials.");
+      setError(err?.message || "Invalid credentials.");
     } finally {
       setLoading(false);
     }
   }
 
   // Send OTP Handler
-  async function handleSendOtp(e?: React.FormEvent, viaWhatsApp = false) {
-    if (e) e.preventDefault();
+  async function handleSendOtp(e: React.FormEvent, isWhatsapp = false) {
+    e.preventDefault();
     setError(null);
     const cleanPhone = phone.replace(/\D/g, "").slice(-10);
     if (cleanPhone.length !== 10) {
       setError("Please enter a valid 10-digit mobile number.");
       return;
     }
+
     setLoading(true);
     try {
-      const res = await api.post<any>("/auth/send-otp", { phone: cleanPhone });
+      const res: any = await api.post("/auth/send-otp", { phone: cleanPhone, channel: isWhatsapp ? "whatsapp" : "sms" });
       setOtpSent(true);
-      if (res?.debugOtp) {
-        setDebugOtp(res.debugOtp);
-      }
-
-      if (viaWhatsApp) {
-        const msg = encodeURIComponent(`Your Field Collector OTP verification code is: ${res.debugOtp || "sent via SMS"}`);
-        window.open(`https://wa.me/91${cleanPhone}?text=${msg}`, "_blank");
-      }
+      const code = res?.debugOtp || res?.code;
+      setDebugOtp(code || null);
     } catch (err: any) {
       setError(err?.message || "Failed to send OTP code.");
     } finally {
@@ -97,12 +66,15 @@ export default function LoginPage() {
     setError(null);
     const cleanPhone = phone.replace(/\D/g, "").slice(-10);
     if (!otp.trim()) return;
+
     setLoading(true);
     try {
-      const res = await api.post<any>("/auth/verify-otp", { phone: cleanPhone, otp: otp.trim() });
-      setToken(res.token);
-      setStoredUser(res.user);
-      setLocation("/");
+      const res: any = await api.post("/auth/verify-otp", { phone: cleanPhone, otp: otp.trim() });
+      if (res?.token) {
+        setToken(res.token);
+        setStoredUser(res.user);
+        setLocation("/");
+      }
     } catch (err: any) {
       setError(err?.message || "Invalid or expired OTP code.");
     } finally {
@@ -111,53 +83,49 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="min-h-dvh bg-[#090d16] text-slate-100 flex flex-col justify-center items-center p-4 safe-top safe-bottom">
-      <div className="w-full max-w-md bg-slate-900/90 border border-slate-800 rounded-3xl p-6 shadow-2xl backdrop-blur-xl">
-        {/* Brand Header */}
-        <div className="text-center mb-6">
-          <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-amber-400 to-amber-600 flex items-center justify-center text-slate-950 font-black text-2xl mx-auto shadow-lg shadow-amber-500/20 mb-3">
-            SKA
-          </div>
-          <h1 className="text-xl font-extrabold text-slate-100 tracking-tight">Shree Krishna Association</h1>
-          <p className="text-xs font-semibold text-amber-400/90 uppercase tracking-widest mt-1">Field Collector Portal</p>
-        </div>
+    <div className="min-h-screen bg-background text-foreground flex flex-col items-center justify-center px-4 py-8 relative overflow-hidden">
+      {/* Gold ambient background glow */}
+      <div className="absolute top-1/4 left-1/2 -translate-x-1/2 -translate-y-1/2 w-96 h-96 bg-amber-500/10 dark:bg-amber-500/5 rounded-full blur-3xl pointer-events-none" />
 
-        {/* Tab Selector */}
-        <div className="grid grid-cols-3 p-1 bg-slate-950 rounded-2xl mb-6 border border-slate-800/80">
+      {/* Brand logo & header */}
+      <div className="mb-6 text-center z-10">
+        <div className="w-16 h-16 bg-amber-500 text-slate-950 font-extrabold text-2xl flex items-center justify-center rounded-2xl mx-auto mb-3 shadow-xl shadow-amber-500/25">
+          SKA
+        </div>
+        <h1 className="text-2xl font-black tracking-tight text-foreground">Shree Krishna Association</h1>
+        <p className="text-amber-500 dark:text-amber-400 text-xs font-semibold mt-1 tracking-wide uppercase">
+          Field Collector Portal
+        </p>
+      </div>
+
+      {/* Card */}
+      <div className="bg-card border border-border shadow-2xl rounded-2xl w-full max-w-sm p-6 z-10">
+        {/* Tabs */}
+        <div className="flex border-b border-border mb-5 pb-1">
           <button
             onClick={() => setTab("otp")}
-            className={`py-2.5 text-xs font-bold rounded-xl transition-all flex items-center justify-center gap-1 ${
+            className={`flex-1 py-2 text-xs font-bold flex items-center justify-center gap-1.5 border-b-2 transition-colors ${
               tab === "otp"
-                ? "bg-gradient-to-r from-amber-500 to-amber-600 text-slate-950 shadow-md"
-                : "text-slate-400 hover:text-slate-200"
+                ? "border-amber-500 text-amber-500 dark:text-amber-400"
+                : "border-transparent text-muted-foreground hover:text-foreground"
             }`}
           >
-            <Flame size={14} /> Mobile OTP
+            <Phone size={15} /> Mobile OTP
           </button>
           <button
             onClick={() => setTab("password")}
-            className={`py-2.5 text-xs font-bold rounded-xl transition-all flex items-center justify-center gap-1 ${
+            className={`flex-1 py-2 text-xs font-bold flex items-center justify-center gap-1.5 border-b-2 transition-colors ${
               tab === "password"
-                ? "bg-gradient-to-r from-amber-500 to-amber-600 text-slate-950 shadow-md"
-                : "text-slate-400 hover:text-slate-200"
+                ? "border-amber-500 text-amber-500 dark:text-amber-400"
+                : "border-transparent text-muted-foreground hover:text-foreground"
             }`}
           >
-            <KeyRound size={14} /> Password
-          </button>
-          <button
-            onClick={() => setTab("clerk")}
-            className={`py-2.5 text-xs font-bold rounded-xl transition-all flex items-center justify-center gap-1 ${
-              tab === "clerk"
-                ? "bg-gradient-to-r from-amber-500 to-amber-600 text-slate-950 shadow-md"
-                : "text-slate-400 hover:text-slate-200"
-            }`}
-          >
-            <UserCheck size={14} /> Clerk Auth
+            <KeyRound size={15} /> Password
           </button>
         </div>
 
         {error && (
-          <div className="mb-4 p-3 bg-rose-500/10 border border-rose-500/30 rounded-xl text-xs font-bold text-rose-400 text-center">
+          <div className="mb-4 bg-destructive/10 border border-destructive/30 text-destructive-foreground rounded-xl px-4 py-3 text-xs font-medium">
             {error}
           </div>
         )}
@@ -167,9 +135,13 @@ export default function LoginPage() {
           !otpSent ? (
             <form onSubmit={(e) => handleSendOtp(e, false)} className="space-y-4">
               <div>
-                <label className="block text-xs font-semibold text-slate-300 mb-1.5">10-Digit Mobile Number</label>
+                <label className="block text-xs font-bold text-muted-foreground mb-1.5 uppercase tracking-wider">
+                  Mobile Number
+                </label>
                 <div className="relative">
-                  <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-sm font-bold text-slate-400">+91</span>
+                  <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-sm font-bold text-amber-500 dark:text-amber-400">
+                    +91
+                  </span>
                   <input
                     type="tel"
                     maxLength={10}
@@ -177,7 +149,7 @@ export default function LoginPage() {
                     onChange={(e) => setPhone(e.target.value)}
                     placeholder="9876543210"
                     required
-                    className="w-full h-11 bg-slate-950 border border-slate-800 text-slate-100 placeholder-slate-500 rounded-xl pl-12 pr-4 text-sm font-semibold focus:outline-none focus:border-amber-500 focus:ring-1 focus:ring-amber-500 transition-colors"
+                    className="w-full h-11 bg-muted/40 border border-border text-foreground rounded-xl pl-12 pr-4 text-sm font-medium focus:outline-none focus:border-amber-500 focus:ring-1 focus:ring-amber-500 transition-all"
                   />
                 </div>
               </div>
@@ -194,32 +166,47 @@ export default function LoginPage() {
               <button
                 type="submit"
                 disabled={loading}
-                className="w-full h-11 bg-slate-800 hover:bg-slate-700 text-slate-200 font-semibold rounded-xl flex items-center justify-center gap-2 transition-all"
+                className="w-full h-12 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold rounded-xl flex items-center justify-center gap-2 shadow-lg shadow-amber-500/25 transition-all disabled:opacity-50 mt-2"
               >
-                {loading ? "Generating OTP..." : "Get Real SMS OTP"} <ArrowRight size={16} />
+                {loading ? (
+                  <span className="w-5 h-5 border-2 border-slate-950 border-t-transparent rounded-full animate-spin" />
+                ) : (
+                  <>
+                    Get OTP Code <ArrowRight size={18} />
+                  </>
+                )}
               </button>
             </form>
           ) : (
             <form onSubmit={handleVerifyOtp} className="space-y-4">
               <div>
                 <div className="flex justify-between items-center mb-1.5">
-                  <label className="text-xs font-semibold text-slate-300">Enter 6-Digit OTP</label>
-                  <button type="button" onClick={() => setOtpSent(false)} className="text-xs text-amber-400 font-semibold hover:underline flex items-center gap-1">
+                  <label className="block text-xs font-bold text-muted-foreground uppercase tracking-wider">
+                    Enter 6-Digit OTP
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() => setOtpSent(false)}
+                    className="text-xs text-amber-500 dark:text-amber-400 font-bold hover:underline flex items-center gap-1"
+                  >
                     <RefreshCw size={12} /> Resend
                   </button>
                 </div>
-                <input
-                  type="text"
-                  maxLength={6}
-                  value={otp}
-                  onChange={(e) => setOtp(e.target.value)}
-                  placeholder="123456"
-                  required
-                  className="w-full h-11 bg-slate-950 border border-slate-800 text-slate-100 placeholder-slate-500 rounded-xl px-4 text-center text-lg font-bold tracking-widest focus:outline-none focus:border-amber-500 focus:ring-1 focus:ring-amber-500 transition-colors"
-                />
+                <div className="relative">
+                  <ShieldCheck size={18} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-muted-foreground" />
+                  <input
+                    type="text"
+                    maxLength={6}
+                    value={otp}
+                    onChange={(e) => setOtp(e.target.value)}
+                    placeholder="123456"
+                    required
+                    className="w-full h-11 bg-muted/40 border border-border text-foreground rounded-xl pl-10 pr-4 text-center text-lg font-mono font-bold tracking-widest focus:outline-none focus:border-amber-500 focus:ring-1 focus:ring-amber-500 transition-all"
+                  />
+                </div>
                 {debugOtp && (
-                  <div className="mt-3 p-2 bg-amber-500/10 border border-amber-500/30 rounded-xl text-center">
-                    <p className="text-xs font-bold text-amber-400">OTP VERIFICATION CODE: {debugOtp}</p>
+                  <div className="mt-2.5 p-2 bg-amber-500/10 border border-amber-500/30 rounded-xl text-center text-xs text-amber-500 dark:text-amber-300 font-mono font-bold">
+                    [DEMO OTP: {debugOtp}]
                   </div>
                 )}
               </div>
@@ -227,9 +214,15 @@ export default function LoginPage() {
               <button
                 type="submit"
                 disabled={loading}
-                className="w-full h-11 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-bold rounded-xl flex items-center justify-center gap-2 shadow-lg shadow-amber-500/20 transition-all"
+                className="w-full h-12 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold rounded-xl flex items-center justify-center gap-2 shadow-lg shadow-amber-500/25 transition-all disabled:opacity-50 mt-2"
               >
-                {loading ? "Verifying..." : "Verify & Sign In"}
+                {loading ? (
+                  <span className="w-5 h-5 border-2 border-slate-950 border-t-transparent rounded-full animate-spin" />
+                ) : (
+                  <>
+                    <LogIn size={18} /> Verify & Sign In
+                  </>
+                )}
               </button>
             </form>
           )
@@ -239,50 +232,63 @@ export default function LoginPage() {
         {tab === "password" && (
           <form onSubmit={handlePasswordSubmit} className="space-y-4">
             <div>
-              <label className="block text-xs font-semibold text-slate-300 mb-1.5">Customer Name or Mobile Number</label>
+              <label className="block text-xs font-bold text-muted-foreground mb-1.5 uppercase tracking-wider">
+                Username
+              </label>
               <input
                 type="text"
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
                 placeholder="e.g. Pyare Mohan or 9876543210"
                 required
-                className="w-full h-11 bg-slate-950 border border-slate-800 text-slate-100 placeholder-slate-500 rounded-xl px-4 text-sm font-semibold focus:outline-none focus:border-amber-500 focus:ring-1 focus:ring-amber-500 transition-colors"
+                className="w-full h-11 bg-muted/40 border border-border text-foreground rounded-xl px-4 text-sm font-medium focus:outline-none focus:border-amber-500 focus:ring-1 focus:ring-amber-500 transition-all"
               />
             </div>
 
             <div>
-              <label className="block text-xs font-semibold text-slate-300 mb-1.5">Phone Number or Password</label>
-              <input
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                placeholder="Enter Mobile Number"
-                required
-                className="w-full h-11 bg-slate-950 border border-slate-800 text-slate-100 placeholder-slate-500 rounded-xl px-4 text-sm font-semibold focus:outline-none focus:border-amber-500 focus:ring-1 focus:ring-amber-500 transition-colors"
-              />
+              <label className="block text-xs font-bold text-muted-foreground mb-1.5 uppercase tracking-wider">
+                Password
+              </label>
+              <div className="relative">
+                <input
+                  type={showPwd ? "text" : "password"}
+                  autoComplete="current-password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  placeholder="••••••••"
+                  required
+                  className="w-full h-11 bg-muted/40 border border-border text-foreground rounded-xl px-4 pr-11 text-sm font-medium focus:outline-none focus:border-amber-500 focus:ring-1 focus:ring-amber-500 transition-all"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPwd((p) => !p)}
+                  className="absolute right-3.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                >
+                  {showPwd ? <EyeOff size={18} /> : <Eye size={18} />}
+                </button>
+              </div>
             </div>
 
             <button
               type="submit"
               disabled={loading}
-              className="w-full h-11 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-bold rounded-xl flex items-center justify-center gap-2 shadow-lg shadow-amber-500/20 transition-all mt-2"
+              className="w-full h-12 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold rounded-xl flex items-center justify-center gap-2 shadow-lg shadow-amber-500/25 transition-all disabled:opacity-50 mt-2"
             >
-              {loading ? "Signing In..." : "Sign In"}
+              {loading ? (
+                <span className="w-5 h-5 border-2 border-slate-950 border-t-transparent rounded-full animate-spin" />
+              ) : (
+                <>
+                  <LogIn size={18} /> Sign In
+                </>
+              )}
             </button>
           </form>
         )}
-
-        {/* 🔐 Clerk Auth Tab */}
-        {tab === "clerk" && (
-          <div className="flex justify-center">
-            <SignIn routing="hash" />
-          </div>
-        )}
-
-        <p className="text-center text-[11px] text-slate-500 mt-6">
-          © {new Date().getFullYear()} Shree Krishna Association. All rights reserved.
-        </p>
       </div>
+
+      <p className="text-muted-foreground text-xs mt-6 text-center font-medium z-10">
+        © {new Date().getFullYear()} Shree Krishna Association. All rights reserved.
+      </p>
     </div>
   );
 }

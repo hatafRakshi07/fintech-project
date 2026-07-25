@@ -63,7 +63,7 @@ export default function CustomersPage() {
   });
 
   const onSubmit = (values: z.infer<typeof customerSchema>) => {
-    createCustomer.mutate({ data: { ...values, status: 'active' } }, {
+    createCustomer.mutate({ data: { ...values, status: 'active' } as any }, {
       onSuccess: () => {
         toast({ title: "Customer created successfully" });
         setIsCreateOpen(false);
