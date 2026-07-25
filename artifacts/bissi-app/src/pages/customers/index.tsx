@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { Link } from "wouter";
+import { Link, useLocation } from "wouter";
 import { useListCustomers, useCreateCustomer } from "@workspace/api-client-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -40,6 +40,7 @@ const customerSchema = z.object({
 });
 
 export default function CustomersPage() {
+  const [, setLocation] = useLocation();
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
   const [isCreateOpen, setIsCreateOpen] = useState(false);
@@ -210,10 +211,10 @@ export default function CustomersPage() {
                 </TableRow>
               ) : (
                 customersList.map((customer) => (
-                  <TableRow key={customer.id} className="hover:bg-muted/50 cursor-pointer">
+                  <TableRow key={customer.id} className="hover:bg-muted/50 cursor-pointer" onClick={() => setLocation(`/customers/${customer.id}`)}>
                     <TableCell className="pl-4 font-mono text-xs">{customer.referenceNumber}</TableCell>
                     <TableCell>
-                      <Link href={`/customers/${customer.id}`} className="font-medium hover:underline">
+                      <Link href={`/customers/${customer.id}`} className="font-medium hover:underline" onClick={(e) => e.stopPropagation()}>
                         {customer.name}
                       </Link>
                     </TableCell>

@@ -117,27 +117,59 @@ router.get("/customers/:id", async (req, res): Promise<void> => {
       .where(eq(customersTable.id, id));
     if (!row) { res.status(404).json({ error: "Customer not found" }); return; }
 
-    const [tokCount, lnCount, paid, giftCount, recoveryCount, interestAcc, committeeMemberships] = await Promise.all([
-      db.select({ c: sql<number>`count(*)::int` }).from(tokensTable).where(eq(tokensTable.customerId, id)),
-      db.select({ c: sql<number>`count(*)::int` }).from(loansTable).where(eq(loansTable.customerId, id)),
-      db.select({ sum: sql<string>`coalesce(sum(amount),0)` }).from(collectionsTable).where(eq(collectionsTable.customerId, id)),
-      db.select({ c: sql<number>`count(*)::int` }).from(giftDistributionsTable).where(eq(giftDistributionsTable.customerId, id)),
-      db.select({ c: sql<number>`count(*)::int` }).from(recoveryTasksTable).where(and(eq(recoveryTasksTable.customerId, id), eq(recoveryTasksTable.status, "pending"))),
-      db.select().from(interestAccountsTable).where(and(eq(interestAccountsTable.customerId, id), eq(interestAccountsTable.status, "active"))),
-      db.select({ cm: committeeMembersTable, commName: committeesTable.name, commType: committeesTable.type })
+    const [tokCount, lnCount, paid, giftCount, recoveryCount, interestAcc, tokenRows, committeeMemberships] = await Promise.all([
+      db.select({ c: sql<number>`count(*)::int` }).from(tokensTable).where(eq(tokensTable.customerId, id)).catch(() => [{ c: 0 }]),
+      db.select({ c: sql<number>`count(*)::int` }).from(loansTable).where(eq(loansTable.customerId, id)).catch(() => [{ c: 0 }]),
+      db.select({ sum: sql<string>`coalesce(sum(CASE WHEN amount ~ '^[0-9]+(\.[0-9]+)?$' THEN amount::numeric ELSE 0 END), 0)` }).from(collectionsTable).where(eq(collectionsTable.customerId, id)).catch(() => [{ sum: "0" }]),
+      db.select({ c: sql<number>`count(*)::int` }).from(giftDistributionsTable).where(eq(giftDistributionsTable.customerId, id)).catch(() => [{ c: 0 }]),
+      db.select({ c: sql<number>`count(*)::int` }).from(recoveryTasksTable).where(and(eq(recoveryTasksTable.customerId, id), eq(recoveryTasksTable.status, "pending"))).catch(() => [{ c: 0 }]),
+      db.select().from(interestAccountsTable).where(and(eq(interestAccountsTable.customerId, id), eq(interestAccountsTable.status, "active"))).catch(() => []),
+      db.select({ t: tokensTable, commName: committeesTable.name, commType: committeesTable.type, installment: committeesTable.installmentAmount })
+        .from(tokensTable)
+        .leftJoin(committeesTable, eq(tokensTable.committeeId, committeesTable.id))
+        .where(eq(tokensTable.customerId, id))
+        .catch(() => []),
+      db.select({ cm: committeeMembersTable, commName: committeesTable.name, commType: committeesTable.type, installment: committeesTable.installmentAmount })
         .from(committeeMembersTable)
         .leftJoin(committeesTable, eq(committeeMembersTable.committeeId, committeesTable.id))
-        .where(eq(committeeMembersTable.customerId, id)),
+        .where(eq(committeeMembersTable.customerId, id))
+        .catch(() => []),
     ]);
 
-    const committeeSummary = Object.values(
-      committeeMemberships.reduce((acc, m) => {
-        const key = m.cm.committeeId;
-        if (!acc[key]) acc[key] = { committeeId: key, committeeName: m.commName ?? "", type: m.commType ?? "", tokens: [] };
-        acc[key].tokens.push(m.cm.tokenNumber);
-        return acc;
-      }, {} as Record<number, { committeeId: number; committeeName: string; type: string; tokens: string[] }>)
-    );
+    const membershipMap = new Map<number, any>();
+    for (const t of tokenRows) {
+      const commId = t.t.committeeId ?? 1;
+      if (!membershipMap.has(commId)) {
+        membershipMap.set(commId, {
+          committeeId: commId,
+          committeeName: t.commName ?? "General Bissi Scheme",
+          type: t.commType ?? "monthly",
+          installment: t.installment ? parseFloat(t.installment) : 0,
+          tokens: [],
+        });
+      }
+      const tokList = membershipMap.get(commId).tokens;
+      if (t.t.tokenNumber && !tokList.includes(t.t.tokenNumber)) {
+        tokList.push(t.t.tokenNumber);
+      }
+    }
+    for (const m of committeeMemberships) {
+      const commId = m.cm.committeeId;
+      if (!membershipMap.has(commId)) {
+        membershipMap.set(commId, {
+          committeeId: commId,
+          committeeName: m.commName ?? "General Bissi Scheme",
+          type: m.commType ?? "monthly",
+          installment: m.installment ? parseFloat(m.installment) : 0,
+          tokens: [],
+        });
+      }
+      const tokList = membershipMap.get(commId).tokens;
+      if (m.cm.tokenNumber && !tokList.includes(m.cm.tokenNumber)) {
+        tokList.push(m.cm.tokenNumber);
+      }
+    }
+    const committeeSummary = Array.from(membershipMap.values());
 
     res.json({
       ...row.c,
@@ -197,15 +229,16 @@ router.get("/customers/:id/passbook", async (req, res): Promise<void> => {
     if (!row) { res.status(404).json({ error: "Customer not found" }); return; }
 
     const [collections, loans, gifts, interestAccs, recoveryTasks] = await Promise.all([
-      db.select().from(collectionsTable).where(eq(collectionsTable.customerId, id)).orderBy(collectionsTable.collectedAt),
-      db.select().from(loansTable).where(eq(loansTable.customerId, id)).orderBy(loansTable.createdAt),
+      db.select().from(collectionsTable).where(eq(collectionsTable.customerId, id)).orderBy(desc(collectionsTable.collectedAt)).catch(() => []),
+      db.select().from(loansTable).where(eq(loansTable.customerId, id)).catch(() => []),
       db.select({ gd: giftDistributionsTable, giftName: giftInventoryTable.name })
         .from(giftDistributionsTable)
         .leftJoin(giftInventoryTable, eq(giftDistributionsTable.giftId, giftInventoryTable.id))
         .where(eq(giftDistributionsTable.customerId, id))
-        .orderBy(giftDistributionsTable.distributionDate),
-      db.select().from(interestAccountsTable).where(eq(interestAccountsTable.customerId, id)),
-      db.select().from(recoveryTasksTable).where(eq(recoveryTasksTable.customerId, id)).orderBy(recoveryTasksTable.createdAt),
+        .orderBy(desc(giftDistributionsTable.distributionDate))
+        .catch(() => []),
+      db.select().from(interestAccountsTable).where(eq(interestAccountsTable.customerId, id)).catch(() => []),
+      db.select().from(recoveryTasksTable).where(eq(recoveryTasksTable.customerId, id)).orderBy(desc(recoveryTasksTable.createdAt)).catch(() => []),
     ]);
 
     const entries = [
@@ -254,33 +287,30 @@ router.get("/customers/:id/passbook", async (req, res): Promise<void> => {
 router.get("/customers/:id/timeline", async (req, res): Promise<void> => {
   try {
     const id = parseInt(Array.isArray(req.params.id) ? req.params.id[0] : req.params.id, 10);
+    const [row] = await db
+      .select({ c: customersTable, branchName: branchesTable.name })
+      .from(customersTable)
+      .leftJoin(branchesTable, eq(customersTable.branchId, branchesTable.id))
+      .where(eq(customersTable.id, id));
+    if (!row) { res.status(404).json({ error: "Customer not found" }); return; }
 
-    const cols = await db.select().from(collectionsTable).where(eq(collectionsTable.customerId, id)).orderBy(collectionsTable.collectedAt);
-    const lns = await db.select().from(loansTable).where(eq(loansTable.customerId, id)).orderBy(loansTable.createdAt);
+    const [collections, loans, gifts, interestAccs, recoveryTasks] = await Promise.all([
+      db.select().from(collectionsTable).where(eq(collectionsTable.customerId, id)).orderBy(desc(collectionsTable.collectedAt)).catch(() => []),
+      db.select().from(loansTable).where(eq(loansTable.customerId, id)).catch(() => []),
+      db.select().from(giftDistributionsTable).where(eq(giftDistributionsTable.customerId, id)).catch(() => []),
+      db.select().from(interestAccountsTable).where(eq(interestAccountsTable.customerId, id)).catch(() => []),
+      db.select().from(recoveryTasksTable).where(eq(recoveryTasksTable.customerId, id)).catch(() => []),
+    ]);
 
     const entries = [
-      ...cols.map((c) => ({
-        id: c.id,
-        type: "payment",
-        title: "Payment Received",
-        description: `₹${parseFloat(c.amount).toLocaleString()} via ${c.paymentMode}`,
-        amount: parseFloat(c.amount),
-        date: safeIso(c.collectedAt),
-      })),
-      ...lns.map((l) => ({
-        id: l.id + 10000,
-        type: "loan",
-        title: `Loan ${l.status}`,
-        description: `Loan of ₹${parseFloat(l.principalAmount).toLocaleString()} - ${l.interestType} rate ${l.interestRate}%`,
-        amount: parseFloat(l.principalAmount),
-        date: safeIso(l.createdAt),
-      })),
+      ...collections.map((c: any) => ({ type: "collection", date: safeIso(c.collectedAt), amount: parseFloat(c.amount || "0"), title: `Payment Received (${c.paymentMode})`, description: c.notes || "" })),
+      ...loans.map((l: any) => ({ type: "loan", date: safeIso(l.createdAt), amount: parseFloat(l.principalAmount || "0"), title: `Loan Disbursed (${l.loanType})`, description: `Interest Rate: ${l.interestRate}%` })),
     ].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
 
     res.json(entries);
   } catch (err: any) {
     console.error("[GET /customers/:id/timeline ERROR]", err);
-    res.json([]);
+    res.status(500).json({ error: "Failed to load timeline" });
   }
 });
 
@@ -307,60 +337,84 @@ router.get("/customers/:id/history", async (req, res): Promise<void> => {
       db.select({ cm: committeeMembersTable, commName: committeesTable.name, commType: committeesTable.type, installment: committeesTable.installmentAmount })
         .from(committeeMembersTable)
         .leftJoin(committeesTable, eq(committeeMembersTable.committeeId, committeesTable.id))
-        .where(eq(committeeMembersTable.customerId, id)),
-      db.select({ t: tokensTable, commName: committeesTable.name })
+        .where(eq(committeeMembersTable.customerId, id))
+        .catch(() => []),
+      db.select({ t: tokensTable, commName: committeesTable.name, commType: committeesTable.type, installment: committeesTable.installmentAmount })
         .from(tokensTable)
         .leftJoin(committeesTable, eq(tokensTable.committeeId, committeesTable.id))
-        .where(eq(tokensTable.customerId, id)),
+        .where(eq(tokensTable.customerId, id))
+        .catch(() => []),
       db.select()
         .from(collectionsTable)
         .where(eq(collectionsTable.customerId, id))
-        .orderBy(sql`collected_at DESC`)
-        .limit(200),
-      db.select().from(loansTable).where(eq(loansTable.customerId, id)),
+        .orderBy(desc(collectionsTable.collectedAt))
+        .limit(200)
+        .catch(() => []),
+      db.select().from(loansTable).where(eq(loansTable.customerId, id)).catch(() => []),
       db.select({ gd: giftDistributionsTable, giftName: giftInventoryTable.name })
         .from(giftDistributionsTable)
         .leftJoin(giftInventoryTable, eq(giftDistributionsTable.giftId, giftInventoryTable.id))
         .where(eq(giftDistributionsTable.customerId, id))
-        .orderBy(sql`distribution_date DESC`),
-      db.select().from(interestAccountsTable).where(eq(interestAccountsTable.customerId, id)),
-      db.select().from(recoveryTasksTable).where(eq(recoveryTasksTable.customerId, id)),
+        .orderBy(desc(giftDistributionsTable.distributionDate))
+        .catch(() => []),
+      db.select().from(interestAccountsTable).where(eq(interestAccountsTable.customerId, id)).catch(() => []),
+      db.select().from(recoveryTasksTable).where(eq(recoveryTasksTable.customerId, id)).catch(() => []),
     ]);
 
-    const memberships = Object.values(
-      membershipRows.reduce((acc, m) => {
-        const key = m.cm.committeeId;
-        if (!acc[key]) acc[key] = {
-          committeeId: key,
-          committeeName: m.commName ?? "",
-          type: m.commType ?? "",
+    const membershipMap = new Map<number, any>();
+    for (const t of tokenRows) {
+      const commId = t.t.committeeId ?? 1;
+      if (!membershipMap.has(commId)) {
+        membershipMap.set(commId, {
+          committeeId: commId,
+          committeeName: t.commName ?? "General Bissi Scheme",
+          type: t.commType ?? "monthly",
+          installment: t.installment ? parseFloat(t.installment) : 0,
+          tokens: [],
+        });
+      }
+      const tokList = membershipMap.get(commId).tokens;
+      if (t.t.tokenNumber && !tokList.includes(t.t.tokenNumber)) {
+        tokList.push(t.t.tokenNumber);
+      }
+    }
+    for (const m of membershipRows) {
+      const commId = m.cm.committeeId;
+      if (!membershipMap.has(commId)) {
+        membershipMap.set(commId, {
+          committeeId: commId,
+          committeeName: m.commName ?? "General Bissi Scheme",
+          type: m.commType ?? "monthly",
           installment: m.installment ? parseFloat(m.installment) : 0,
           tokens: [],
-        };
-        acc[key].tokens.push(m.cm.tokenNumber);
-        return acc;
-      }, {} as Record<number, any>)
-    );
+        });
+      }
+      const tokList = membershipMap.get(commId).tokens;
+      if (m.cm.tokenNumber && !tokList.includes(m.cm.tokenNumber)) {
+        tokList.push(m.cm.tokenNumber);
+      }
+    }
+    const memberships = Array.from(membershipMap.values());
 
     const tokens = tokenRows.map(t => ({
       id: t.t.id,
       tokenNumber: t.t.tokenNumber,
-      committeeName: t.commName ?? "",
+      committeeName: t.commName ?? "General Bissi Scheme",
       status: t.t.status,
     }));
 
-    const collections = collectionRows.map(c => ({
+    const collections = collectionRows.map((c: any) => ({
       id: c.id,
-      amount: parseFloat(c.amount),
+      amount: parseFloat(c.amount || "0"),
       paymentMode: c.paymentMode,
       date: safeIso(c.collectedAt),
       notes: c.notes,
       committeeId: c.committeeId,
     }));
 
-    const totalPaid = collectionRows.reduce((s, c) => s + parseFloat(c.amount), 0);
-    const totalLoanAmount = loanRows.reduce((s, l) => s + parseFloat(l.principalAmount), 0);
-    const totalLoanPaid = loanRows.reduce((s, l) => s + parseFloat(l.paidAmount), 0);
+    const totalPaid = collectionRows.reduce((s: number, c: any) => s + (parseFloat(c.amount) || 0), 0);
+    const totalLoanAmount = loanRows.reduce((s: number, l: any) => s + (parseFloat(l.principalAmount) || 0), 0);
+    const totalLoanPaid = loanRows.reduce((s: number, l: any) => s + (parseFloat(l.paidAmount) || 0), 0);
 
     res.json({
       customer: {
@@ -383,39 +437,39 @@ router.get("/customers/:id/history", async (req, res): Promise<void> => {
       memberships,
       tokens,
       collections,
-      loans: loanRows.map(l => ({
+      loans: loanRows.map((l: any) => ({
         ...l,
-        principalAmount: parseFloat(l.principalAmount),
-        interestRate: parseFloat(l.interestRate),
-        paidAmount: parseFloat(l.paidAmount),
+        principalAmount: parseFloat(l.principalAmount || "0"),
+        interestRate: parseFloat(l.interestRate || "0"),
+        paidAmount: parseFloat(l.paidAmount || "0"),
         emiAmount: l.emiAmount ? parseFloat(l.emiAmount) : null,
         totalAmount: l.totalAmount ? parseFloat(l.totalAmount) : null,
         createdAt: safeIso(l.createdAt),
       })),
-      gifts: giftRows.map(g => ({
-        id: g.gd.id,
-        giftName: g.giftName ?? "Item",
-        quantity: g.gd.quantity,
-        date: g.gd.distributionDate,
-        status: g.gd.status,
+      gifts: giftRows.map((g: any) => ({
+        id: g.gd?.id,
+        giftName: g.giftName ?? "Association Gift",
+        quantity: g.gd?.quantity ?? 1,
+        date: safeIso(g.gd?.distributionDate),
+        status: g.gd?.status ?? "distributed",
       })),
-      interestAccounts: interestRows.map(a => ({
+      interestAccounts: interestRows.map((a: any) => ({
         ...a,
-        principalAmount: parseFloat(a.principalAmount),
-        interestRate: parseFloat(a.interestRate),
+        principalAmount: parseFloat(a.principalAmount || "0"),
+        interestRate: parseFloat(a.interestRate || "0"),
         monthlyInterest: parseFloat(a.monthlyInterest ?? "0"),
-        totalInterestPaid: parseFloat(a.totalInterestPaid),
-        pendingInterest: parseFloat(a.pendingInterest),
+        totalInterestPaid: parseFloat(a.totalInterestPaid || "0"),
+        pendingInterest: parseFloat(a.pendingInterest || "0"),
         createdAt: safeIso(a.createdAt),
       })),
-      recoveryTasks: recoveryRows.map(r => ({
+      recoveryTasks: recoveryRows.map((r: any) => ({
         ...r,
         createdAt: safeIso(r.createdAt),
       })),
     });
   } catch (err: any) {
     console.error("[GET /customers/:id/history ERROR]", err);
-    res.status(500).json({ error: "Failed to load customer history" });
+    res.status(500).json({ error: "Failed to load customer history", details: err?.message });
   }
 });
 
