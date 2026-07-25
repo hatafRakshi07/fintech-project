@@ -1,7 +1,7 @@
 import { Router, type IRouter } from "express";
 import { db, customersTable, branchesTable, tokensTable, loansTable, collectionsTable } from "@workspace/db";
 import { committeesTable, committeeMembersTable, giftDistributionsTable, giftInventoryTable, interestAccountsTable, recoveryTasksTable } from "@workspace/db";
-import { eq, and, ilike, or, sql, count } from "drizzle-orm";
+import { eq, and, ilike, or, sql, count, desc } from "drizzle-orm";
 import { safeIso } from "../lib/utils";
 
 const router: IRouter = Router();
