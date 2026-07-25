@@ -9,6 +9,7 @@ import {
   useListBranches,
   getListLoansQueryKey,
 } from "@workspace/api-client-react";
+import { safeArray } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
@@ -73,15 +74,19 @@ export default function LoansPage() {
 
   const { role, user, isCustomer } = useRole();
 
-  const { data: loans, isLoading } = useListLoans({
+  const { data: rawLoans, isLoading } = useListLoans({
     status: statusFilter !== "all" ? statusFilter : undefined,
     page,
     limit: 20,
     customerId: isCustomer ? user?.customerId ?? undefined : undefined,
   } as any);
   const { data: summary } = useGetLoanSummary();
-  const { data: customers } = useListCustomers({ limit: 200 });
-  const { data: branches } = useListBranches();
+  const { data: rawCustomers } = useListCustomers({ limit: 200 });
+  const { data: rawBranches } = useListBranches();
+
+  const safeLoansList = safeArray<any>((rawLoans as any)?.data ?? rawLoans);
+  const safeCustomersList = safeArray<any>((rawCustomers as any)?.data ?? rawCustomers);
+  const safeBranchesList = safeArray<any>(rawBranches);
 
   const createLoan = useCreateLoan();
   const updateLoan = useUpdateLoan();
@@ -169,7 +174,7 @@ export default function LoansPage() {
                             <SelectTrigger><SelectValue placeholder="Select customer" /></SelectTrigger>
                           </FormControl>
                           <SelectContent>
-                            {customers?.data?.map((c) => (
+                             {safeCustomersList.map((c) => (
                               <SelectItem key={c.id} value={c.id.toString()}>{c.name} ({c.referenceNumber})</SelectItem>
                             ))}
                           </SelectContent>
@@ -245,7 +250,7 @@ export default function LoansPage() {
                             <SelectTrigger><SelectValue placeholder="Select branch" /></SelectTrigger>
                           </FormControl>
                           <SelectContent>
-                            {branches?.map((b) => (
+                             {safeBranchesList.map((b) => (
                               <SelectItem key={b.id} value={b.id.toString()}>{b.name}</SelectItem>
                             ))}
                           </SelectContent>
@@ -337,12 +342,12 @@ export default function LoansPage() {
                 <TableRow>
                   <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">Loading loans...</TableCell>
                 </TableRow>
-              ) : !loans?.data?.length ? (
+              ) : safeLoansList.length === 0 ? (
                 <TableRow>
                   <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">No loans found</TableCell>
                 </TableRow>
               ) : (
-                loans.data.map((loan) => (
+                safeLoansList.map((loan) => (
                   <TableRow key={loan.id} className="hover:bg-muted/50">
                     <TableCell className="pl-4">
                       <Link href={`/loans/${loan.id}`}>
@@ -380,12 +385,12 @@ export default function LoansPage() {
               )}
             </TableBody>
           </Table>
-          {loans && loans.total > 20 && (
+          {(rawLoans as any)?.total > 20 && (
             <div className="flex items-center justify-between px-4 py-3 border-t text-sm text-muted-foreground">
-              <span>Showing {(page - 1) * 20 + 1}–{Math.min(page * 20, loans.total)} of {loans.total}</span>
+              <span>Showing {(page - 1) * 20 + 1}–{Math.min(page * 20, (rawLoans as any).total)} of {(rawLoans as any).total}</span>
               <div className="flex gap-2">
                 <Button variant="outline" size="sm" disabled={page === 1} onClick={() => setPage(page - 1)}>Previous</Button>
-                <Button variant="outline" size="sm" disabled={page * 20 >= loans.total} onClick={() => setPage(page + 1)}>Next</Button>
+                <Button variant="outline" size="sm" disabled={page * 20 >= (rawLoans as any).total} onClick={() => setPage(page + 1)}>Next</Button>
               </div>
             </div>
           )}

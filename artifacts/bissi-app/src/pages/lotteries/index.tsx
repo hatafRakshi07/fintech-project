@@ -9,6 +9,7 @@ import {
 } from "@workspace/api-client-react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
+import { safeArray } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import {
@@ -65,8 +66,8 @@ export default function LotteriesPage() {
   });
   const { data: rawCommittees } = useListCommittees();
 
-  const lotteries = Array.isArray(rawLotteries) ? rawLotteries : [];
-  const committees = Array.isArray(rawCommittees) ? rawCommittees : [];
+  const lotteries = safeArray<any>(rawLotteries);
+  const committees = safeArray<any>(rawCommittees);
 
   const createLottery = useCreateLottery();
   const conductDraw = useConductDraw();
@@ -80,7 +81,7 @@ export default function LotteriesPage() {
     enabled: membersLotteryId !== null,
   });
 
-  const members = Array.isArray(rawMembers) ? rawMembers : [];
+  const members = safeArray<any>(rawMembers);
 
   const form = useForm<z.infer<typeof lotterySchema>>({
     resolver: zodResolver(lotterySchema),

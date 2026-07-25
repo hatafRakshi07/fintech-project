@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api, fmt, getStoredUser, ApiError } from "@/lib/api";
+import { safeArray } from "@/lib/utils";
 import Header from "@/components/Header";
 import { Plus, CheckCircle2, Clock, User, X, CreditCard, Target, Phone, ChevronRight, Search, Landmark, Layers, Sparkles } from "lucide-react";
 
@@ -93,10 +94,11 @@ export default function CollectionsPage() {
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
 
   // Query Destination Bank / Cash Accounts
-  const { data: bankAccounts = [] } = useQuery<BankAccount[]>({
+  const { data: rawBankAccounts } = useQuery<BankAccount[]>({
     queryKey: ["bank-accounts"],
     queryFn: () => api.get("/accounts"),
   });
+  const bankAccounts = safeArray<BankAccount>(rawBankAccounts);
 
   const activeAccounts = bankAccounts.filter((a) => a.isActive);
 
@@ -108,20 +110,22 @@ export default function CollectionsPage() {
   });
 
   // Query Target Items
-  const { data: targetItems = [], isLoading } = useQuery<TargetItem[]>({
+  const { data: rawTargetItems, isLoading } = useQuery<TargetItem[]>({
     queryKey: ["due-today", user?.branchId, filterTab],
     queryFn: () =>
       api.get(`/collections/due-today?filter=${filterTab}${user?.branchId ? `&branchId=${user.branchId}` : ""}`),
     refetchInterval: 15_000,
   });
+  const targetItems = safeArray<TargetItem>(rawTargetItems);
 
   // Query customer's active tokens when modal is open
   const currentCustomerId = form.customerId;
-  const { data: customerTokens = [] } = useQuery<CustomerToken[]>({
+  const { data: rawCustomerTokens } = useQuery<CustomerToken[]>({
     queryKey: ["customer-tokens", currentCustomerId],
     queryFn: () => api.get(`/tokens?customerId=${currentCustomerId}`),
     enabled: currentCustomerId > 0,
   });
+  const customerTokens = safeArray<CustomerToken>(rawCustomerTokens);
 
   // Auto-allocate lump sum across tokens when amount changes
   useEffect(() => {

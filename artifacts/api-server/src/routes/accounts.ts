@@ -1,7 +1,7 @@
 import { Router, type IRouter } from "express";
 import { db, bankAccountsTable } from "@workspace/db";
 import { eq, desc } from "drizzle-orm";
-import { safeIso } from "../lib/utils";
+import { safeIso, sendListResponse, sendErrorListResponse } from "../lib/utils";
 
 const router: IRouter = Router();
 
@@ -44,10 +44,9 @@ router.get("/accounts", async (req, res): Promise<void> => {
       accounts = await db.select().from(bankAccountsTable).orderBy(desc(bankAccountsTable.createdAt));
     }
 
-    res.json(accounts.map((a: any) => ({ ...a, createdAt: safeIso(a.createdAt) })));
+    sendListResponse(res, accounts.map((a: any) => ({ ...a, createdAt: safeIso(a.createdAt) })));
   } catch (err: any) {
-    console.error("[GET /api/accounts ERROR]", err);
-    res.json([]);
+    sendErrorListResponse(res, err?.message || "Failed to fetch accounts");
   }
 });
 

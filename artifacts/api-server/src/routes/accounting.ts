@@ -9,7 +9,7 @@ import {
   type VoucherPosting,
 } from "@workspace/db";
 import { eq, and, sql, desc, asc } from "drizzle-orm";
-import { safeIso } from "../lib/utils";
+import { safeIso, sendListResponse, sendErrorListResponse } from "../lib/utils";
 
 const router: IRouter = Router();
 
@@ -89,10 +89,9 @@ router.get("/accounting/ledgers", async (req, res): Promise<void> => {
       };
     });
 
-    res.json(data);
+    sendListResponse(res, data);
   } catch (err: any) {
-    console.error("[GET LEDGERS ERROR]", err);
-    res.json([]);
+    sendErrorListResponse(res, err?.message || "Failed to fetch ledgers");
   }
 });
 
@@ -171,10 +170,9 @@ router.get("/accounting/vouchers", async (req, res): Promise<void> => {
       postings: postingsByVoucher.get(v.id) || [],
     }));
 
-    res.json(data);
+    sendListResponse(res, data);
   } catch (err: any) {
-    console.error("[GET VOUCHERS ERROR]", err);
-    res.json([]);
+    sendErrorListResponse(res, err?.message || "Failed to fetch vouchers");
   }
 });
 

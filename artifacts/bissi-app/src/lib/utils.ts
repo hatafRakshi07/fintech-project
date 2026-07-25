@@ -21,6 +21,13 @@ export function safeArray<T>(data: unknown): T[] {
 }
 
 /**
+ * Global safe list hook / helper as requested by system spec.
+ */
+export function useSafeList<T>(data: unknown): T[] {
+  return safeArray<T>(data);
+}
+
+/**
  * React hook wrapper around safeArray for memoized performance.
  */
 export function useSafeArray<T>(data: unknown): T[] {

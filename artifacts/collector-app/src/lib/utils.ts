@@ -1,12 +1,6 @@
-export * from "./generated/api";
-export * from "./generated/api.schemas";
-export { setBaseUrl, setAuthTokenGetter, customFetch } from "./custom-fetch";
-export type { AuthTokenGetter } from "./custom-fetch";
-
 /**
- * Global safe array sanitizer.
- * Converts raw API responses, paginated objects ({ data: [...] }), or null/undefined
- * into a guaranteed non-null T[] array.
+ * Universal safe array helper for Collector App.
+ * Guarantees a non-null Array is returned for component rendering.
  */
 export function safeArray<T>(data: unknown): T[] {
   if (!data) return [];
@@ -23,10 +17,6 @@ export function safeArray<T>(data: unknown): T[] {
   return [];
 }
 
-/**
- * Global safe list helper (alias for safeArray).
- * Ensures component data is always an array before calling .map(), .filter(), or .length.
- */
 export function useSafeList<T>(data: unknown): T[] {
   return safeArray<T>(data);
 }

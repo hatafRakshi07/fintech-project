@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { api, fmt } from "@/lib/api";
+import { safeArray } from "@/lib/utils";
 import Header from "@/components/Header";
 import { Search, User, Phone, MapPin, ChevronRight, X, CreditCard } from "lucide-react";
 
@@ -32,7 +33,7 @@ export default function CustomersPage() {
     queryKey: ["customers-search", search],
     queryFn: () =>
       api.get(`/customers?search=${encodeURIComponent(search)}&limit=20`).then((d: any) =>
-        Array.isArray(d) ? d : d.data ?? [],
+        safeArray<Customer>(d),
       ),
     enabled: search.length >= 2,
   });

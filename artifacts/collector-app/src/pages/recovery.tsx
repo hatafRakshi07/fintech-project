@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api, fmt, getStoredUser, ApiError } from "@/lib/api";
+import { safeArray } from "@/lib/utils";
 import Header from "@/components/Header";
 import { AlertTriangle, Clock, CheckCircle2, Phone, ChevronDown, ChevronUp, X } from "lucide-react";
 
@@ -48,7 +49,7 @@ export default function RecoveryPage() {
   const [callForm, setCallForm] = useState<CallLogForm>({ outcome: "no_answer", notes: "", nextAction: "" });
   const [statusFilter, setStatusFilter] = useState("pending,in_progress");
 
-  const { data: tasks = [], isLoading } = useQuery<RecoveryTask[]>({
+  const { data: rawTasks, isLoading } = useQuery<RecoveryTask[]>({
     queryKey: ["recovery-tasks", user?.branchId, statusFilter],
     queryFn: () => {
       const params = new URLSearchParams();
@@ -58,6 +59,7 @@ export default function RecoveryPage() {
     },
     refetchInterval: 60_000,
   });
+  const tasks = safeArray<RecoveryTask>(rawTasks);
 
   const patchMutation = useMutation({
     mutationFn: ({ id, data }: { id: number; data: object }) =>

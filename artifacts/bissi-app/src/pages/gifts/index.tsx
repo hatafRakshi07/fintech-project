@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
+import { safeArray } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
@@ -50,9 +51,14 @@ export default function GiftsPage() {
   const [newDist, setNewDist] = useState({ giftId: "", customerId: "", distributionDate: new Date().toISOString().split("T")[0], notes: "", branchId: "1", quantity: "1" });
 
   const { data: summary } = useQuery<GiftSummary>({ queryKey: ["gifts", "summary"], queryFn: () => api.get("/gifts/summary") });
-  const { data: categories = [] } = useQuery<GiftCategory[]>({ queryKey: ["gifts", "categories"], queryFn: () => api.get("/gifts/categories") });
-  const { data: inventory = [], isLoading: loadingInventory } = useQuery<GiftItem[]>({ queryKey: ["gifts", "inventory"], queryFn: () => api.get("/gifts/inventory") });
-  const { data: distributions = [], isLoading: loadingDist } = useQuery<GiftDistribution[]>({ queryKey: ["gifts", "distributions"], queryFn: () => api.get("/gifts/distributions") });
+  const { data: rawCategories } = useQuery<GiftCategory[]>({ queryKey: ["gifts", "categories"], queryFn: () => api.get("/gifts/categories") });
+  const categories = safeArray<GiftCategory>(rawCategories);
+
+  const { data: rawInventory, isLoading: loadingInventory } = useQuery<GiftItem[]>({ queryKey: ["gifts", "inventory"], queryFn: () => api.get("/gifts/inventory") });
+  const inventory = safeArray<GiftItem>(rawInventory);
+
+  const { data: rawDistributions, isLoading: loadingDist } = useQuery<GiftDistribution[]>({ queryKey: ["gifts", "distributions"], queryFn: () => api.get("/gifts/distributions") });
+  const distributions = safeArray<GiftDistribution>(rawDistributions);
 
   const createItem = useMutation({
     mutationFn: (data: typeof newItem) => api.post("/gifts/inventory", { ...data, categoryId: parseInt(data.categoryId), quantityTotal: parseInt(data.quantityTotal), branchId: parseInt(data.branchId) }),

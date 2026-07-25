@@ -1,7 +1,7 @@
 import { Router, type IRouter } from "express";
 import { db, collectorsTable, branchesTable, collectionsTable } from "@workspace/db";
 import { eq, and, ilike, sql } from "drizzle-orm";
-import { safeIso } from "../lib/utils";
+import { safeIso, sendListResponse, sendErrorListResponse } from "../lib/utils";
 
 const router: IRouter = Router();
 
@@ -36,10 +36,9 @@ router.get("/collectors", async (req, res): Promise<void> => {
       })
     );
 
-    res.json(result);
+    sendListResponse(res, result);
   } catch (err: any) {
-    console.error("[GET /collectors ERROR]", err);
-    res.json([]);
+    sendErrorListResponse(res, err?.message || "Failed to fetch collectors");
   }
 });
 
