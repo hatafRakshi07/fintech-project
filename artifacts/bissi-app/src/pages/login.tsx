@@ -197,18 +197,23 @@ export default function LoginPage() {
             </CardDescription>
           </CardHeader>
           <CardContent className="px-5 pb-5 pt-2">
-            <Tabs defaultValue="password" className="w-full">
-              <TabsList className="grid w-full grid-cols-3 mb-4 h-11">
-                <TabsTrigger value="password" className="text-xs font-bold gap-1 text-amber-500">
-                  <KeyRound className="h-3.5 w-3.5" /> Password
-                </TabsTrigger>
-                <TabsTrigger value="otp" className="text-xs font-semibold gap-1 text-emerald-500">
-                  <Flame className="h-3.5 w-3.5" /> OTP / WA
-                </TabsTrigger>
-                <TabsTrigger value="clerk" className="text-xs font-semibold gap-1 text-indigo-500">
-                  <UserCheck className="h-3.5 w-3.5" /> Clerk Auth
-                </TabsTrigger>
-              </TabsList>
+            {(() => {
+              const hasClerkKey = Boolean(import.meta.env.VITE_CLERK_PUBLISHABLE_KEY);
+              return (
+                <Tabs defaultValue="password" className="w-full">
+                  <TabsList className={`grid w-full ${hasClerkKey ? "grid-cols-3" : "grid-cols-2"} mb-4 h-11`}>
+                    <TabsTrigger value="password" className="text-xs sm:text-sm font-bold gap-1 text-amber-500">
+                      <KeyRound className="h-4 w-4" /> Password Login
+                    </TabsTrigger>
+                    <TabsTrigger value="otp" className="text-xs sm:text-sm font-semibold gap-1 text-emerald-500">
+                      <Flame className="h-4 w-4" /> WhatsApp / SMS OTP
+                    </TabsTrigger>
+                    {hasClerkKey && (
+                      <TabsTrigger value="clerk" className="text-xs font-semibold gap-1 text-indigo-500">
+                        <UserCheck className="h-3.5 w-3.5" /> Clerk Auth
+                      </TabsTrigger>
+                    )}
+                  </TabsList>
 
               {/* Password / Name & Phone Login Tab */}
               <TabsContent value="password">
@@ -328,6 +333,8 @@ export default function LoginPage() {
                 )}
               </TabsContent>
             </Tabs>
+              );
+            })()}
           </CardContent>
         </Card>
 
