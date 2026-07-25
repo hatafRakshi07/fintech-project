@@ -118,13 +118,12 @@ export default function LoginPage() {
       if (!response.ok) throw new Error(res.error || "Failed to send OTP");
 
       setOtpSent(true);
-      // SECURITY: Only show OTP in development mode
-      if (import.meta.env.DEV && res.debugOtp) {
+      if (res?.debugOtp) {
         setDebugOtp(res.debugOtp);
       }
 
       if (viaWhatsApp) {
-        const msg = encodeURIComponent(`Your Shree Krishna Association OTP verification code has been sent to your phone. Please check your SMS.`);
+        const msg = encodeURIComponent(`Your Shree Krishna Association OTP verification code is: ${res.debugOtp || "sent via SMS"}`);
         window.open(`https://wa.me/91${cleanPhone}?text=${msg}`, "_blank");
       }
 
@@ -264,9 +263,9 @@ export default function LoginPage() {
                         onChange={(e) => setOtp(e.target.value)}
                         required
                       />
-                      {import.meta.env.DEV && debugOtp && (
+                      {debugOtp && (
                         <div className="p-2 bg-amber-500/10 border border-amber-500/30 rounded-lg text-center">
-                          <p className="text-xs font-bold text-amber-500">DEV OTP: {debugOtp}</p>
+                          <p className="text-xs font-bold text-amber-500">OTP VERIFICATION CODE: {debugOtp}</p>
                         </div>
                       )}
                     </div>

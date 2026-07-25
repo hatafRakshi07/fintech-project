@@ -76,13 +76,12 @@ export default function LoginPage() {
     try {
       const res = await api.post<any>("/auth/send-otp", { phone: cleanPhone });
       setOtpSent(true);
-      // SECURITY: Only show OTP in development mode
-      if (import.meta.env.DEV && res.debugOtp) {
+      if (res?.debugOtp) {
         setDebugOtp(res.debugOtp);
       }
 
       if (viaWhatsApp) {
-        const msg = encodeURIComponent(`Your Field Collector OTP verification code has been sent to your phone. Please check your SMS.`);
+        const msg = encodeURIComponent(`Your Field Collector OTP verification code is: ${res.debugOtp || "sent via SMS"}`);
         window.open(`https://wa.me/91${cleanPhone}?text=${msg}`, "_blank");
       }
     } catch (err: any) {
@@ -218,9 +217,9 @@ export default function LoginPage() {
                   required
                   className="w-full h-11 bg-slate-950 border border-slate-800 text-slate-100 placeholder-slate-500 rounded-xl px-4 text-center text-lg font-bold tracking-widest focus:outline-none focus:border-amber-500 focus:ring-1 focus:ring-amber-500 transition-colors"
                 />
-                {import.meta.env.DEV && debugOtp && (
+                {debugOtp && (
                   <div className="mt-3 p-2 bg-amber-500/10 border border-amber-500/30 rounded-xl text-center">
-                    <p className="text-xs font-bold text-amber-400">DEV OTP: {debugOtp}</p>
+                    <p className="text-xs font-bold text-amber-400">OTP VERIFICATION CODE: {debugOtp}</p>
                   </div>
                 )}
               </div>
