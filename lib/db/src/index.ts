@@ -9,7 +9,7 @@ let poolInstance: pg.Pool | null = null;
 let dbInstance: any = null;
 
 function getPool() {
-  const url = process.env.DATABASE_URL || "postgresql://postgres:shreeassociation2026@db.ovtzfzeodcksosfwjibf.supabase.co:5432/postgres";
+  const url = process.env.DATABASE_URL || "postgresql://neondb_owner:npg_qSQN29ZxTKzt@ep-frosty-cloud-at51tjed.c-9.us-east-1.aws.neon.tech/neondb?sslmode=require";
   if (!poolInstance) {
     poolInstance = new Pool({
       connectionString: url,
