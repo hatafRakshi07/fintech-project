@@ -18,6 +18,8 @@ function getPool() {
   if (!poolInstance) {
     poolInstance = new Pool({
       connectionString: url,
+      // Force public schema to prevent collisions with Supabase internal auth.users table
+      options: "-c search_path=public",
       // Force IPv4 lookup for Render compatibility (prevents ENETUNREACH IPv6 errors)
       lookup: (hostname: string, options: any, callback: any) => {
         if (typeof options === "function") {
@@ -37,6 +39,10 @@ function getPool() {
       ...(process.env.DATABASE_SSL === "false" || url.includes("ssl=false") || url.includes("localhost") || url.includes("127.0.0.1")
         ? {}
         : { ssl: { rejectUnauthorized: false } }),
+    });
+
+    poolInstance.on("connect", (client) => {
+      client.query("SET search_path TO public;").catch(() => {});
     });
 
     // Log pool errors so they surface in prod logs instead of crashing
