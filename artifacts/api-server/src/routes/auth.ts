@@ -2,7 +2,7 @@ import { Router, type IRouter, type Request, type Response, type NextFunction } 
 import { db, usersTable, sessionsTable, otpsTable, customersTable } from "@workspace/db";
 import { eq, lt, gt, and, or, sql } from "drizzle-orm";
 import { requireAuth } from "../middleware/auth";
-import { log } from "../../utils/log";
+import { log } from "../utils/log";
 
 import { randomBytes } from "crypto";
 import bcrypt from "bcryptjs";
