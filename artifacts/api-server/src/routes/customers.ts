@@ -264,7 +264,7 @@ router.get("/customers/:id/passbook", async (req, res): Promise<void> => {
       })),
     ].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
 
-    const totalPaid = collections.reduce((s, c) => s + parseFloat(c.amount), 0);
+    const totalPaid = (collections as any[]).reduce((s: number, c: any) => s + parseFloat(c.amount || "0"), 0);
     const customer = { ...row.c, branchName: row.branchName, totalTokens: 0, totalLoans: 0, totalPaid, createdAt: safeIso(row.c.createdAt) };
 
     res.json({
@@ -412,9 +412,9 @@ router.get("/customers/:id/history", async (req, res): Promise<void> => {
       committeeId: c.committeeId,
     }));
 
-    const totalPaid = collectionRows.reduce((s: number, c: any) => s + (parseFloat(c.amount) || 0), 0);
-    const totalLoanAmount = loanRows.reduce((s: number, l: any) => s + (parseFloat(l.principalAmount) || 0), 0);
-    const totalLoanPaid = loanRows.reduce((s: number, l: any) => s + (parseFloat(l.paidAmount) || 0), 0);
+    const totalPaid = (collectionRows as any[]).reduce((s: number, c: any) => s + (parseFloat(c.amount) || 0), 0);
+    const totalLoanAmount = (loanRows as any[]).reduce((s: number, l: any) => s + (parseFloat(l.principalAmount) || 0), 0);
+    const totalLoanPaid = (loanRows as any[]).reduce((s: number, l: any) => s + (parseFloat(l.paidAmount) || 0), 0);
 
     res.json({
       customer: {
