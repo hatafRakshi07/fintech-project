@@ -65,3 +65,10 @@ artifacts/api-server/dist/
 # Do NOT ignore Vercel config and serverless function
 # vercel.json and api/ are tracked
 
+# Environment files
+.env
+.env.*
+!.env.example
+!.env.template
+
+
