@@ -22,14 +22,19 @@ router.get("/customers", async (req, res): Promise<void> => {
     const offset = (pageNum - 1) * limitNum;
 
     const conditions = [];
-    if (search) {
-      const q = `%${(search as string).trim()}%`;
+    if (search && typeof search === "string" && search.trim().length > 0) {
+      const q = `%${search.trim()}%`;
       conditions.push(or(ilike(customersTable.name, q), ilike(customersTable.mobile, q), ilike(customersTable.referenceNumber, q), ilike(customersTable.city, q)));
     }
-    if (branchId) {
-      conditions.push(eq(customersTable.branchId, parseInt(branchId as string, 10)));
+    
+    if (branchId && typeof branchId === "string" && branchId !== "undefined" && branchId !== "null" && branchId !== "0") {
+      const bId = parseInt(branchId, 10);
+      if (!isNaN(bId) && bId > 0) {
+        conditions.push(eq(customersTable.branchId, bId));
+      }
     }
-    if (status) {
+
+    if (status && typeof status === "string" && status !== "all" && status !== "undefined") {
       conditions.push(eq(customersTable.status, status as any));
     }
 
@@ -49,10 +54,15 @@ router.get("/customers", async (req, res): Promise<void> => {
     let countQuery = db.select({ total: sql<number>`count(*)::int` }).from(customersTable).$dynamic();
     if (conditions.length > 0) countQuery = (countQuery as any).where(and(...conditions));
 
-    const [allRows, [{ total }]] = await Promise.all([
+    const [allRows, countRes] = await Promise.all([
       (query as any).orderBy(customersTable.id).offset(offset).limit(limitNum),
-      countQuery.catch(() => [{ total: 0 }]),
+      countQuery.catch((err: any) => {
+        console.error("[GET /customers countQuery error]", err);
+        return [{ total: 0 }];
+      }),
     ]);
+
+    const total = countRes[0]?.total ?? allRows.length;
 
     const data = await Promise.all(
       allRows.map(async (row: any) => {
@@ -74,7 +84,7 @@ router.get("/customers", async (req, res): Promise<void> => {
     res.json({ data, total: total ?? 0, page: pageNum, limit: limitNum });
   } catch (err: any) {
     console.error("[GET /customers ERROR]", err);
-    res.json({ data: [], total: 0, page: 1, limit: 20 });
+    res.status(500).json({ error: "Failed to load customers list", message: err?.message });
   }
 });
 

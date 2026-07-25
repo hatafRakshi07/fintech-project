@@ -1,7 +1,7 @@
 import dns from "node:dns";
 import { drizzle } from "drizzle-orm/node-postgres";
 import pg from "pg";
-import * as schema from "./schema";
+import * as schema from "./schema/index";
 
 const { Pool } = pg;
 
@@ -98,4 +98,4 @@ export const db: ReturnType<typeof drizzle<typeof schema>> = new Proxy({} as any
   }
 });
 
-export * from "./schema";
+export * from "./schema/index";
