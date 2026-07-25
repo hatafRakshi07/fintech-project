@@ -3,7 +3,6 @@ import { useLocation } from "wouter";
 import { SignIn, SignUp, useUser } from "@clerk/clerk-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { customFetch } from "@/lib/customFetch";
 import { useToast } from "@/hooks/use-toast";
 import { ShieldCheck, UserCheck } from "lucide-react";
 
@@ -22,11 +21,12 @@ export default function LoginPage() {
         const name = user.fullName || user.firstName || "";
         const clerkId = user.id;
 
-        const res: any = await customFetch("/api/auth/clerk-sync", {
+        const response = await fetch("/api/auth/clerk-sync", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ clerkId, phone, email, name }),
         });
+        const res: any = await response.json();
 
         if (res?.token) {
           localStorage.setItem("auth_token", res.token);
