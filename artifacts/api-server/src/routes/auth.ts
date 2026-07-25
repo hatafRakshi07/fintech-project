@@ -357,18 +357,22 @@ router.post("/auth/verify-otp", async (req: Request, res: Response): Promise<voi
       } catch {}
     }
 
-  // Find user by phone or username
-  let [user] = await db
-    .select()
-    .from(usersTable)
-    .where(or(eq(usersTable.phone, cleanPhone), eq(usersTable.username, cleanPhone)));
+  // Find user by phone or username explicitly from public.users table
+  let user: any = null;
+  try {
+    const userRes = await db.execute(sql`SELECT id, username, password_hash as "passwordHash", name, role, branch_id as "branchId", customer_id as "customerId", agent_id as "agentId", email, phone FROM public.users WHERE phone = ${cleanPhone} OR username = ${cleanPhone} LIMIT 1`);
+    user = userRes.rows[0] ?? null;
+  } catch (err: any) {
+    console.error("[verify-otp user query warning]:", err?.message);
+  }
 
   // If user does not exist, check if phone matches a customer record
   if (!user) {
-    const [customer] = await db
-      .select()
-      .from(customersTable)
-      .where(eq(customersTable.mobile, cleanPhone));
+    let customer: any = null;
+    try {
+      const custRes = await db.execute(sql`SELECT id, name, mobile, branch_id as "branchId", email FROM public.customers WHERE mobile = ${cleanPhone} LIMIT 1`);
+      customer = custRes.rows[0] ?? null;
+    } catch {}
 
     if (customer) {
       // Auto-provision user account for this customer
