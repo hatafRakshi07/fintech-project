@@ -234,7 +234,7 @@ router.get("/profile/kyc-lookup", async (req, res): Promise<void> => {
       db.select().from(interestAccountsTable).where(eq(interestAccountsTable.customerId, id)).catch(() => []),
     ]);
 
-    const totalPaid = collRows.reduce((s, c) => s + parseFloat(c.amount || "0"), 0);
+    const totalPaid = (collRows as any[]).reduce((s: number, c: any) => s + parseFloat(c.amount || "0"), 0);
 
     res.json({
       customer: {
