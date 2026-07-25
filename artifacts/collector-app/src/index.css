@@ -2,8 +2,8 @@
 
 @layer base {
   :root {
-    --color-primary: 79 70 229;   /* indigo-600 */
-    --color-bg: 249 250 251;
+    --color-primary: 245 158 11;
+    --color-bg: 9 13 22;
     --safe-bottom: env(safe-area-inset-bottom, 0px);
   }
 
@@ -13,12 +13,15 @@
 
   html, body, #root {
     height: 100%;
+    background-color: #090d16;
+    color: #f8fafc;
     overscroll-behavior: none;
   }
 
   body {
-    background-color: rgb(249 250 251);
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    background-color: #090d16;
+    color: #f8fafc;
+    font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
     -webkit-font-smoothing: antialiased;
   }
 }

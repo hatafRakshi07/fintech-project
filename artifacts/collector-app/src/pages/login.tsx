@@ -66,13 +66,11 @@ export default function LoginPage() {
   async function handleVerifyOtp(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
-    if (!otp || otp.length < 6) {
-      setError("Please enter the 6-digit OTP code.");
-      return;
-    }
+    const cleanPhone = phone.replace(/\D/g, "").slice(-10);
+    if (!otp.trim()) return;
     setLoading(true);
     try {
-      const res = await api.post<LoginResponse>("/auth/verify-otp", { phone, otp });
+      const res = await api.post<LoginResponse>("/auth/verify-otp", { phone: cleanPhone, otp: otp.trim() });
       setToken(res.token);
       setStoredUser(res.user);
       setLocation("/");
@@ -84,27 +82,30 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen bg-indigo-600 flex flex-col items-center justify-center px-6">
+    <div className="min-h-screen bg-[#090d16] text-slate-100 flex flex-col items-center justify-center px-6 selection:bg-amber-500 selection:text-black">
+      {/* Background radial glow */}
+      <div className="fixed inset-0 pointer-events-none bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-amber-500/10 via-transparent to-transparent" />
+
       {/* Logo / brand */}
-      <div className="mb-6 text-center">
-        <div className="w-16 h-16 bg-white rounded-2xl flex items-center justify-center mx-auto mb-3 shadow-lg">
-          <span className="text-3xl font-bold text-indigo-600">B</span>
+      <div className="mb-6 text-center z-10">
+        <div className="w-20 h-20 rounded-2xl p-1 bg-gradient-to-tr from-amber-500 to-amber-300 mx-auto mb-3 shadow-xl shadow-amber-500/10">
+          <img src="/collector/ska-logo.png" alt="SKA Logo" className="w-full h-full object-cover rounded-xl" />
         </div>
-        <h1 className="text-2xl font-bold text-white">Bissi Collector</h1>
-        <p className="text-indigo-200 text-sm mt-1">Field Collection Portal</p>
+        <h1 className="text-2xl font-black tracking-tight text-white">Shree Krishna Association</h1>
+        <p className="text-amber-400/90 font-medium text-sm mt-1">Field Collector Portal</p>
       </div>
 
       {/* Card */}
-      <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm p-6">
+      <div className="bg-slate-900/90 border border-amber-500/20 rounded-2xl shadow-2xl backdrop-blur-xl w-full max-w-sm p-6 z-10">
         {/* Tabs */}
-        <div className="flex border-b border-gray-100 mb-5 pb-1">
+        <div className="flex border-b border-slate-800 mb-5 pb-1">
           <button
             type="button"
             onClick={() => setTab("otp")}
-            className={`flex-1 py-2 text-sm font-semibold flex items-center justify-center gap-1.5 border-b-2 transition-colors ${
+            className={`flex-1 py-2.5 text-sm font-bold flex items-center justify-center gap-2 border-b-2 transition-all ${
               tab === "otp"
-                ? "border-indigo-600 text-indigo-600"
-                : "border-transparent text-gray-400 hover:text-gray-600"
+                ? "border-amber-500 text-amber-400"
+                : "border-transparent text-slate-400 hover:text-slate-200"
             }`}
           >
             <Phone size={16} /> Mobile OTP
@@ -112,10 +113,10 @@ export default function LoginPage() {
           <button
             type="button"
             onClick={() => setTab("password")}
-            className={`flex-1 py-2 text-sm font-semibold flex items-center justify-center gap-1.5 border-b-2 transition-colors ${
+            className={`flex-1 py-2.5 text-sm font-bold flex items-center justify-center gap-2 border-b-2 transition-all ${
               tab === "password"
-                ? "border-indigo-600 text-indigo-600"
-                : "border-transparent text-gray-400 hover:text-gray-600"
+                ? "border-amber-500 text-amber-400"
+                : "border-transparent text-slate-400 hover:text-slate-200"
             }`}
           >
             <KeyRound size={16} /> Password
@@ -123,7 +124,7 @@ export default function LoginPage() {
         </div>
 
         {error && (
-          <div className="mb-4 bg-red-50 border border-red-200 text-red-700 rounded-xl px-4 py-3 text-xs">
+          <div className="mb-4 bg-rose-500/10 border border-rose-500/20 text-rose-400 rounded-xl px-4 py-3 text-xs font-medium">
             {error}
           </div>
         )}
@@ -132,9 +133,9 @@ export default function LoginPage() {
           !otpSent ? (
             <form onSubmit={handleSendOtp} className="space-y-4">
               <div>
-                <label className="block text-xs font-semibold text-gray-700 mb-1">Mobile Number</label>
+                <label className="block text-xs font-semibold text-slate-300 mb-1.5">Mobile Number</label>
                 <div className="relative">
-                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm font-bold text-gray-400">+91</span>
+                  <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-sm font-bold text-amber-400/80">+91</span>
                   <input
                     type="tel"
                     maxLength={10}
@@ -142,7 +143,7 @@ export default function LoginPage() {
                     onChange={(e) => setPhone(e.target.value)}
                     placeholder="9876543210"
                     required
-                    className="w-full h-11 border border-gray-300 rounded-xl pl-12 pr-4 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    className="w-full h-11 bg-slate-950 border border-slate-800 text-slate-100 placeholder-slate-500 rounded-xl pl-12 pr-4 text-sm font-semibold focus:outline-none focus:border-amber-500 focus:ring-1 focus:ring-amber-500 transition-colors"
                   />
                 </div>
               </div>
@@ -150,10 +151,10 @@ export default function LoginPage() {
               <button
                 type="submit"
                 disabled={loading}
-                className="w-full h-12 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-60 text-white font-semibold rounded-xl flex items-center justify-center gap-2 transition-colors mt-2"
+                className="w-full h-11 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 disabled:opacity-60 text-slate-950 font-bold rounded-xl flex items-center justify-center gap-2 shadow-lg shadow-amber-500/20 transition-all mt-2"
               >
                 {loading ? (
-                  <span className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                  <span className="w-5 h-5 border-2 border-slate-950 border-t-transparent rounded-full animate-spin" />
                 ) : (
                   <>
                     Get OTP Code <ArrowRight size={18} />
@@ -164,18 +165,18 @@ export default function LoginPage() {
           ) : (
             <form onSubmit={handleVerifyOtp} className="space-y-4">
               <div>
-                <div className="flex justify-between items-center mb-1">
-                  <label className="block text-xs font-semibold text-gray-700">Enter 6-Digit OTP</label>
+                <div className="flex justify-between items-center mb-1.5">
+                  <label className="block text-xs font-semibold text-slate-300">Enter 6-Digit OTP</label>
                   <button
                     type="button"
                     onClick={() => setOtpSent(false)}
-                    className="text-xs text-indigo-600 font-medium hover:underline flex items-center gap-1"
+                    className="text-xs text-amber-400 font-bold hover:underline flex items-center gap-1"
                   >
                     <RefreshCw size={12} /> Resend
                   </button>
                 </div>
                 <div className="relative">
-                  <ShieldCheck size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                  <ShieldCheck size={18} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-amber-400/80" />
                   <input
                     type="text"
                     maxLength={6}
@@ -183,11 +184,11 @@ export default function LoginPage() {
                     onChange={(e) => setOtp(e.target.value)}
                     placeholder="123456"
                     required
-                    className="w-full h-11 border border-gray-300 rounded-xl pl-10 pr-4 text-center text-lg font-bold tracking-widest focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    className="w-full h-11 bg-slate-950 border border-slate-800 text-slate-100 placeholder-slate-500 rounded-xl pl-10 pr-4 text-center text-lg font-bold tracking-widest focus:outline-none focus:border-amber-500 focus:ring-1 focus:ring-amber-500 transition-colors"
                   />
                 </div>
                 {debugOtp && (
-                  <div className="mt-2 p-2 bg-indigo-50 border border-indigo-200 rounded text-center text-xs text-indigo-700 font-mono font-bold">
+                  <div className="mt-2.5 p-2 bg-amber-500/10 border border-amber-500/20 rounded-xl text-center text-xs text-amber-400 font-mono font-bold">
                     [DEMO OTP: {debugOtp}]
                   </div>
                 )}
@@ -196,10 +197,10 @@ export default function LoginPage() {
               <button
                 type="submit"
                 disabled={loading}
-                className="w-full h-12 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-60 text-white font-semibold rounded-xl flex items-center justify-center gap-2 transition-colors mt-2"
+                className="w-full h-11 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 disabled:opacity-60 text-slate-950 font-bold rounded-xl flex items-center justify-center gap-2 shadow-lg shadow-amber-500/20 transition-all mt-2"
               >
                 {loading ? (
-                  <span className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                  <span className="w-5 h-5 border-2 border-slate-950 border-t-transparent rounded-full animate-spin" />
                 ) : (
                   <>
                     <LogIn size={18} /> Verify & Sign In
@@ -211,20 +212,20 @@ export default function LoginPage() {
         ) : (
           <form onSubmit={handlePasswordSubmit} className="space-y-4">
             <div>
-              <label className="block text-xs font-semibold text-gray-700 mb-1">Username</label>
+              <label className="block text-xs font-semibold text-slate-300 mb-1.5">Username</label>
               <input
                 type="text"
                 autoComplete="username"
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
-                placeholder="collector"
+                placeholder="collector1"
                 required
-                className="w-full h-11 border border-gray-300 rounded-xl px-4 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                className="w-full h-11 bg-slate-950 border border-slate-800 text-slate-100 placeholder-slate-500 rounded-xl px-4 text-sm font-semibold focus:outline-none focus:border-amber-500 focus:ring-1 focus:ring-amber-500 transition-colors"
               />
             </div>
 
             <div>
-              <label className="block text-xs font-semibold text-gray-700 mb-1">Password</label>
+              <label className="block text-xs font-semibold text-slate-300 mb-1.5">Password</label>
               <div className="relative">
                 <input
                   type={showPwd ? "text" : "password"}
@@ -233,12 +234,12 @@ export default function LoginPage() {
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="••••••••"
                   required
-                  className="w-full h-11 border border-gray-300 rounded-xl px-4 pr-11 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  className="w-full h-11 bg-slate-950 border border-slate-800 text-slate-100 placeholder-slate-500 rounded-xl px-4 pr-11 text-sm font-semibold focus:outline-none focus:border-amber-500 focus:ring-1 focus:ring-amber-500 transition-colors"
                 />
                 <button
                   type="button"
                   onClick={() => setShowPwd((p) => !p)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400"
+                  className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-amber-400 transition-colors"
                 >
                   {showPwd ? <EyeOff size={18} /> : <Eye size={18} />}
                 </button>
@@ -248,10 +249,10 @@ export default function LoginPage() {
             <button
               type="submit"
               disabled={loading}
-              className="w-full h-12 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-60 text-white font-semibold rounded-xl flex items-center justify-center gap-2 transition-colors mt-2"
+              className="w-full h-11 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 disabled:opacity-60 text-slate-950 font-bold rounded-xl flex items-center justify-center gap-2 shadow-lg shadow-amber-500/20 transition-all mt-2"
             >
               {loading ? (
-                <span className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                <span className="w-5 h-5 border-2 border-slate-950 border-t-transparent rounded-full animate-spin" />
               ) : (
                 <>
                   <LogIn size={18} /> Sign In
@@ -262,7 +263,7 @@ export default function LoginPage() {
         )}
       </div>
 
-      <p className="text-indigo-300 text-xs mt-6 text-center">
+      <p className="text-slate-500 text-xs mt-6 text-center font-medium z-10">
         © {new Date().getFullYear()} Shree Krishna Association. All rights reserved.
       </p>
     </div>
