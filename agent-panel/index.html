@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Agent Panel – FinTech</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <header class="header">
+    <h1>Agent Panel</h1>
+    <button id="logoutBtn" class="btn logout">Logout</button>
+  </header>
+
+  <main class="main">
+    <section class="section" id="customersSection">
+      <h2>My Customers</h2>
+      <ul id="customerList" class="list"></ul>
+    </section>
+
+    <section class="section" id="notificationsSection">
+      <h2>Due Amount Alerts</h2>
+      <div id="notificationContainer" class="notifications"></div>
+    </section>
+
+    <section class="section" id="broadcastSection">
+      <h2>Send Message to Customers</h2>
+      <form id="broadcastForm" class="form">
+        <input type="text" id="msgTitle" placeholder="Title" required />
+        <textarea id="msgBody" rows="3" placeholder="Message" required></textarea>
+        <button type="submit" class="btn primary">Send</button>
+      </form>
+    </section>
+  </main>
+
+  <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>

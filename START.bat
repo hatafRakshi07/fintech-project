@@ -32,7 +32,7 @@ start "Fintech API Server (Port 5001)" cmd /k "cd /d "%~dp0artifacts\api-server"
 
 REM Step 3: Start Admin App & Customer Portal (Port 5000)
 echo.
-echo [3/4] Starting Admin Panel & Customer Portal on Port 5000...
+echo [3/4] Starting Admin Panel and Customer Portal on Port 5000...
 start "Admin App & Customer Portal (Port 5000)" cmd /k "cd /d "%~dp0" && set PORT=5000 && pnpm --filter @workspace/bissi-app run dev"
 
 REM Step 4: Start Collector App (Port 5002)
@@ -41,7 +41,7 @@ echo [4/4] Starting Field Collector App on Port 5002...
 start "Collector App (Port 5002)" cmd /k "cd /d "%~dp0" && set PORT=5002 && pnpm --filter @workspace/collector-app run dev"
 
 REM Wait 5 seconds for dev servers to initialize
-timeout /t 5 /nobreak >nul
+timeout /t 5 /nobreak >nul 2>&1
 
 REM Step 5: Automatically Open Browser Portals
 echo.
@@ -51,11 +51,11 @@ start "" "http://localhost:5002/collector/"
 
 echo.
 echo ============================================================
-echo   ALL FINTECH SERVICES AUTOMATED & STARTED SUCCESSFULLY!
+echo   ALL FINTECH SERVICES AUTOMATED AND STARTED SUCCESSFULLY!
 echo ============================================================
-echo   - Admin & Customer Portal : http://localhost:5000
-echo   - Field Collector App    : http://localhost:5002/collector/
-echo   - Backend API Server     : http://localhost:5001/api/health
+echo   - Admin and Customer Portal : http://localhost:5000
+echo   - Field Collector App       : http://localhost:5002/collector/
+echo   - Backend API Server        : http://localhost:5001/api/health
 echo ============================================================
 echo.
 pause

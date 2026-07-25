@@ -1,6 +1,7 @@
 import { Router, type IRouter, type Request, type Response, type NextFunction } from "express";
 import { db, usersTable, sessionsTable, otpsTable, customersTable } from "@workspace/db";
-import { eq, lt, and, or, sql } from "drizzle-orm";
+import { eq, lt, gt, and, or, sql } from "drizzle-orm";
+import { requireAuth } from "../middleware/auth";
 
 import { randomBytes } from "crypto";
 import bcrypt from "bcryptjs";
@@ -62,7 +63,7 @@ router.post("/auth/login", loginLimiter, async (req: Request, res: Response): Pr
   const [user] = await db
     .select()
     .from(usersTable)
-    .where(eq(usersTable.username, username.trim().toLowerCase()));
+    .where(eq(sql`LOWER(${usersTable.username})`, username.trim().toLowerCase()));
 
   if (!user) {
     res.status(401).json({ error: "Invalid username or password" });
@@ -227,7 +228,7 @@ router.post("/auth/verify-otp", async (req: Request, res: Response): Promise<voi
         eq(otpsTable.phone, cleanPhone),
         eq(otpsTable.code, otp.toString().trim()),
         eq(otpsTable.used, false),
-        sql`${otpsTable.expiresAt} > NOW()`
+        gt(otpsTable.expiresAt, new Date())
       )
     );
 
@@ -311,7 +312,7 @@ router.post("/auth/verify-otp", async (req: Request, res: Response): Promise<voi
 });
 
 
-router.get("/auth/me", async (req: Request, res: Response): Promise<void> => {
+router.get("/auth/me", requireAuth, async (req: Request, res: Response): Promise<void> => {
   if (!req.userId) {
     res.status(401).json({ error: "Unauthorized" });
     return;

@@ -26,6 +26,11 @@
     "xlsx": "^0.18.5"
   },
   "pnpm": {
+    "onlyBuiltDependencies": [
+      "@firebase/util",
+      "protobufjs",
+      "esbuild"
+    ],
     "overrides": {
       "esbuild": "0.27.3"
     }

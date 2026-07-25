@@ -58,6 +58,7 @@ const ROLE_LABEL: Record<string, string> = {
   collector: "Collector",
   accountant: "Accountant",
   customer: "Customer",
+  agent: "Agent",
 };
 
 type NavItem = {
@@ -72,10 +73,11 @@ const ALL_NAV_ITEMS: NavItem[] = [
   { icon: Users, label: "Customers", href: "/customers", roles: ["super_admin","owner","branch_manager","collector"] },
   { icon: Building2, label: "Branches", href: "/branches", roles: ["super_admin","owner"] },
   { icon: UserSquare2, label: "Collectors", href: "/collectors", roles: ["super_admin","owner","branch_manager"] },
+  { icon: Briefcase, label: "Agent Portal", href: "/agent-portal", roles: ["agent","super_admin","owner","branch_manager"] },
   { icon: ShieldAlert, label: "Committees", href: "/committees", roles: ["super_admin","owner","branch_manager"] },
   { icon: Ticket, label: "Tokens", href: "/tokens", roles: ["super_admin","owner","branch_manager","customer"] },
   { icon: Wallet, label: "Loans", href: "/loans", roles: ["super_admin","owner","branch_manager","accountant","customer"] },
-  { icon: CreditCard, label: "Collections", href: "/collections", roles: ["super_admin","owner","branch_manager","collector","accountant","customer"] },
+  { icon: CreditCard, label: "Collections", href: "/collections", roles: ["super_admin","owner","branch_manager","collector","accountant","customer","agent"] },
   { icon: Gift, label: "Lotteries", href: "/lotteries", roles: ["super_admin","owner","branch_manager"] },
   { icon: Gift, label: "Gifts", href: "/gifts", roles: ["super_admin","owner","branch_manager","accountant"] },
   { icon: TrendingUp, label: "Interests", href: "/interests", roles: ["super_admin","owner","branch_manager","accountant"] },
@@ -86,6 +88,7 @@ const ALL_NAV_ITEMS: NavItem[] = [
   { icon: FileText, label: "Accounting (Tally)", href: "/accounting", roles: ["super_admin","owner","branch_manager","accountant"] },
   { icon: Megaphone, label: "Message Broadcast", href: "/broadcast", roles: ["super_admin","owner","branch_manager"] },
   { icon: BarChart3, label: "Reports", href: "/reports", roles: ["super_admin","owner","branch_manager","accountant"] },
+  { icon: ShieldAlert, label: "KYC Verification", href: "/admin/kyc", roles: ["super_admin","owner","branch_manager"] },
 
   // Customer self-service — only shown to customer role
   { icon: UserCircle, label: "My Profile", href: "/profile", roles: ["customer"] },

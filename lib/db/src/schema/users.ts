@@ -9,6 +9,7 @@ export const userRoleEnum = pgEnum("user_role", [
   "collector",
   "accountant",
   "customer",
+  "agent",
 ]);
 
 export const usersTable = pgTable("users", {
@@ -19,6 +20,7 @@ export const usersTable = pgTable("users", {
   role: userRoleEnum("role").notNull().default("collector"),
   branchId: integer("branch_id"),
   customerId: integer("customer_id"),   // links a customer-role user to their customer record
+  agentId: integer("agent_id"),       // links an agent-role user to their agent record
   email: text("email"),
   phone: text("phone"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),

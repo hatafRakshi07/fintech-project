@@ -21,6 +21,8 @@ import notificationsRouter from "./notifications";
 import invoicesRouter from "./invoices";
 import profileRouter from "./profile";
 import accountingRouter from "./accounting";
+import kycRouter from "./kyc";
+import agentsRouter from "./agents";
 
 const router: IRouter = Router();
 
@@ -31,6 +33,8 @@ router.use(authRouter);
 router.use(requireAuth);
 
 router.use(dashboardRouter);
+router.use(kycRouter);
+router.use(agentsRouter);
 
 // Branches — super_admin and owner only
 router.use(requireRole("super_admin", "owner"), branchesRouter);

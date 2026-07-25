@@ -1,12 +1,13 @@
 import React from "react";
 import { Link, useLocation } from "wouter";
-import { Home, CreditCard, Users, AlertTriangle } from "lucide-react";
+import { Home, CreditCard, Users, AlertTriangle, ShieldCheck } from "lucide-react";
 
 const NAV_ITEMS = [
   { href: "/", icon: Home, label: "Home" },
   { href: "/collections", icon: CreditCard, label: "Collections" },
   { href: "/customers", icon: Users, label: "Customers" },
   { href: "/recovery", icon: AlertTriangle, label: "Recovery" },
+  { href: "/kyc", icon: ShieldCheck, label: "KYC" },
 ];
 
 export default function BottomNav() {

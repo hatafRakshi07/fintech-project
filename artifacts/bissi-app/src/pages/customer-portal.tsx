@@ -29,7 +29,7 @@ import {
   FileSpreadsheet,
   Receipt,
   Info,
-} from "lucide-react";
+import { KycSubmissionForm } from "@/components/kyc/KycSubmissionForm";
 
 const formatCurrency = (amount: number) => {
   return new Intl.NumberFormat("en-IN", {
@@ -190,9 +190,12 @@ export default function CustomerPortalPage() {
 
       {/* Main Read-Only Content Tabs */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-        <TabsList className="grid w-full grid-cols-2 md:grid-cols-5 h-12 bg-muted/60 p-1">
+        <TabsList className="grid w-full grid-cols-2 md:grid-cols-6 h-12 bg-muted/60 p-1">
           <TabsTrigger value="passbook" className="text-xs sm:text-sm font-semibold gap-1.5">
-            <FileSpreadsheet className="h-4 w-4" /> Payment Passbook
+            <FileSpreadsheet className="h-4 w-4" /> Passbook
+          </TabsTrigger>
+          <TabsTrigger value="kyc" className="text-xs sm:text-sm font-semibold gap-1.5">
+            <ShieldCheck className="h-4 w-4" /> KYC Status
           </TabsTrigger>
           <TabsTrigger value="tokens" className="text-xs sm:text-sm font-semibold gap-1.5">
             <Ticket className="h-4 w-4" /> My Tokens
@@ -204,9 +207,14 @@ export default function CustomerPortalPage() {
             <Gift className="h-4 w-4" /> Gifts
           </TabsTrigger>
           <TabsTrigger value="broadcasts" className="text-xs sm:text-sm font-semibold gap-1.5">
-            <Megaphone className="h-4 w-4" /> Office Notices
+            <Megaphone className="h-4 w-4" /> Notices
           </TabsTrigger>
         </TabsList>
+
+        {/* KYC Verification Tab */}
+        <TabsContent value="kyc" className="mt-6">
+          <KycSubmissionForm />
+        </TabsContent>
 
         {/* 1. Payment Passbook (Read-only) */}
         <TabsContent value="passbook" className="mt-6">

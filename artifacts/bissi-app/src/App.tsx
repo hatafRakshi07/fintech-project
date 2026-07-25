@@ -37,6 +37,8 @@ import AccountingPage from "@/pages/accounting";
 import ProfilePage from "@/pages/profile";
 import BroadcastPage from "@/pages/broadcast";
 import CustomerPortalPage from "@/pages/customer-portal";
+import AgentPortalPage from "@/pages/agent-portal";
+import AdminKycManagementPage from "@/pages/admin-kyc";
 import NotFound from "@/pages/not-found";
 
 
@@ -242,6 +244,20 @@ function AppRoutes() {
 
             {/* Read-Only Customer Portal */}
             <Route path="/customer-portal" component={CustomerPortalPage} />
+
+            {/* Agent Portal */}
+            <Route path="/agent-portal">
+              <RoleGate roles={["super_admin", "owner", "branch_manager", "agent"]}>
+                <AgentPortalPage />
+              </RoleGate>
+            </Route>
+
+            {/* Admin KYC Management */}
+            <Route path="/admin/kyc">
+              <RoleGate roles={MANAGERS}>
+                <AdminKycManagementPage />
+              </RoleGate>
+            </Route>
 
 
 

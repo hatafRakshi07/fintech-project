@@ -8,6 +8,7 @@ import HomePage from "@/pages/home";
 import CollectionsPage from "@/pages/collections";
 import CustomersPage from "@/pages/customers";
 import RecoveryPage from "@/pages/recovery";
+import CollectorKycPage from "@/pages/kyc";
 import BottomNav from "@/components/BottomNav";
 
 const queryClient = new QueryClient({
@@ -72,6 +73,13 @@ export default function App() {
             <ProtectedRoute>
               <AppLayout>
                 <RecoveryPage />
+              </AppLayout>
+            </ProtectedRoute>
+          </Route>
+          <Route path="/kyc">
+            <ProtectedRoute>
+              <AppLayout>
+                <CollectorKycPage />
               </AppLayout>
             </ProtectedRoute>
           </Route>

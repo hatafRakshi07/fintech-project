@@ -22,6 +22,7 @@ export const customersTable = pgTable("customers", {
   recoveryNotes: text("recovery_notes"),
   documents: text("documents"),
   branchId: integer("branch_id").notNull(),
+  agentId: integer("agent_id"),
   status: customerStatusEnum("status").notNull().default("active"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),

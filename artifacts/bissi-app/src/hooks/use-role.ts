@@ -6,19 +6,21 @@ export type UserRole =
   | "branch_manager"
   | "collector"
   | "accountant"
-  | "customer";
+  | "customer"
+  | "agent";
 
 /**
  * Routes each role may access. "all" means every authenticated role.
  * Routes not listed for a role are forbidden (redirect to /).
  */
 export const ROLE_ALLOWED_ROUTES: Record<UserRole, string[]> = {
-  super_admin: ["/", "/customers", "/branches", "/collectors", "/committees", "/tokens", "/loans", "/collections", "/lotteries", "/reports"],
-  owner:        ["/", "/customers", "/branches", "/collectors", "/committees", "/tokens", "/loans", "/collections", "/lotteries", "/reports"],
-  branch_manager: ["/", "/customers", "/collectors", "/committees", "/tokens", "/loans", "/collections", "/lotteries", "/reports"],
+  super_admin: ["/", "/customers", "/branches", "/collectors", "/committees", "/tokens", "/loans", "/collections", "/lotteries", "/reports", "/admin/kyc", "/agents"],
+  owner:        ["/", "/customers", "/branches", "/collectors", "/committees", "/tokens", "/loans", "/collections", "/lotteries", "/reports", "/admin/kyc", "/agents"],
+  branch_manager: ["/", "/customers", "/collectors", "/committees", "/tokens", "/loans", "/collections", "/lotteries", "/reports", "/admin/kyc", "/agents"],
   collector:    ["/", "/customers", "/collections"],
   accountant:   ["/", "/loans", "/collections", "/reports"],
-  customer:     ["/", "/tokens", "/loans", "/collections"],
+  customer:     ["/", "/tokens", "/loans", "/collections", "/customer-portal"],
+  agent:        ["/", "/agent-portal", "/collections"],
 };
 
 export function useRole() {
@@ -47,5 +49,6 @@ export function useRole() {
     isCollector: hasAnyRole("collector"),
     isAccountant: hasAnyRole("accountant"),
     isCustomer: hasAnyRole("customer"),
+    isAgent: hasAnyRole("agent"),
   };
 }
