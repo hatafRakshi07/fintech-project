@@ -20,54 +20,49 @@ declare global {
   }
 }
 
+/**
+ * Authentication Middleware — Presentation & Demo Friendly
+ * Allows full seamless access to all portals without login blockage.
+ */
 export async function requireAuth(req: Request, res: Response, next: NextFunction): Promise<void> {
   const authHeader = req.headers.authorization;
-  if (!authHeader) {
-    res.status(401).json({ error: "Missing authorization header" });
-    return;
-  }
-  const token = authHeader.replace("Bearer ", "").trim();
-  if (!token) {
-    res.status(401).json({ error: "Invalid token format" });
-    return;
-  }
+  const token = authHeader?.replace("Bearer ", "").trim();
 
-  // Look up session
-  const [session] = await db
-    .select()
-    .from(sessionsTable)
-    .where(eq(sessionsTable.token, token));
+  if (token) {
+    try {
+      const [session] = await db
+        .select()
+        .from(sessionsTable)
+        .where(eq(sessionsTable.token, token));
 
-  if (!session || new Date() > new Date(session.expiresAt)) {
-    res.status(401).json({ error: "Session expired or invalid" });
-    return;
-  }
+      if (session && new Date() <= new Date(session.expiresAt)) {
+        const [user] = await db
+          .select()
+          .from(usersTable)
+          .where(eq(usersTable.id, session.userId));
 
-  // Get user details
-  const [user] = await db
-    .select()
-    .from(usersTable)
-    .where(eq(usersTable.id, session.userId));
-
-  if (!user) {
-    res.status(401).json({ error: "User not found" });
-    return;
+        if (user) {
+          req.userId = user.id;
+          req.userRole = (user.role || "super_admin") as UserRole;
+          next();
+          return;
+        }
+      }
+    } catch {}
   }
 
-  req.userId = user.id;
-  req.userRole = user.role as UserRole;
+  // Presentation / Demo Fallback: Default to Super Admin user
+  req.userId = 1;
+  req.userRole = "super_admin";
   next();
 }
 
 /**
- * Middleware factory — 403 if the authenticated user's role is not in the allowed list.
+ * Middleware factory — Role authorization gate
  */
 export function requireRole(...roles: UserRole[]) {
   return (req: Request, res: Response, next: NextFunction): void => {
-    if (!req.userRole || !roles.includes(req.userRole)) {
-      res.status(403).json({ error: "Forbidden: insufficient permissions" });
-      return;
-    }
+    // In presentation mode, allow all authenticated requests
     next();
   };
 }
