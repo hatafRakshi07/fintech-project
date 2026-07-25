@@ -105,6 +105,89 @@ const defaultItem = (): LineItem => ({
   id: uid(), description: "", hsn: "", qty: 1, unit: "Nos", rate: 0, gstRate: 18,
 });
 
+export const SAMPLE_ELECTRICITY_INVOICE: InvoiceData = {
+  invoiceNumber: "INV-2026-ELE-001",
+  invoiceDate: todayISO(),
+  dueDate: new Date(Date.now() + 14 * 86400000).toISOString().slice(0, 10),
+  sellerName: "Jaipur Vidyut Vitran Nigam Ltd (JVVNL)",
+  sellerAddress: "Vidyut Bhawan, Jyoti Nagar\nJaipur, Rajasthan - 302005",
+  sellerGstin: "08AABCJ1234F1Z9",
+  sellerState: "Rajasthan",
+  sellerEmail: "billing@jvvnl.rajasthan.gov.in",
+  sellerPhone: "0141-2740000",
+  buyerName: "Shree Krishna Association (HQ)",
+  buyerAddress: "Main Branch Office, Opposite Town Hall\nJaipur, Rajasthan - 302001",
+  buyerGstin: "08AAAFK9876C1Z3",
+  buyerState: "Rajasthan",
+  buyerPhone: "9829012345",
+  items: [
+    {
+      id: "item-elec-1",
+      description: "Commercial Electricity Consumption (Meter No. JVV-884920, 950 Units @ ₹5.10/unit)",
+      hsn: "2716",
+      qty: 1,
+      unit: "Nos",
+      rate: 4850,
+      gstRate: 18,
+    },
+  ],
+  notes: "Commercial Power Tariff for July 2026. Paid via NetBanking.",
+  bankName: "State Bank of India",
+  accountNo: "39482019482",
+  ifsc: "SBIN0001234",
+};
+
+export const SAMPLE_HOUSE_RENT_INVOICE: InvoiceData = {
+  invoiceNumber: "INV-2026-RNT-002",
+  invoiceDate: todayISO(),
+  dueDate: new Date(Date.now() + 7 * 86400000).toISOString().slice(0, 10),
+  sellerName: "Ramesh Chandra Sharma (Commercial Property Owner)",
+  sellerAddress: "Plot 42, Civil Lines\nJaipur, Rajasthan - 302006",
+  sellerGstin: "08AAAPS5432E1Z8",
+  sellerState: "Rajasthan",
+  sellerEmail: "ramesh.sharma@gmail.com",
+  sellerPhone: "9829012345",
+  buyerName: "Shree Krishna Association (HQ)",
+  buyerAddress: "Main Branch Office, Opposite Town Hall\nJaipur, Rajasthan - 302001",
+  buyerGstin: "08AAAFK9876C1Z3",
+  buyerState: "Rajasthan",
+  buyerPhone: "9829012345",
+  items: [
+    {
+      id: "item-rent-1",
+      description: "Monthly Commercial Office Space & Premises Rent - Main Branch (July 2026)",
+      hsn: "997212",
+      qty: 1,
+      unit: "Months",
+      rate: 25000,
+      gstRate: 18,
+    },
+  ],
+  notes: "Commercial Premises Rent for July 2026. TDS 10% deducted under Sec 194I.",
+  bankName: "HDFC Bank Ltd",
+  accountNo: "50100293849102",
+  ifsc: "HDFC0000123",
+};
+
+export const defaultSampleInvoices: SavedInvoice[] = [
+  {
+    id: "sample-elec-bill",
+    invoiceNumber: SAMPLE_ELECTRICITY_INVOICE.invoiceNumber,
+    buyerName: SAMPLE_ELECTRICITY_INVOICE.buyerName,
+    invoiceDate: SAMPLE_ELECTRICITY_INVOICE.invoiceDate,
+    grandTotal: 5723,
+    data: SAMPLE_ELECTRICITY_INVOICE,
+  },
+  {
+    id: "sample-rent-bill",
+    invoiceNumber: SAMPLE_HOUSE_RENT_INVOICE.invoiceNumber,
+    buyerName: SAMPLE_HOUSE_RENT_INVOICE.buyerName,
+    invoiceDate: SAMPLE_HOUSE_RENT_INVOICE.invoiceDate,
+    grandTotal: 29500,
+    data: SAMPLE_HOUSE_RENT_INVOICE,
+  },
+];
+
 const defaultInvoice = (): InvoiceData => ({
   invoiceNumber: `INV-${new Date().getFullYear()}-${String(Math.floor(Math.random() * 9000) + 1000)}`,
   invoiceDate: todayISO(),
@@ -613,12 +696,20 @@ function InvoiceForm({
 
 // ── Main Page ────────────────────────────────────────────
 export default function InvoicesPage() {
-  const [inv, setInv] = useState<InvoiceData>(defaultInvoice);
+  const [inv, setInv] = useState<InvoiceData>(SAMPLE_ELECTRICITY_INVOICE);
   const [saved, setSaved] = useState<SavedInvoice[]>(() => {
-    try { return JSON.parse(localStorage.getItem("bissi_invoices") ?? "[]"); } catch { return []; }
+    try {
+      const stored = localStorage.getItem("bissi_invoices");
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
+    } catch {}
+    localStorage.setItem("bissi_invoices", JSON.stringify(defaultSampleInvoices));
+    return defaultSampleInvoices;
   });
   const [preview, setPreview] = useState(false);
-  const [loadedId, setLoadedId] = useState<string | null>(null);
+  const [loadedId, setLoadedId] = useState<string | null>("sample-elec-bill");
   const { toast } = useToast();
 
   const update = (upd: Partial<InvoiceData>) => setInv((prev) => ({ ...prev, ...upd }));
@@ -647,6 +738,18 @@ export default function InvoicesPage() {
     setInv(s.data);
     setLoadedId(s.id);
     setPreview(false);
+  };
+
+  const loadElectricityTemplate = () => {
+    setInv(SAMPLE_ELECTRICITY_INVOICE);
+    setLoadedId("sample-elec-bill");
+    toast({ title: "Loaded Electricity Bill Template" });
+  };
+
+  const loadRentTemplate = () => {
+    setInv(SAMPLE_HOUSE_RENT_INVOICE);
+    setLoadedId("sample-rent-bill");
+    toast({ title: "Loaded House & Office Rent Template" });
   };
 
   const deleteInvoice = (id: string) => {
@@ -691,7 +794,7 @@ export default function InvoicesPage() {
               GST Invoice Maker
             </h1>
             <p className="text-sm text-muted-foreground mt-0.5">
-              Create GST-compliant invoices with CGST/SGST breakdown · Rajasthan
+              Create & print GST-compliant bills and invoices · Electricity Bill, House Rent & Utilities
             </p>
           </div>
           <div className="flex flex-wrap gap-2">
@@ -716,7 +819,12 @@ export default function InvoicesPage() {
                     {saved.map((s) => (
                       <div key={s.id} className="flex items-center gap-3 border rounded-lg p-3 hover:bg-muted/50">
                         <div className="flex-1 min-w-0 cursor-pointer" onClick={() => loadInvoice(s)}>
-                          <p className="font-semibold text-sm truncate">{s.invoiceNumber}</p>
+                          <div className="flex items-center gap-2">
+                            <p className="font-semibold text-sm truncate">{s.invoiceNumber}</p>
+                            <Badge variant="outline" className="text-[10px]">
+                              {s.id.includes("elec") ? "Electricity" : s.id.includes("rent") ? "House Rent" : "Invoice"}
+                            </Badge>
+                          </div>
                           <p className="text-xs text-muted-foreground">{s.buyerName || "—"} · {new Date(s.invoiceDate).toLocaleDateString("en-IN")}</p>
                           <p className="text-xs font-medium text-primary">₹{fmt(s.grandTotal)}</p>
                         </div>
@@ -734,6 +842,48 @@ export default function InvoicesPage() {
             </Button>
           </div>
         </div>
+
+        {/* Quick Templates Banner */}
+        <Card className="p-3 bg-gradient-to-r from-amber-500/10 via-purple-500/10 to-blue-500/10 border-amber-500/20">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+            <div className="flex items-center space-x-2.5">
+              <div className="p-2 bg-amber-500/20 rounded-lg text-amber-600 dark:text-amber-400">
+                <FileText className="h-4 w-4" />
+              </div>
+              <div>
+                <h4 className="text-xs font-semibold text-foreground">Quick Bill Templates</h4>
+                <p className="text-[11px] text-muted-foreground">Load pre-configured bills with 1-click:</p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2 flex-wrap w-full sm:w-auto">
+              <Button
+                variant={loadedId === "sample-elec-bill" ? "default" : "outline"}
+                size="sm"
+                className="text-xs h-8"
+                onClick={loadElectricityTemplate}
+              >
+                ⚡ Electricity Bill (₹5,723)
+              </Button>
+              <Button
+                variant={loadedId === "sample-rent-bill" ? "default" : "outline"}
+                size="sm"
+                className="text-xs h-8"
+                onClick={loadRentTemplate}
+              >
+                🏠 House & Office Rent (₹29,500)
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="text-xs h-8"
+                onClick={newInvoice}
+              >
+                ➕ Blank Invoice
+              </Button>
+            </div>
+          </div>
+        </Card>
 
         {/* Invoice Form */}
         <InvoiceForm inv={inv} onChange={update} />

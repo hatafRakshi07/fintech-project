@@ -1,8 +1,8 @@
-import React, { useState, useEffect } from "react";
+import React, { useState } from "react";
 import { SkaAppLogo } from "@/components/SkaAppLogo";
 import { useLocation } from "wouter";
 import { api, setToken, setStoredUser } from "@/lib/api";
-import { Flame, KeyRound, Phone, ShieldCheck, RefreshCw, MessageCircle, ArrowRight, LogIn, Eye, EyeOff } from "lucide-react";
+import { KeyRound, Phone, ShieldCheck, RefreshCw, MessageCircle, ArrowRight, LogIn, Eye, EyeOff } from "lucide-react";
 
 export default function LoginPage() {
   const [, setLocation] = useLocation();
@@ -84,39 +84,44 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen bg-background text-foreground flex flex-col items-center justify-center px-4 py-8 relative overflow-hidden">
-      {/* Gold ambient background glow */}
-      <div className="absolute top-1/4 left-1/2 -translate-x-1/2 -translate-y-1/2 w-96 h-96 bg-amber-500/10 dark:bg-amber-500/5 rounded-full blur-3xl pointer-events-none" />
+    <div
+      className="min-h-screen text-foreground flex flex-col items-center justify-center px-4 py-8 relative overflow-hidden bg-background"
+    >
+      {/* Decorative ambient glow */}
+      <div className="absolute top-1/4 left-1/4 w-80 h-80 bg-amber-500/10 rounded-full blur-3xl pointer-events-none" />
+      <div className="absolute bottom-1/4 right-1/4 w-96 h-96 bg-amber-600/5 rounded-full blur-3xl pointer-events-none" />
 
       {/* Brand logo & header */}
-      <div className="mb-6 text-center z-10">
-        <SkaAppLogo size={64} className="mx-auto mb-3" />
-        <h1 className="text-2xl font-black tracking-tight text-foreground">Shree Krishna Association</h1>
-        <p className="text-amber-500 dark:text-amber-400 text-xs font-semibold mt-1 tracking-wide uppercase">
+      <div className="mb-6 text-center z-10 float-up">
+        <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-slate-900 via-slate-950 to-slate-900 shadow-xl border border-amber-550/20 flex items-center justify-center mx-auto mb-3">
+          <SkaAppLogo size={42} />
+        </div>
+        <h1 className="text-2xl font-extrabold tracking-tight text-foreground dark:text-white">Shree Krishna Association</h1>
+        <p className="text-amber-500 dark:text-amber-400 text-xs font-bold mt-1 tracking-wider uppercase">
           Field Collector Portal
         </p>
       </div>
 
       {/* Card */}
-      <div className="bg-card border border-border shadow-2xl rounded-2xl w-full max-w-sm p-6 z-10">
+      <div className="glass-card rounded-2xl w-full max-w-sm p-6 z-10 float-up-delay-1 bg-card">
         {/* Tabs */}
-        <div className="flex border-b border-border mb-5 pb-1">
+        <div className="flex border-b border-border dark:border-slate-700/50 mb-5 pb-1">
           <button
             onClick={() => setTab("otp")}
-            className={`flex-1 py-2 text-xs font-bold flex items-center justify-center gap-1.5 border-b-2 transition-colors ${
+            className={`flex-1 py-2.5 text-xs font-extrabold flex items-center justify-center gap-1.5 border-b-2 transition-colors ${
               tab === "otp"
-                ? "border-amber-500 text-amber-500 dark:text-amber-400"
-                : "border-transparent text-muted-foreground hover:text-foreground"
+                ? "border-amber-500 text-amber-550 dark:text-amber-400 font-black"
+                : "border-transparent text-slate-500 hover:text-slate-400"
             }`}
           >
             <Phone size={15} /> Mobile OTP
           </button>
           <button
             onClick={() => setTab("password")}
-            className={`flex-1 py-2 text-xs font-bold flex items-center justify-center gap-1.5 border-b-2 transition-colors ${
+            className={`flex-1 py-2.5 text-xs font-extrabold flex items-center justify-center gap-1.5 border-b-2 transition-colors ${
               tab === "password"
-                ? "border-amber-500 text-amber-500 dark:text-amber-400"
-                : "border-transparent text-muted-foreground hover:text-foreground"
+                ? "border-amber-500 text-amber-550 dark:text-amber-400 font-black"
+                : "border-transparent text-slate-500 hover:text-slate-400"
             }`}
           >
             <KeyRound size={15} /> Password
@@ -124,7 +129,7 @@ export default function LoginPage() {
         </div>
 
         {error && (
-          <div className="mb-4 bg-destructive/10 border border-destructive/30 text-destructive-foreground rounded-xl px-4 py-3 text-xs font-medium">
+          <div className="mb-4 bg-rose-500/10 border border-rose-500/20 text-rose-600 dark:text-rose-200 rounded-xl px-4 py-3 text-xs font-medium">
             {error}
           </div>
         )}
@@ -134,7 +139,7 @@ export default function LoginPage() {
           !otpSent ? (
             <form onSubmit={(e) => handleSendOtp(e, false)} className="space-y-4">
               <div>
-                <label className="block text-xs font-bold text-muted-foreground mb-1.5 uppercase tracking-wider">
+                <label className="block text-[10px] font-bold text-slate-550 dark:text-slate-400 mb-1.5 uppercase tracking-wider">
                   Mobile Number
                 </label>
                 <div className="relative">
@@ -148,7 +153,7 @@ export default function LoginPage() {
                     onChange={(e) => setPhone(e.target.value)}
                     placeholder="9876543210"
                     required
-                    className="w-full h-11 bg-muted/40 border border-border text-foreground rounded-xl pl-12 pr-4 text-sm font-medium focus:outline-none focus:border-amber-500 focus:ring-1 focus:ring-amber-500 transition-all"
+                    className="w-full h-11 bg-slate-100 dark:bg-slate-800/40 border border-border dark:border-slate-700/50 text-foreground dark:text-white placeholder:text-slate-500 rounded-xl pl-12 pr-4 text-sm font-medium focus:outline-none focus:border-amber-500/50 focus:ring-1 focus:ring-amber-500/30 transition-all"
                   />
                 </div>
               </div>
@@ -157,7 +162,7 @@ export default function LoginPage() {
                 type="button"
                 onClick={(e) => handleSendOtp(e, true)}
                 disabled={loading}
-                className="w-full h-11 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-xl flex items-center justify-center gap-2 shadow-lg transition-all"
+                className="w-full h-11 bg-emerald-600/90 hover:bg-emerald-500 text-white font-bold rounded-xl flex items-center justify-center gap-2 shadow-lg transition-all"
               >
                 <MessageCircle size={18} /> Get OTP on WhatsApp
               </button>
@@ -165,7 +170,7 @@ export default function LoginPage() {
               <button
                 type="submit"
                 disabled={loading}
-                className="w-full h-12 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold rounded-xl flex items-center justify-center gap-2 shadow-lg shadow-amber-500/25 transition-all disabled:opacity-50 mt-2"
+                className="w-full h-12 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-550 text-slate-950 font-bold rounded-xl flex items-center justify-center gap-2 shadow-lg shadow-amber-500/20 transition-all disabled:opacity-50 mt-2"
               >
                 {loading ? (
                   <span className="w-5 h-5 border-2 border-slate-950 border-t-transparent rounded-full animate-spin" />
@@ -180,7 +185,7 @@ export default function LoginPage() {
             <form onSubmit={handleVerifyOtp} className="space-y-4">
               <div>
                 <div className="flex justify-between items-center mb-1.5">
-                  <label className="block text-xs font-bold text-muted-foreground uppercase tracking-wider">
+                  <label className="block text-[10px] font-bold text-slate-550 dark:text-slate-400 uppercase tracking-wider">
                     Enter 6-Digit OTP
                   </label>
                   <button
@@ -192,7 +197,7 @@ export default function LoginPage() {
                   </button>
                 </div>
                 <div className="relative">
-                  <ShieldCheck size={18} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-muted-foreground" />
+                  <ShieldCheck size={18} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-500" />
                   <input
                     type="text"
                     maxLength={6}
@@ -200,11 +205,11 @@ export default function LoginPage() {
                     onChange={(e) => setOtp(e.target.value)}
                     placeholder="123456"
                     required
-                    className="w-full h-11 bg-muted/40 border border-border text-foreground rounded-xl pl-10 pr-4 text-center text-lg font-mono font-bold tracking-widest focus:outline-none focus:border-amber-500 focus:ring-1 focus:ring-amber-500 transition-all"
+                    className="w-full h-11 bg-slate-100 dark:bg-slate-800/40 border border-border dark:border-slate-700/50 text-foreground dark:text-white rounded-xl pl-10 pr-4 text-center text-lg font-mono font-bold tracking-widest focus:outline-none focus:border-amber-500/50 focus:ring-1 focus:ring-amber-500/30 transition-all"
                   />
                 </div>
                 {debugOtp && (
-                  <div className="mt-2.5 p-2 bg-amber-500/10 border border-amber-500/30 rounded-xl text-center text-xs text-amber-500 dark:text-amber-300 font-mono font-bold">
+                  <div className="mt-2.5 p-2 bg-amber-500/10 border border-amber-500/20 rounded-xl text-center text-xs text-amber-500 dark:text-amber-400 font-mono font-bold">
                     [DEMO OTP: {debugOtp}]
                   </div>
                 )}
@@ -213,7 +218,7 @@ export default function LoginPage() {
               <button
                 type="submit"
                 disabled={loading}
-                className="w-full h-12 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold rounded-xl flex items-center justify-center gap-2 shadow-lg shadow-amber-500/25 transition-all disabled:opacity-50 mt-2"
+                className="w-full h-12 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-550 text-slate-950 font-bold rounded-xl flex items-center justify-center gap-2 shadow-lg shadow-amber-500/20 transition-all disabled:opacity-50 mt-2"
               >
                 {loading ? (
                   <span className="w-5 h-5 border-2 border-slate-950 border-t-transparent rounded-full animate-spin" />
@@ -231,21 +236,21 @@ export default function LoginPage() {
         {tab === "password" && (
           <form onSubmit={handlePasswordSubmit} className="space-y-4">
             <div>
-              <label className="block text-xs font-bold text-muted-foreground mb-1.5 uppercase tracking-wider">
+              <label className="block text-[10px] font-bold text-slate-555 dark:text-slate-400 mb-1.5 uppercase tracking-wider">
                 Username
               </label>
               <input
                 type="text"
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
-                placeholder="e.g. Pyare Mohan or 9876543210"
+                placeholder="e.g. collector1"
                 required
-                className="w-full h-11 bg-muted/40 border border-border text-foreground rounded-xl px-4 text-sm font-medium focus:outline-none focus:border-amber-500 focus:ring-1 focus:ring-amber-500 transition-all"
+                className="w-full h-11 bg-slate-100 dark:bg-slate-800/40 border border-border dark:border-slate-700/50 text-foreground dark:text-white placeholder:text-slate-500 rounded-xl px-4 text-sm font-medium focus:outline-none focus:border-amber-500/50 focus:ring-1 focus:ring-amber-500/30 transition-all"
               />
             </div>
 
             <div>
-              <label className="block text-xs font-bold text-muted-foreground mb-1.5 uppercase tracking-wider">
+              <label className="block text-[10px] font-bold text-slate-555 dark:text-slate-400 mb-1.5 uppercase tracking-wider">
                 Password
               </label>
               <div className="relative">
@@ -256,12 +261,12 @@ export default function LoginPage() {
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="••••••••"
                   required
-                  className="w-full h-11 bg-muted/40 border border-border text-foreground rounded-xl px-4 pr-11 text-sm font-medium focus:outline-none focus:border-amber-500 focus:ring-1 focus:ring-amber-500 transition-all"
+                  className="w-full h-11 bg-slate-100 dark:bg-slate-800/40 border border-border dark:border-slate-700/50 text-foreground dark:text-white placeholder:text-slate-500 rounded-xl px-4 pr-11 text-sm font-medium focus:outline-none focus:border-amber-500/50 focus:ring-1 focus:ring-amber-500/30 transition-all"
                 />
                 <button
                   type="button"
                   onClick={() => setShowPwd((p: boolean) => !p)}
-                  className="absolute right-3.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                  className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-500 hover:text-foreground"
                 >
                   {showPwd ? <EyeOff size={18} /> : <Eye size={18} />}
                 </button>
@@ -271,7 +276,7 @@ export default function LoginPage() {
             <button
               type="submit"
               disabled={loading}
-              className="w-full h-12 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold rounded-xl flex items-center justify-center gap-2 shadow-lg shadow-amber-500/25 transition-all disabled:opacity-50 mt-2"
+              className="w-full h-12 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-550 text-slate-950 font-bold rounded-xl flex items-center justify-center gap-2 shadow-lg shadow-amber-500/20 transition-all disabled:opacity-50 mt-2"
             >
               {loading ? (
                 <span className="w-5 h-5 border-2 border-slate-950 border-t-transparent rounded-full animate-spin" />
@@ -285,7 +290,7 @@ export default function LoginPage() {
         )}
       </div>
 
-      <p className="text-muted-foreground text-xs mt-6 text-center font-medium z-10">
+      <p className="text-slate-500 text-xs mt-6 text-center font-medium z-10">
         © {new Date().getFullYear()} Shree Krishna Association. All rights reserved.
       </p>
     </div>

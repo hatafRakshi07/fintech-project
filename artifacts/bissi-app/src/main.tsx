@@ -1,10 +1,11 @@
 import { createRoot } from 'react-dom/client';
-
 import App from './App';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
-
 import './index.css';
-
+import { log } from '../../../utils/log';
+const appName = 'bissi-app';
+const originalConsoleLog = console.log;
+console.log = (...args) => log(appName, ...args);
 import { setBaseUrl } from "@workspace/api-client-react";
 
 // Set default API base URL for customFetch calls

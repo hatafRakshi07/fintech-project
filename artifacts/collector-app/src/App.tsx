@@ -1,7 +1,8 @@
-import React from "react";
+import React, { useState, useEffect } from "react";
 import { Router, Route, Switch, Redirect, useLocation } from "wouter";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { getStoredUser } from "@/lib/api";
+import { SplashScreen } from "@/components/SplashScreen";
 
 import LoginPage from "@/pages/login";
 import HomePage from "@/pages/home";
@@ -34,7 +35,7 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
 function AppLayout({ children }: { children: React.ReactNode }) {
   return (
     <div className="flex flex-col h-full">
-      <main className="flex-1 overflow-y-auto pb-[calc(64px+env(safe-area-inset-bottom,0px))]">
+      <main className="flex-1 overflow-y-auto pb-[calc(68px+env(safe-area-inset-bottom,0px))]">
         {children}
       </main>
       <BottomNav />
@@ -43,14 +44,27 @@ function AppLayout({ children }: { children: React.ReactNode }) {
 }
 
 export default function App() {
-  React.useEffect(() => {
-    const savedTheme = localStorage.getItem("theme");
-    if (savedTheme === "light") {
+  const [showSplash, setShowSplash] = useState(true);
+
+  useEffect(() => {
+    const hasToggled = localStorage.getItem("theme_toggled");
+    if (!hasToggled) {
+      localStorage.setItem("theme", "light");
+      localStorage.setItem("theme_toggled", "true");
       document.documentElement.classList.remove("dark");
     } else {
-      document.documentElement.classList.add("dark");
+      const savedTheme = localStorage.getItem("theme") || "light";
+      if (savedTheme === "dark") {
+        document.documentElement.classList.add("dark");
+      } else {
+        document.documentElement.classList.remove("dark");
+      }
     }
   }, []);
+
+  if (showSplash) {
+    return <SplashScreen onDone={() => setShowSplash(false)} />;
+  }
 
   return (
     <QueryClientProvider client={queryClient}>

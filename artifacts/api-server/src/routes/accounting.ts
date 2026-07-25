@@ -106,9 +106,63 @@ async function ensureDefaultLedgers(groupMap: Map<string, number>) {
   }
 }
 
+async function ensureDefaultVouchers() {
+  try {
+    const existing = await db.select({ count: sql<number>`count(*)::int` }).from(accountingVouchersTable);
+    if (existing[0] && existing[0].count > 0) return;
+
+    const ledgers = await db.select().from(ledgerAccountsTable);
+    const bankLedger = ledgers.find((l) => l.name.includes("Bank")) || ledgers[0];
+    const expLedger = ledgers.find((l) => l.name.includes("Rent") || l.name.includes("Expenses")) || ledgers[1];
+
+    if (!bankLedger || !expLedger) return;
+
+    const [v1] = await db
+      .insert(accountingVouchersTable)
+      .values({
+        voucherNumber: "PMT-2026-0001",
+        voucherType: "payment",
+        date: new Date(Date.now() - 5 * 86400000),
+        narration: "Electricity Bill Payment (Meter JVV-884920) - Jaipur Vidyut Vitran Nigam Ltd",
+        referenceNumber: "INV-2026-ELE-001",
+        status: "posted",
+      })
+      .returning();
+
+    if (v1) {
+      await db.insert(voucherPostingsTable).values([
+        { voucherId: v1.id, ledgerAccountId: expLedger.id, amount: "5723.00", entryType: "debit" },
+        { voucherId: v1.id, ledgerAccountId: bankLedger.id, amount: "5723.00", entryType: "credit" },
+      ]);
+    }
+
+    const [v2] = await db
+      .insert(accountingVouchersTable)
+      .values({
+        voucherNumber: "PMT-2026-0002",
+        voucherType: "payment",
+        date: new Date(Date.now() - 2 * 86400000),
+        narration: "Commercial Office & House Rent Payment - Ramesh Chandra Sharma (July 2026)",
+        referenceNumber: "INV-2026-RNT-002",
+        status: "posted",
+      })
+      .returning();
+
+    if (v2) {
+      await db.insert(voucherPostingsTable).values([
+        { voucherId: v2.id, ledgerAccountId: expLedger.id, amount: "29500.00", entryType: "debit" },
+        { voucherId: v2.id, ledgerAccountId: bankLedger.id, amount: "29500.00", entryType: "credit" },
+      ]).catch(() => {});
+    }
+  } catch (err) {
+    console.warn("[DEFAULT VOUCHERS SEED WARNING]", err);
+  }
+}
+
 async function ensureSeeded() {
   const groupMap = await ensureDefaultGroups();
   await ensureDefaultLedgers(groupMap);
+  await ensureDefaultVouchers();
   return groupMap;
 }
 

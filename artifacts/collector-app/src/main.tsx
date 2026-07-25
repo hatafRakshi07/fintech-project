@@ -2,6 +2,11 @@ import React from "react";
 import ReactDOM from "react-dom/client";
 import App from "./App";
 import "./index.css";
+import { log } from '../../../utils/log';
+
+const appName = 'collector-app';
+const originalConsoleLog = console.log;
+console.log = (...args) => log(appName, ...args);
 
 // Ensure demo token & user are pre-set so no login screen is required
 if (!localStorage.getItem("auth_token")) {

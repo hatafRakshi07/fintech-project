@@ -241,8 +241,6 @@ export default function CollectionsPage() {
                             <SelectContent>
                               <SelectItem value="cash">Cash</SelectItem>
                               <SelectItem value="upi">UPI</SelectItem>
-                              <SelectItem value="bank">Bank Transfer</SelectItem>
-                              <SelectItem value="card">Card</SelectItem>
                             </SelectContent>
                           </Select>
                           <FormMessage />
@@ -397,13 +395,11 @@ export default function CollectionsPage() {
       </div>
 
       {!isCustomer && (
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+        <div className="grid grid-cols-2 md:grid-cols-2 lg:grid-cols-4 gap-4">
           {[
             { label: "Total Today", value: summary?.totalAmount ?? 0, icon: Wallet },
             { label: "Cash", value: summary?.cashAmount ?? 0, icon: Banknote },
             { label: "UPI", value: summary?.upiAmount ?? 0, icon: Smartphone },
-            { label: "Bank", value: summary?.bankAmount ?? 0, icon: Building2 },
-            { label: "Card", value: summary?.cardAmount ?? 0, icon: CreditCard },
             { label: "Transactions", value: summary?.totalCount ?? 0, icon: Plus, currency: false },
           ].map(({ label, value, icon: Icon, currency = true }) => (
             <Card key={label}>
