@@ -72,7 +72,6 @@ type NavItem = {
 const ALL_NAV_ITEMS: NavItem[] = [
   { icon: LayoutDashboard, label: "Dashboard", href: "/" },
   { icon: Users, label: "Customers", href: "/customers", roles: ["super_admin","owner","branch_manager","collector"] },
-  { icon: Building2, label: "Branches", href: "/branches", roles: ["super_admin","owner"] },
   { icon: UserSquare2, label: "Collectors", href: "/collectors", roles: ["super_admin","owner","branch_manager"] },
   { icon: Briefcase, label: "Agent Portal", href: "/agent-portal", roles: ["agent","super_admin","owner","branch_manager"] },
   { icon: ShieldAlert, label: "Committees", href: "/committees", roles: ["super_admin","owner","branch_manager"] },

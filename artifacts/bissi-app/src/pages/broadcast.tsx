@@ -24,15 +24,8 @@ export default function BroadcastPage() {
 
   const [title, setTitle] = useState("");
   const [message, setMessage] = useState("");
-  const [target, setTarget] = useState<"all" | "customers" | "collectors" | "branch">("all");
-  const [branchId, setBranchId] = useState<string>("");
+  const [target, setTarget] = useState<"all" | "customers" | "collectors">("all");
   const [type, setType] = useState<"announcement" | "reminder" | "alert" | "general">("announcement");
-
-  // Fetch branches for target dropdown
-  const { data: branches } = useQuery<any[]>({
-    queryKey: ["branches-list"],
-    queryFn: () => customFetch("/api/branches"),
-  });
 
   // Broadcast mutation
   const broadcastMutation = useMutation({
@@ -77,7 +70,6 @@ export default function BroadcastPage() {
       message: message.trim(),
       type,
       target,
-      branchId: target === "branch" && branchId ? parseInt(branchId, 10) : undefined,
     });
   };
 
@@ -126,7 +118,6 @@ export default function BroadcastPage() {
                         <SelectItem value="all">All Members & Staff (Everyone)</SelectItem>
                         <SelectItem value="customers">All Customers Only</SelectItem>
                         <SelectItem value="collectors">All Field Collectors Only</SelectItem>
-                        <SelectItem value="branch">Specific Branch Members</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
@@ -149,28 +140,6 @@ export default function BroadcastPage() {
                     </Select>
                   </div>
                 </div>
-
-                {/* Conditional Branch Selection */}
-                {target === "branch" && (
-                  <div className="space-y-2">
-                    <label className="text-sm font-semibold text-foreground flex items-center gap-1.5">
-                      <Building2 className="h-4 w-4 text-muted-foreground" />
-                      Select Branch
-                    </label>
-                    <Select value={branchId} onValueChange={setBranchId}>
-                      <SelectTrigger className="h-10">
-                        <SelectValue placeholder="Select a branch" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {branches?.map((b: any) => (
-                          <SelectItem key={b.id} value={String(b.id)}>
-                            {b.name} ({b.code})
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                )}
 
                 {/* Title */}
                 <div className="space-y-2">
