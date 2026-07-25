@@ -19,53 +19,50 @@ app.set("trust proxy", 1);
 // ---------------------------------------------------------------------------
 app.use(
   (helmet as any)({
-    contentSecurityPolicy: process.env.NODE_ENV === "production"
-      ? {
-          directives: {
-            defaultSrc: ["'self'"],
-            scriptSrc: [
-              "'self'",
-              "'unsafe-inline'",
-              "'unsafe-eval'",
-              "https://www.google.com/recaptcha/",
-              "https://www.gstatic.com/",
-              "https://*.firebaseapp.com",
-              "https://*.googleapis.com",
-              "https://*.clerk.accounts.dev",
-              "https://clerk.com",
-              "https://*.clerk.com",
-              "https://*.clerk.stage.dev"
-            ],
-            styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
-            imgSrc: ["'self'", "data:", "blob:", "https:", "http:"],
-            fontSrc: ["'self'", "data:", "https://fonts.gstatic.com"],
-            connectSrc: [
-              "'self'",
-              "https:",
-              "http:",
-              "ws:",
-              "wss:",
-              "https://*.googleapis.com",
-              "https://*.firebaseio.com",
-              "https://*.clerk.accounts.dev",
-              "https://clerk.com",
-              "https://*.clerk.com",
-              "https://*.clerk.stage.dev"
-            ],
-            frameSrc: [
-              "'self'",
-              "https://www.google.com/recaptcha/",
-              "https://recaptcha.google.com/",
-              "https://*.firebaseapp.com",
-              "https://*.clerk.accounts.dev",
-              "https://clerk.com",
-              "https://*.clerk.com"
-            ],
-            workerSrc: ["'self'", "blob:"],
-            frameAncestors: ["'none'"],
-          },
-        }
-      : false,
+    contentSecurityPolicy: {
+      directives: {
+        defaultSrc: ["'self'"],
+        scriptSrc: [
+          "'self'",
+          "'unsafe-inline'",
+          // SECURITY: Removed 'unsafe-eval' — not required by Clerk or Firebase
+          "https://www.google.com/recaptcha/",
+          "https://www.gstatic.com/",
+          "https://*.firebaseapp.com",
+          "https://*.googleapis.com",
+          "https://*.clerk.accounts.dev",
+          "https://clerk.com",
+          "https://*.clerk.com",
+        ],
+        styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
+        imgSrc: ["'self'", "data:", "blob:", "https://*.clerk.com", "https://*.googleapis.com"],
+        fontSrc: ["'self'", "data:", "https://fonts.gstatic.com"],
+        connectSrc: [
+          "'self'",
+          // SECURITY: Specific domains only — no wildcard https: / http:
+          "https://*.googleapis.com",
+          "https://*.firebaseio.com",
+          "https://*.clerk.accounts.dev",
+          "https://clerk.com",
+          "https://*.clerk.com",
+          "https://www.fast2sms.com",
+          "https://2factor.in",
+          "https://control.msg91.com",
+          "https://*.supabase.co",
+        ],
+        frameSrc: [
+          "'self'",
+          "https://www.google.com/recaptcha/",
+          "https://recaptcha.google.com/",
+          "https://*.firebaseapp.com",
+          "https://*.clerk.accounts.dev",
+          "https://clerk.com",
+          "https://*.clerk.com"
+        ],
+        workerSrc: ["'self'", "blob:"],
+        frameAncestors: ["'none'"],
+      },
+    },
     crossOriginEmbedderPolicy: false, // allow fonts/images from same-origin in SPA
   }),
 );

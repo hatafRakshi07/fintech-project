@@ -19,4 +19,5 @@ export * from "./invoices";
 export * from "./otps";
 export * from "./agents";
 export * from "./kyc";
+export * from "./audit";
 

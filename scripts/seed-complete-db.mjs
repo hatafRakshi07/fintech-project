@@ -3,7 +3,8 @@ import bcrypt from "bcryptjs";
 
 const { Pool } = pg;
 
-const url = process.env.DATABASE_URL || "postgresql://postgres:shreeassociation2026@db.ovtzfzeodcksosfwjibf.supabase.co:5432/postgres";
+const url = process.env.DATABASE_URL;
+if (!url) { console.error("ERROR: DATABASE_URL environment variable is required."); process.exit(1); }
 
 const pool = new Pool({
   connectionString: url,

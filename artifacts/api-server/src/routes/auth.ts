@@ -54,6 +54,15 @@ const loginLimiter = rateLimit({
 router.post("/auth/clerk-sync", async (req: Request, res: Response): Promise<void> => {
   try {
     const { clerkId, phone, email, name } = req.body;
+
+    // SECURITY: Verify clerkId is present — in production, you should
+    // verify the Clerk session JWT via @clerk/express or Clerk's JWKS.
+    // For now we require clerkId and validate it looks like a Clerk user ID.
+    if (!clerkId || typeof clerkId !== "string" || !clerkId.startsWith("user_")) {
+      res.status(401).json({ error: "Invalid or missing Clerk user ID. Authentication rejected." });
+      return;
+    }
+
     const cleanPhone = phone ? phone.replace(/\D/g, "").slice(-10) : "";
 
     let user: any = null;
@@ -155,15 +164,15 @@ router.post("/auth/clerk-sync", async (req: Request, res: Response): Promise<voi
 router.post("/auth/login", loginLimiter, async (req: Request, res: Response): Promise<void> => {
   const { username, password } = req.body;
   if (!username || !password) {
-    res.status(400).json({ error: "Name/Mobile and Password/Phone are required" });
+    res.status(400).json({ error: "Username/Mobile and Password are required" });
     return;
   }
 
   const inputStr = username.trim();
   const cleanInputPhone = inputStr.replace(/\D/g, "").slice(-10);
   const passStr = password.trim();
-  const cleanPassPhone = passStr.replace(/\D/g, "").slice(-10);
-  const targetPhone = cleanInputPhone.length === 10 ? cleanInputPhone : (cleanPassPhone.length === 10 ? cleanPassPhone : null);
+  // SECURITY: targetPhone is used ONLY for user lookup, never as password validation
+  const targetPhone = cleanInputPhone.length === 10 ? cleanInputPhone : null;
 
   let user: any = null;
   try {
@@ -196,35 +205,13 @@ router.post("/auth/login", loginLimiter, async (req: Request, res: Response): Pr
         );
 
       if (customerCandidates.length > 0) {
-        const cust = customerCandidates[0];
-        // Auto-provision user account for this customer
-        const [newUser] = await db
-          .insert(usersTable)
-          .values({
-            username: cust.mobile || `cust_${cust.id}`,
-            passwordHash: await hashPassword(cust.mobile || passStr),
-            name: cust.name,
-            role: "customer",
-            branchId: cust.branchId,
-            customerId: cust.id,
-            phone: cust.mobile || targetPhone,
-            email: cust.email ?? null,
-          })
-          .returning();
-        user = newUser;
-      } else if (targetPhone) {
-        // Auto-provision standard customer account for any valid 10-digit mobile number
-        const [newUser] = await db
-          .insert(usersTable)
-          .values({
-            username: targetPhone,
-            passwordHash: await hashPassword(targetPhone),
-            name: `Customer ${targetPhone}`,
-            role: "customer",
-            phone: targetPhone,
-          })
-          .returning();
-        user = newUser;
+        // SECURITY: Customer found but has no user account.
+        // Do NOT auto-provision on password login — require OTP verification first.
+        res.status(401).json({
+          error: "Account not yet activated. Please use OTP verification (Mobile OTP tab) to activate your account for the first time.",
+          requireOtp: true,
+        });
+        return;
       }
     }
   } catch (err: any) {
@@ -236,26 +223,14 @@ router.post("/auth/login", loginLimiter, async (req: Request, res: Response): Pr
     return;
   }
 
-  // 3. Verify password hash OR phone match OR demo pass
+  // 3. Verify password hash — ONLY bcrypt comparison, no backdoors
   let isValid = false;
   try {
-    isValid = await verifyPassword(passStr, user.passwordHash);
-  } catch {}
-
-  // Allow phone match or universal pass
-  if (!isValid) {
-    if (
-      passStr === user.phone ||
-      passStr === user.username ||
-      (cleanPassPhone.length === 10 && cleanPassPhone === user.phone) ||
-      passStr === "customer123" ||
-      passStr === "123456" ||
-      (user.username.toLowerCase() === "admin" && passStr === "admin123") ||
-      (user.username.toLowerCase() === "collector1" && passStr === "collector123") ||
-      targetPhone !== null
-    ) {
-      isValid = true;
+    if (user.passwordHash) {
+      isValid = await verifyPassword(passStr, user.passwordHash);
     }
+  } catch (err) {
+    console.error("[Password verification error]:", err);
   }
 
   if (!isValid) {
@@ -396,16 +371,22 @@ router.post("/auth/send-otp", otpLimiter, async (req: Request, res: Response): P
     // Attempt real SMS Gateway dispatch
     const smsSent = await sendRealSmsOtp(cleanPhone, code);
 
-    console.log(`[REAL-TIME OTP] OTP ${code} generated for mobile +91 ${cleanPhone}. Real SMS sent: ${smsSent}`);
+    console.log(`[REAL-TIME OTP] OTP generated for mobile +91 ${cleanPhone}. Real SMS sent: ${smsSent}`);
 
-    res.json({
+    const responseBody: any = {
       success: true,
       message: smsSent
         ? `Real-time OTP SMS dispatched to +91 ${cleanPhone}`
         : `OTP code sent to +91 ${cleanPhone}`,
       smsSent,
-      debugOtp: code, // Always return generated code so login works even without SMS Gateway
-    });
+    };
+
+    // SECURITY: Only expose OTP code in non-production environments
+    if (process.env.NODE_ENV !== "production") {
+      responseBody.debugOtp = code;
+    }
+
+    res.json(responseBody);
   } catch (err: any) {
     console.error("[send-otp Error]:", err);
     res.status(500).json({ error: err?.message || "Failed to send OTP code. Please retry or use Password login." });
@@ -423,9 +404,8 @@ router.post("/auth/verify-otp", async (req: Request, res: Response): Promise<voi
 
     const cleanPhone = phone.replace(/\D/g, "").slice(-10);
     const inputOtp = otp.toString().trim();
-    const isDemoOtp = inputOtp === "123456";
 
-    // Find matching active OTP
+    // SECURITY: Find matching active, unused, non-expired OTP — no demo bypass
     let validOtp: any = null;
     try {
       const records = await db
@@ -434,17 +414,22 @@ router.post("/auth/verify-otp", async (req: Request, res: Response): Promise<voi
         .where(
           and(
             eq(otpsTable.phone, cleanPhone),
-            eq(otpsTable.code, inputOtp)
+            eq(otpsTable.code, inputOtp),
+            eq(otpsTable.used, false)
           )
         );
       if (records.length > 0) {
-        validOtp = records[records.length - 1];
+        const candidate = records[records.length - 1];
+        // Check expiry
+        if (candidate.expiresAt && new Date(candidate.expiresAt) > new Date()) {
+          validOtp = candidate;
+        }
       }
     } catch (err) {
       console.error("[verify-otp DB check warning]:", err);
     }
 
-    const isValidCode = validOtp !== null || isDemoOtp || inputOtp.length === 6;
+    const isValidCode = validOtp !== null;
     if (!isValidCode) {
       res.status(401).json({ error: "Invalid or expired OTP code" });
       return;
