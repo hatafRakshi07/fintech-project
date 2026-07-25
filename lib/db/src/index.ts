@@ -9,19 +9,25 @@ let poolInstance: pg.Pool | null = null;
 let dbInstance: any = null;
 
 function getPool() {
-  const url = process.env.DATABASE_URL || "postgresql://neondb_owner:npg_qSQN29ZxTKzt@ep-frosty-cloud-at51tjed.c-9.us-east-1.aws.neon.tech/neondb?sslmode=require";
+  const url = process.env.DATABASE_URL || "postgresql://postgres:shreeassociation2026@db.ovtzfzeodcksosfwjibf.supabase.co:5432/postgres";
   if (!poolInstance) {
     poolInstance = new Pool({
       connectionString: url,
       // Force public schema to prevent collisions with Supabase internal auth.users table
       options: "-c search_path=public",
-      // Force IPv4 lookup for Render compatibility (prevents ENETUNREACH IPv6 errors)
+      // Smart lookup: prefer IPv4 for Render compatibility, fall back to default if IPv4 ENOTFOUND (e.g. Supabase IPv6)
       lookup: (hostname: string, options: any, callback: any) => {
         if (typeof options === "function") {
           callback = options;
           options = {};
         }
-        dns.lookup(hostname, { ...options, family: 4 }, callback);
+        dns.lookup(hostname, { ...options, family: 4 }, (err: any, address: any, family: any) => {
+          if (err && (err.code === "ENOTFOUND" || err.code === "EINVAL")) {
+            dns.lookup(hostname, options, callback);
+          } else {
+            callback(err, address, family);
+          }
+        });
       },
       // Production-grade pool settings
       max: parseInt(process.env.DB_POOL_MAX ?? "10", 10),
