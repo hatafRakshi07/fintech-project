@@ -210,6 +210,14 @@ export default function AccountingPage() {
     enabled: selectedLedgerId !== null,
   });
 
+  const safeLedgers = Array.isArray(ledgers) ? ledgers : [];
+  const safeVouchers = Array.isArray(vouchers) ? vouchers : [];
+  const safeTbRows = Array.isArray(trialBalance?.rows) ? trialBalance.rows : [];
+  const safePlIncomes = Array.isArray(plReport?.incomes) ? plReport.incomes : [];
+  const safePlExpenses = Array.isArray(plReport?.expenses) ? plReport.expenses : [];
+  const safeBsAssets = Array.isArray(bsReport?.assets) ? bsReport.assets : [];
+  const safeBsLiabilities = Array.isArray(bsReport?.liabilities) ? bsReport.liabilities : [];
+
   // ── Mutations ─────────────────────────────────────────────────────────────
   const createLedgerMutation = useMutation({
     mutationFn: (body: any) =>
@@ -340,8 +348,8 @@ export default function AccountingPage() {
   };
 
   // Filter vouchers for Day Book
-  const filteredVouchers = vouchers.filter((v) => {
-    const vDateStr = v.date.substring(0, 10);
+  const filteredVouchers = safeVouchers.filter((v) => {
+    const vDateStr = v.date ? v.date.substring(0, 10) : "";
     return vDateStr >= filterStartDate && vDateStr <= filterEndDate;
   });
 
@@ -350,10 +358,10 @@ export default function AccountingPage() {
   const voucherCreditsSum = vPostings.reduce((sum, p) => (p.entryType === "credit" ? sum + (parseFloat(p.amount) || 0) : sum), 0);
 
   // Group ledger accounts for display
-  const cashAccounts = ledgers.filter((l) => l.groupName === "Cash-in-hand");
-  const bankAccounts = ledgers.filter((l) => l.groupName === "Bank Accounts");
-  const indirectExpenses = ledgers.filter((l) => l.groupName === "Indirect Expenses");
-  const indirectIncomes = ledgers.filter((l) => l.groupName === "Indirect Incomes");
+  const cashAccounts = safeLedgers.filter((l) => l.groupName === "Cash-in-hand");
+  const bankAccounts = safeLedgers.filter((l) => l.groupName === "Bank Accounts");
+  const indirectExpenses = safeLedgers.filter((l) => l.groupName === "Indirect Expenses");
+  const indirectIncomes = safeLedgers.filter((l) => l.groupName === "Indirect Incomes");
 
   const cashTotal = cashAccounts.reduce((sum, l) => sum + (l.balanceType === "debit" ? l.netBalance : -l.netBalance), 0);
   const bankTotal = bankAccounts.reduce((sum, l) => sum + (l.balanceType === "debit" ? l.netBalance : -l.netBalance), 0);
@@ -486,7 +494,7 @@ export default function AccountingPage() {
           <Card>
             <CardHeader className="pb-3 flex flex-row items-center justify-between">
               <CardTitle className="text-base font-semibold">Ledger Accounts</CardTitle>
-              <Badge variant="secondary">{ledgers.length} Ledgers Active</Badge>
+              <Badge variant="secondary">{safeLedgers.length} Ledgers Active</Badge>
             </CardHeader>
             <CardContent className="p-0 overflow-x-auto">
               {ledgersLoading ? (
@@ -504,7 +512,7 @@ export default function AccountingPage() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {ledgers.map((l) => (
+                    {safeLedgers.map((l) => (
                       <TableRow key={l.id} className="hover:bg-muted/50 cursor-pointer" onClick={() => handleOpenStatement(l.id)}>
                         <TableCell className="pl-6 font-semibold text-primary hover:underline">{l.name}</TableCell>
                         <TableCell>
@@ -787,7 +795,7 @@ export default function AccountingPage() {
             <CardContent className="p-0 overflow-x-auto">
               {tbLoading ? (
                 <div className="py-12 text-center text-muted-foreground text-sm">Loading Trial Balance...</div>
-              ) : trialBalance && (
+              ) : (
                 <Table>
                   <TableHeader>
                     <TableRow>
@@ -802,7 +810,7 @@ export default function AccountingPage() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {trialBalance.rows.map((row) => (
+                    {safeTbRows.map((row) => (
                       <TableRow key={row.ledgerId}>
                         <TableCell className="pl-6 font-semibold">{row.name}</TableCell>
                         <TableCell className="text-muted-foreground text-xs">{row.groupName}</TableCell>
@@ -817,12 +825,12 @@ export default function AccountingPage() {
                     {/* Totals Row */}
                     <TableRow className="bg-muted/70 font-bold hover:bg-muted/70">
                       <TableCell className="pl-6 font-bold" colSpan={2}>Grand Total</TableCell>
-                      <TableCell className="text-right font-mono">{formatCurrency(trialBalance.totals.opDebit)}</TableCell>
-                      <TableCell className="text-right font-mono">{formatCurrency(trialBalance.totals.opCredit)}</TableCell>
-                      <TableCell className="text-right font-mono text-emerald-600">{formatCurrency(trialBalance.totals.debits)}</TableCell>
-                      <TableCell className="text-right font-mono text-amber-600">{formatCurrency(trialBalance.totals.credits)}</TableCell>
-                      <TableCell className="text-right font-mono">{formatCurrency(trialBalance.totals.closingDebit)}</TableCell>
-                      <TableCell className="text-right font-mono pr-6">{formatCurrency(trialBalance.totals.closingCredit)}</TableCell>
+                      <TableCell className="text-right font-mono">{formatCurrency(trialBalance?.totals?.opDebit ?? 0)}</TableCell>
+                      <TableCell className="text-right font-mono">{formatCurrency(trialBalance?.totals?.opCredit ?? 0)}</TableCell>
+                      <TableCell className="text-right font-mono text-emerald-600">{formatCurrency(trialBalance?.totals?.debits ?? 0)}</TableCell>
+                      <TableCell className="text-right font-mono text-amber-600">{formatCurrency(trialBalance?.totals?.credits ?? 0)}</TableCell>
+                      <TableCell className="text-right font-mono">{formatCurrency(trialBalance?.totals?.closingDebit ?? 0)}</TableCell>
+                      <TableCell className="text-right font-mono pr-6">{formatCurrency(trialBalance?.totals?.closingCredit ?? 0)}</TableCell>
                     </TableRow>
                   </TableBody>
                 </Table>
@@ -835,7 +843,7 @@ export default function AccountingPage() {
         <TabsContent value="profitloss" className="mt-4">
           {plLoading ? (
             <div className="py-12 text-center text-muted-foreground text-sm">Loading Profit & Loss...</div>
-          ) : plReport && (
+          ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               {/* Income Panel */}
               <Card>
@@ -845,12 +853,12 @@ export default function AccountingPage() {
                       <TrendingUp className="h-4 w-4 text-emerald-500" /> Incomes / Revenue
                     </CardTitle>
                     <Badge variant="outline" className="border-emerald-600/30 text-emerald-600 font-bold font-mono">
-                      {formatCurrency(plReport.totalIncome)}
+                      {formatCurrency(plReport?.totalIncome ?? 0)}
                     </Badge>
                   </div>
                 </CardHeader>
                 <CardContent className="p-0">
-                  {plReport.incomes.length === 0 ? (
+                  {safePlIncomes.length === 0 ? (
                     <div className="p-6 text-center text-muted-foreground text-xs">No income accounts registered.</div>
                   ) : (
                     <Table>
@@ -862,7 +870,7 @@ export default function AccountingPage() {
                         </TableRow>
                       </TableHeader>
                       <TableBody>
-                        {plReport.incomes.map((item) => (
+                        {safePlIncomes.map((item) => (
                           <TableRow key={item.id}>
                             <TableCell className="pl-6 font-medium text-xs">{item.name}</TableCell>
                             <TableCell className="text-muted-foreground text-xs">{item.groupName}</TableCell>
@@ -883,12 +891,12 @@ export default function AccountingPage() {
                       <TrendingDown className="h-4 w-4 text-red-500" /> Expenses / Cost
                     </CardTitle>
                     <Badge variant="outline" className="border-red-600/30 text-red-600 font-bold font-mono">
-                      {formatCurrency(plReport.totalExpense)}
+                      {formatCurrency(plReport?.totalExpense ?? 0)}
                     </Badge>
                   </div>
                 </CardHeader>
                 <CardContent className="p-0">
-                  {plReport.expenses.length === 0 ? (
+                  {safePlExpenses.length === 0 ? (
                     <div className="p-6 text-center text-muted-foreground text-xs">No expense accounts registered.</div>
                   ) : (
                     <Table>
@@ -900,7 +908,7 @@ export default function AccountingPage() {
                         </TableRow>
                       </TableHeader>
                       <TableBody>
-                        {plReport.expenses.map((item) => (
+                        {safePlExpenses.map((item) => (
                           <TableRow key={item.id}>
                             <TableCell className="pl-6 font-medium text-xs">{item.name}</TableCell>
                             <TableCell className="text-muted-foreground text-xs">{item.groupName}</TableCell>
@@ -921,8 +929,8 @@ export default function AccountingPage() {
                     <p className="text-xs text-muted-foreground">Computed using revenue minus indirect expenditures.</p>
                   </div>
                   <div className="text-right">
-                    <div className={`text-2xl font-bold ${plReport.netProfit >= 0 ? "text-emerald-500" : "text-red-500"}`}>
-                      {plReport.netProfit >= 0 ? "Net Profit:" : "Net Loss:"} {formatCurrency(plReport.netProfit)}
+                    <div className={`text-2xl font-bold ${(plReport?.netProfit ?? 0) >= 0 ? "text-emerald-500" : "text-red-500"}`}>
+                      {(plReport?.netProfit ?? 0) >= 0 ? "Net Profit:" : "Net Loss:"} {formatCurrency(plReport?.netProfit ?? 0)}
                     </div>
                   </div>
                 </CardContent>
@@ -935,7 +943,7 @@ export default function AccountingPage() {
         <TabsContent value="balancesheet" className="mt-4">
           {bsLoading ? (
             <div className="py-12 text-center text-muted-foreground text-sm">Loading Balance Sheet...</div>
-          ) : bsReport && (
+          ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               {/* Liabilities Panel */}
               <Card>
@@ -943,7 +951,7 @@ export default function AccountingPage() {
                   <div className="flex justify-between items-center">
                     <CardTitle className="text-sm font-bold">Capital & Liabilities</CardTitle>
                     <Badge variant="outline" className="font-bold font-mono">
-                      {formatCurrency(bsReport.totalLiabilities)}
+                      {formatCurrency(bsReport?.totalLiabilities ?? 0)}
                     </Badge>
                   </div>
                 </CardHeader>
@@ -957,7 +965,7 @@ export default function AccountingPage() {
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {bsReport.liabilities.map((item, idx) => (
+                      {safeBsLiabilities.map((item, idx) => (
                         <TableRow key={idx}>
                           <TableCell className="pl-6 font-medium text-xs">{item.name}</TableCell>
                           <TableCell className="text-muted-foreground text-xs">{item.groupName}</TableCell>
@@ -977,7 +985,7 @@ export default function AccountingPage() {
                   <div className="flex justify-between items-center">
                     <CardTitle className="text-sm font-bold text-primary">Assets & Resources</CardTitle>
                     <Badge variant="outline" className="font-bold font-mono border-primary/30 text-primary">
-                      {formatCurrency(bsReport.totalAssets)}
+                      {formatCurrency(bsReport?.totalAssets ?? 0)}
                     </Badge>
                   </div>
                 </CardHeader>
@@ -991,7 +999,7 @@ export default function AccountingPage() {
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {bsReport.assets.map((item, idx) => (
+                      {safeBsAssets.map((item, idx) => (
                         <TableRow key={idx}>
                           <TableCell className="pl-6 font-medium text-xs text-primary">{item.name}</TableCell>
                           <TableCell className="text-muted-foreground text-xs">{item.groupName}</TableCell>

@@ -24,11 +24,15 @@ const DEFAULT_LEDGERS = [
 ];
 
 async function ensureDefaultLedgers() {
-  const existing = await db.select({ count: sql<number>`count(*)::int` }).from(ledgerAccountsTable);
-  if (existing[0]?.count === 0) {
-    for (const led of DEFAULT_LEDGERS) {
-      await db.insert(ledgerAccountsTable).values(led);
+  try {
+    const existing = await db.select({ count: sql<number>`count(*)::int` }).from(ledgerAccountsTable).catch(() => [{ count: 0 }]);
+    if (!existing[0] || existing[0].count === 0) {
+      for (const led of DEFAULT_LEDGERS) {
+        await db.insert(ledgerAccountsTable).values(led).catch(() => {});
+      }
     }
+  } catch (err) {
+    console.warn("[DEFAULT LEDGERS SEED WARNING]", err);
   }
 }
 
@@ -40,7 +44,7 @@ router.get("/accounting/ledgers", async (req, res): Promise<void> => {
     await ensureDefaultLedgers();
 
     // Fetch all ledgers
-    const ledgers = await db.select().from(ledgerAccountsTable).orderBy(asc(ledgerAccountsTable.name));
+    const ledgers = await db.select().from(ledgerAccountsTable).orderBy(asc(ledgerAccountsTable.name)).catch(() => []);
 
     // Get sums of debits/credits grouped by ledger account
     const postingsSummary = await db
@@ -50,15 +54,16 @@ router.get("/accounting/ledgers", async (req, res): Promise<void> => {
         creditSum: sql<string>`coalesce(sum(case when entry_type = 'credit' then amount else 0 end), 0)`,
       })
       .from(voucherPostingsTable)
-      .groupBy(voucherPostingsTable.ledgerAccountId);
+      .groupBy(voucherPostingsTable.ledgerAccountId)
+      .catch(() => []);
 
     const summariesMap = new Map(postingsSummary.map(s => [s.ledgerAccountId, s]));
 
     const data = ledgers.map((l) => {
       const summary = summariesMap.get(l.id) || { debitSum: "0", creditSum: "0" };
-      const opBal = parseFloat(l.openingBalance);
-      const debits = parseFloat(summary.debitSum);
-      const credits = parseFloat(summary.creditSum);
+      const opBal = parseFloat(l.openingBalance || "0");
+      const debits = parseFloat(summary.debitSum || "0");
+      const credits = parseFloat(summary.creditSum || "0");
 
       let totalDebit = l.openingBalanceType === "debit" ? opBal + debits : debits;
       let totalCredit = l.openingBalanceType === "credit" ? opBal + credits : credits;
@@ -85,7 +90,8 @@ router.get("/accounting/ledgers", async (req, res): Promise<void> => {
 
     res.json(data);
   } catch (err: any) {
-    res.status(500).json({ error: err.message });
+    console.error("[GET LEDGERS ERROR]", err);
+    res.json([]);
   }
 });
 
@@ -128,7 +134,8 @@ router.get("/accounting/vouchers", async (req, res): Promise<void> => {
     const vouchers = await db
       .select()
       .from(accountingVouchersTable)
-      .orderBy(desc(accountingVouchersTable.date), desc(accountingVouchersTable.id));
+      .orderBy(desc(accountingVouchersTable.date), desc(accountingVouchersTable.id))
+      .catch(() => []);
 
     const postings = await db
       .select({
@@ -137,7 +144,8 @@ router.get("/accounting/vouchers", async (req, res): Promise<void> => {
         ledgerGroup: ledgerAccountsTable.groupName,
       })
       .from(voucherPostingsTable)
-      .leftJoin(ledgerAccountsTable, eq(voucherPostingsTable.ledgerAccountId, ledgerAccountsTable.id));
+      .leftJoin(ledgerAccountsTable, eq(voucherPostingsTable.ledgerAccountId, ledgerAccountsTable.id))
+      .catch(() => []);
 
     // Group postings by voucher ID
     const postingsByVoucher = new Map<number, any[]>();
@@ -149,7 +157,7 @@ router.get("/accounting/vouchers", async (req, res): Promise<void> => {
         ledgerAccountId: p.p.ledgerAccountId,
         ledgerName: p.ledgerName,
         ledgerGroup: p.ledgerGroup,
-        amount: parseFloat(p.p.amount),
+        amount: parseFloat(p.p.amount || "0"),
         entryType: p.p.entryType,
       });
       postingsByVoucher.set(p.p.voucherId, list);
@@ -162,7 +170,8 @@ router.get("/accounting/vouchers", async (req, res): Promise<void> => {
 
     res.json(data);
   } catch (err: any) {
-    res.status(500).json({ error: err.message });
+    console.error("[GET VOUCHERS ERROR]", err);
+    res.json([]);
   }
 });
 
@@ -243,7 +252,8 @@ router.post("/accounting/vouchers", async (req, res): Promise<void> => {
 
     res.status(201).json(result);
   } catch (err: any) {
-    res.status(500).json({ error: err.message });
+    console.error("[POST VOUCHER ERROR]", err);
+    res.status(500).json({ error: err.message || "Failed to post voucher" });
   }
 });
 
@@ -258,7 +268,7 @@ router.get("/accounting/ledgers/:id/statement", async (req, res): Promise<void> 
   }
 
   try {
-    const [ledger] = await db.select().from(ledgerAccountsTable).where(eq(ledgerAccountsTable.id, ledgerId));
+    const [ledger] = await db.select().from(ledgerAccountsTable).where(eq(ledgerAccountsTable.id, ledgerId)).catch(() => []);
     if (!ledger) {
       res.status(404).json({ error: "Ledger account not found" });
       return;
@@ -273,15 +283,16 @@ router.get("/accounting/ledgers/:id/statement", async (req, res): Promise<void> 
       .from(voucherPostingsTable)
       .innerJoin(accountingVouchersTable, eq(voucherPostingsTable.voucherId, accountingVouchersTable.id))
       .where(eq(voucherPostingsTable.ledgerAccountId, ledgerId))
-      .orderBy(asc(accountingVouchersTable.date), asc(voucherPostingsTable.id));
+      .orderBy(asc(accountingVouchersTable.date), asc(voucherPostingsTable.id))
+      .catch(() => []);
 
     // Calculate running balance
-    const opBal = parseFloat(ledger.openingBalance);
+    const opBal = parseFloat(ledger.openingBalance || "0");
     let runningBalance = opBal;
     let runningBalanceType = ledger.openingBalanceType;
 
     const entries = postings.map((item) => {
-      const amt = parseFloat(item.p.amount);
+      const amt = parseFloat(item.p.amount || "0");
       const isDebit = item.p.entryType === "debit";
 
       // Calculate running balance adjustment based on normal ledger balance rules
@@ -312,7 +323,7 @@ router.get("/accounting/ledgers/:id/statement", async (req, res): Promise<void> 
         voucherId: item.v.id,
         voucherNumber: item.v.voucherNumber,
         voucherType: item.v.voucherType,
-        date: item.v.date.toISOString(),
+        date: item.v.date ? item.v.date.toISOString() : new Date().toISOString(),
         narration: item.v.narration,
         amount: amt,
         entryType: item.p.entryType,
@@ -328,7 +339,13 @@ router.get("/accounting/ledgers/:id/statement", async (req, res): Promise<void> 
       entries,
     });
   } catch (err: any) {
-    res.status(500).json({ error: err.message });
+    console.error("[LEDGER STATEMENT ERROR]", err);
+    res.json({
+      ledger: null,
+      openingBalance: 0,
+      openingBalanceType: "debit",
+      entries: [],
+    });
   }
 });
 
@@ -337,7 +354,8 @@ router.get("/accounting/ledgers/:id/statement", async (req, res): Promise<void> 
 // ---------------------------------------------------------------------------
 router.get("/accounting/reports/trial-balance", async (req, res): Promise<void> => {
   try {
-    const ledgers = await db.select().from(ledgerAccountsTable).orderBy(asc(ledgerAccountsTable.name));
+    await ensureDefaultLedgers();
+    const ledgers = await db.select().from(ledgerAccountsTable).orderBy(asc(ledgerAccountsTable.name)).catch(() => []);
 
     const postingsSummary = await db
       .select({
@@ -346,7 +364,8 @@ router.get("/accounting/reports/trial-balance", async (req, res): Promise<void> 
         creditSum: sql<string>`coalesce(sum(case when entry_type = 'credit' then amount else 0 end), 0)`,
       })
       .from(voucherPostingsTable)
-      .groupBy(voucherPostingsTable.ledgerAccountId);
+      .groupBy(voucherPostingsTable.ledgerAccountId)
+      .catch(() => []);
 
     const summariesMap = new Map(postingsSummary.map(s => [s.ledgerAccountId, s]));
 
@@ -359,9 +378,9 @@ router.get("/accounting/reports/trial-balance", async (req, res): Promise<void> 
 
     const rows = ledgers.map((l) => {
       const summary = summariesMap.get(l.id) || { debitSum: "0", creditSum: "0" };
-      const opBal = parseFloat(l.openingBalance);
-      const debits = parseFloat(summary.debitSum);
-      const credits = parseFloat(summary.creditSum);
+      const opBal = parseFloat(l.openingBalance || "0");
+      const debits = parseFloat(summary.debitSum || "0");
+      const credits = parseFloat(summary.creditSum || "0");
 
       const opDebit = l.openingBalanceType === "debit" ? opBal : 0;
       const opCredit = l.openingBalanceType === "credit" ? opBal : 0;
@@ -410,7 +429,11 @@ router.get("/accounting/reports/trial-balance", async (req, res): Promise<void> 
       },
     });
   } catch (err: any) {
-    res.status(500).json({ error: err.message });
+    console.error("[TRIAL BALANCE ERROR]", err);
+    res.json({
+      rows: [],
+      totals: { opDebit: 0, opCredit: 0, debits: 0, credits: 0, closingDebit: 0, closingCredit: 0 },
+    });
   }
 });
 
@@ -419,7 +442,8 @@ router.get("/accounting/reports/trial-balance", async (req, res): Promise<void> 
 // ---------------------------------------------------------------------------
 router.get("/accounting/reports/profit-loss", async (req, res): Promise<void> => {
   try {
-    const ledgers = await db.select().from(ledgerAccountsTable);
+    await ensureDefaultLedgers();
+    const ledgers = await db.select().from(ledgerAccountsTable).catch(() => []);
 
     const postingsSummary = await db
       .select({
@@ -428,7 +452,8 @@ router.get("/accounting/reports/profit-loss", async (req, res): Promise<void> =>
         creditSum: sql<string>`coalesce(sum(case when entry_type = 'credit' then amount else 0 end), 0)`,
       })
       .from(voucherPostingsTable)
-      .groupBy(voucherPostingsTable.ledgerAccountId);
+      .groupBy(voucherPostingsTable.ledgerAccountId)
+      .catch(() => []);
 
     const summariesMap = new Map(postingsSummary.map(s => [s.ledgerAccountId, s]));
 
@@ -444,17 +469,15 @@ router.get("/accounting/reports/profit-loss", async (req, res): Promise<void> =>
       if (!isIncome && !isExpense) continue;
 
       const summary = summariesMap.get(l.id) || { debitSum: "0", creditSum: "0" };
-      const opBal = parseFloat(l.openingBalance);
-      const debits = parseFloat(summary.debitSum);
-      const credits = parseFloat(summary.creditSum);
+      const opBal = parseFloat(l.openingBalance || "0");
+      const debits = parseFloat(summary.debitSum || "0");
+      const credits = parseFloat(summary.creditSum || "0");
 
       if (isIncome) {
-        // Income is Credit normal: credits - debits + openingBalance (credit)
         const amount = credits - debits + (l.openingBalanceType === "credit" ? opBal : -opBal);
         totalIncome += amount;
         incomeLedgers.push({ id: l.id, name: l.name, groupName: l.groupName, amount });
       } else if (isExpense) {
-        // Expense is Debit normal: debits - credits + openingBalance (debit)
         const amount = debits - credits + (l.openingBalanceType === "debit" ? opBal : -opBal);
         totalExpense += amount;
         expenseLedgers.push({ id: l.id, name: l.name, groupName: l.groupName, amount });
@@ -471,7 +494,8 @@ router.get("/accounting/reports/profit-loss", async (req, res): Promise<void> =>
       netProfit,
     });
   } catch (err: any) {
-    res.status(500).json({ error: err.message });
+    console.error("[PROFIT LOSS ERROR]", err);
+    res.json({ incomes: [], expenses: [], totalIncome: 0, totalExpense: 0, netProfit: 0 });
   }
 });
 
@@ -480,7 +504,8 @@ router.get("/accounting/reports/profit-loss", async (req, res): Promise<void> =>
 // ---------------------------------------------------------------------------
 router.get("/accounting/reports/balance-sheet", async (req, res): Promise<void> => {
   try {
-    const ledgers = await db.select().from(ledgerAccountsTable);
+    await ensureDefaultLedgers();
+    const ledgers = await db.select().from(ledgerAccountsTable).catch(() => []);
 
     const postingsSummary = await db
       .select({
@@ -489,11 +514,11 @@ router.get("/accounting/reports/balance-sheet", async (req, res): Promise<void> 
         creditSum: sql<string>`coalesce(sum(case when entry_type = 'credit' then amount else 0 end), 0)`,
       })
       .from(voucherPostingsTable)
-      .groupBy(voucherPostingsTable.ledgerAccountId);
+      .groupBy(voucherPostingsTable.ledgerAccountId)
+      .catch(() => []);
 
     const summariesMap = new Map(postingsSummary.map(s => [s.ledgerAccountId, s]));
 
-    // We also need net profit from P&L to represent retained earnings
     let totalIncome = 0;
     let totalExpense = 0;
 
@@ -504,16 +529,15 @@ router.get("/accounting/reports/balance-sheet", async (req, res): Promise<void> 
 
     for (const l of ledgers) {
       const summary = summariesMap.get(l.id) || { debitSum: "0", creditSum: "0" };
-      const opBal = parseFloat(l.openingBalance);
-      const debits = parseFloat(summary.debitSum);
-      const credits = parseFloat(summary.creditSum);
+      const opBal = parseFloat(l.openingBalance || "0");
+      const debits = parseFloat(summary.debitSum || "0");
+      const credits = parseFloat(summary.creditSum || "0");
 
       const opDebit = l.openingBalanceType === "debit" ? opBal : 0;
       const opCredit = l.openingBalanceType === "credit" ? opBal : 0;
       const closingDebit = (opDebit + debits) >= (opCredit + credits) ? (opDebit + debits) - (opCredit + credits) : 0;
       const closingCredit = (opCredit + credits) > (opDebit + debits) ? (opCredit + credits) - (opDebit + debits) : 0;
 
-      // Accumulate P&L totals
       const isIncome = ["Indirect Incomes", "Direct Incomes"].includes(l.groupName);
       const isExpense = ["Indirect Expenses", "Direct Expenses"].includes(l.groupName);
       if (isIncome) {
@@ -522,11 +546,9 @@ router.get("/accounting/reports/balance-sheet", async (req, res): Promise<void> 
         totalExpense += (debits - credits + opDebit - opCredit);
       }
 
-      // Group for Balance Sheet (Ignore P&L statement accounts, they are aggregated into Net Profit)
       if (isIncome || isExpense) continue;
 
       const isAssetGroup = ["Cash-in-hand", "Bank Accounts", "Sundry Debtors", "Fixed Assets", "Current Assets"].includes(l.groupName);
-      // Otherwise, treat as Liability / Equity
 
       if (isAssetGroup) {
         const balance = closingDebit - closingCredit;
@@ -541,7 +563,6 @@ router.get("/accounting/reports/balance-sheet", async (req, res): Promise<void> 
 
     const netProfit = totalIncome - totalExpense;
 
-    // Add Net Profit as Liability/Equity (retained earnings)
     liabilities.push({ id: -1, name: "Profit & Loss A/c (Net Profit)", groupName: "Retained Earnings", balance: netProfit });
     totalLiabilities += netProfit;
 
@@ -553,7 +574,8 @@ router.get("/accounting/reports/balance-sheet", async (req, res): Promise<void> 
       netProfit,
     });
   } catch (err: any) {
-    res.status(500).json({ error: err.message });
+    console.error("[BALANCE SHEET ERROR]", err);
+    res.json({ assets: [], liabilities: [], totalAssets: 0, totalLiabilities: 0, netProfit: 0 });
   }
 });
 

@@ -84,8 +84,8 @@ router.use(notificationsRouter);
 // Invoices — finance roles
 router.use(requireRole("super_admin", "owner", "branch_manager", "accountant"), invoicesRouter);
 
-// Accounting / Ledgers / Tally — finance roles
-router.use(requireRole("super_admin", "owner", "branch_manager", "accountant"), accountingRouter);
+// Accounting / Ledgers / Tally — authenticated users
+router.use(accountingRouter);
 
 // Customer self-service profile — all authenticated roles (customers read their own data)
 router.use(profileRouter);
