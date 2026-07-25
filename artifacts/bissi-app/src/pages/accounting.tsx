@@ -147,7 +147,7 @@ interface TrialBalanceReport {
 const formatCurrency = (n: number) =>
   new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 2 }).format(n);
 
-export default function AccountingPage() {
+function AccountingPage() {
   const [tab, setTab] = useState("dashboard");
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -948,7 +948,7 @@ export default function AccountingPage() {
                               <SelectValue placeholder="Select Ledger Account..." />
                             </SelectTrigger>
                             <SelectContent>
-                              {ledgers.map((l) => (
+                              {safeLedgers.map((l) => (
                                 <SelectItem key={l.id} value={l.id.toString()}>
                                   {l.name} ({l.groupName}) - Bal: {formatCurrency(l.netBalance)} ({l.balanceType})
                                 </SelectItem>
@@ -1855,11 +1855,11 @@ export default function AccountingPage() {
                     <p className="text-xs text-muted-foreground">Assets must equal Capital & Liabilities (Double-entry compliance)</p>
                   </div>
                   <div>
-                    {Math.abs(bsReport.totalAssets - bsReport.totalLiabilities) <= 0.01 ? (
+                    {Math.abs((bsReport?.totalAssets ?? 0) - (bsReport?.totalLiabilities ?? 0)) <= 0.01 ? (
                       <Badge className="bg-emerald-600 px-3 py-1 text-xs">✓ Perfectly Balanced</Badge>
                     ) : (
                       <Badge variant="destructive" className="px-3 py-1 text-xs">
-                        Discrepancy: {formatCurrency(Math.abs(bsReport.totalAssets - bsReport.totalLiabilities))}
+                        Discrepancy: {formatCurrency(Math.abs((bsReport?.totalAssets ?? 0) - (bsReport?.totalLiabilities ?? 0)))}
                       </Badge>
                     )}
                   </div>
@@ -2120,5 +2120,57 @@ export default function AccountingPage() {
         </DialogContent>
       </Dialog>
     </div>
+  );
+}
+
+class AccountingErrorBoundary extends React.Component<
+  { children: React.ReactNode },
+  { hasError: boolean; error: any }
+> {
+  constructor(props: any) {
+    super(props);
+    this.state = { hasError: false, error: null };
+  }
+
+  static getDerivedStateFromError(error: any) {
+    return { hasError: true, error };
+  }
+
+  componentDidCatch(error: any, errorInfo: any) {
+    console.error("[Accounting Error Boundary Caught]", error, errorInfo);
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div className="p-8 text-center space-y-4 max-w-md mx-auto my-12 bg-card rounded-xl border border-border shadow-lg">
+          <div className="w-12 h-12 rounded-full bg-amber-500/10 text-amber-500 flex items-center justify-center mx-auto">
+            <BookOpen className="h-6 w-6" />
+          </div>
+          <h2 className="text-xl font-bold">Accounting Workspace</h2>
+          <p className="text-sm text-muted-foreground">
+            A temporary display issue occurred while rendering accounting ledgers.
+          </p>
+          <Button
+            onClick={() => {
+              this.setState({ hasError: false, error: null });
+              window.location.reload();
+            }}
+            className="w-full bg-primary"
+          >
+            Reload Accounting Ledger
+          </Button>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
+
+export default function SafeAccountingPage() {
+  return (
+    <AccountingErrorBoundary>
+      <AccountingPage />
+    </AccountingErrorBoundary>
   );
 }
