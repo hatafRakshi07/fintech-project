@@ -29,6 +29,7 @@ import {
   FileSpreadsheet,
   Receipt,
   Info,
+} from "lucide-react";
 import { KycSubmissionForm } from "@/components/kyc/KycSubmissionForm";
 
 const formatCurrency = (amount: number) => {

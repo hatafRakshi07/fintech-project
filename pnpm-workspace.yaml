@@ -75,6 +75,14 @@ onlyBuiltDependencies:
   - esbuild
   - msw
   - unrs-resolver
+  - '@firebase/util'
+  - protobufjs
+
+allowBuilds:
+  '@firebase/util': true
+  esbuild: true
+  protobufjs: true
+
 
 overrides:
   # replit uses linux-x64 only, we can exclude all other platforms
@@ -158,7 +166,3 @@ overrides:
   esbuild: "0.27.3"
   zod: "3.25.76"
 
-allowBuilds:
-  '@firebase/util': set this to true or false
-  esbuild: true
-  protobufjs: set this to true or false

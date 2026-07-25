@@ -10,7 +10,7 @@ export class ApiError extends Error {
   }
 }
 
-function getToken(): string | null {
+export function getStoredToken(): string | null {
   return localStorage.getItem("collector_token");
 }
 
@@ -47,7 +47,7 @@ export function setStoredUser(user: AuthUser): void {
 }
 
 async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
-  const token = getToken();
+  const token = getStoredToken();
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
     ...(init.headers as Record<string, string>),
