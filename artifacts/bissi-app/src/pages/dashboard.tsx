@@ -3,6 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Link, useLocation } from "wouter";
 import { useRole } from "@/hooks/use-role";
 import { customFetch } from "@workspace/api-client-react";
+import { safeArray } from "@/lib/utils";
 import CustomerPortalPage from "@/pages/customer-portal";
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -214,18 +215,18 @@ function CollectorDashboard({ user }: { user: any }) {
 // ── 2. CUSTOMER DASHBOARD PANEL ──────────────────────────────────────────
 function CustomerDashboard({ user }: { user: any }) {
   // Fetch Customer active tokens
-  const { data: tokens = [], isLoading: tokensLoading } = useQuery<any[]>({
+  const { data: rawTokens, isLoading: tokensLoading } = useQuery<any[]>({
     queryKey: ["customer", "tokens"],
     queryFn: () => customFetch("/tokens"),
   });
+  const tokens = safeArray<any>(rawTokens);
 
   // Fetch Customer active loans
-  const { data: loansResponse, isLoading: loansLoading } = useQuery<{ data: any[] }>({
+  const { data: loansResponse, isLoading: loansLoading } = useQuery<any>({
     queryKey: ["customer", "loans"],
     queryFn: () => customFetch("/loans"),
   });
-
-  const loans = loansResponse?.data ?? [];
+  const loans = safeArray<any>(loansResponse);
 
   const totalTokens = tokens.length;
   const activeLoans = loans.filter((l: any) => l.status === "active").length;

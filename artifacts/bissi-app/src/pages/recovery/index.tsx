@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
+import { safeArray } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
@@ -52,10 +53,11 @@ export default function RecoveryPage() {
   const [callNote, setCallNote] = useState({ outcome: "answered", notes: "", nextAction: "" });
 
   const { data: summary } = useQuery<RecoverySummary>({ queryKey: ["recovery", "summary"], queryFn: () => api.get("/recovery/summary") });
-  const { data: tasks = [], isLoading } = useQuery<RecoveryTask[]>({
+  const { data: rawTasks, isLoading } = useQuery<RecoveryTask[]>({
     queryKey: ["recovery", "tasks", statusFilter],
     queryFn: () => api.get(`/recovery/tasks${statusFilter !== "all" ? `?status=${statusFilter}` : ""}`),
   });
+  const tasks = safeArray<RecoveryTask>(rawTasks);
 
   const createTask = useMutation({
     mutationFn: (d: typeof newTask) => api.post("/recovery/tasks", { ...d, customerId: parseInt(d.customerId), branchId: parseInt(d.branchId) }),

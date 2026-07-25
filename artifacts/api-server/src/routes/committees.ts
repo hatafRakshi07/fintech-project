@@ -1,18 +1,9 @@
 import { Router, type IRouter } from "express";
 import { db, committeesTable, committeeMembersTable, branchesTable, customersTable, collectionsTable } from "@workspace/db";
 import { eq, and, sql } from "drizzle-orm";
+import { safeIso } from "../lib/utils";
 
 const router: IRouter = Router();
-
-function safeIso(d: any): string {
-  if (!d) return new Date().toISOString();
-  if (d instanceof Date) return d.toISOString();
-  try {
-    return new Date(d).toISOString();
-  } catch {
-    return new Date().toISOString();
-  }
-}
 
 router.get("/committees", async (req, res): Promise<void> => {
   try {

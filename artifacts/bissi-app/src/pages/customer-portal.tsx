@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { customFetch } from "@workspace/api-client-react";
+import { safeArray } from "@/lib/utils";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -91,10 +92,10 @@ export default function CustomerPortalPage() {
     addressStatus: customer.address ? "Verified" : "Pending",
   };
 
-  const tokens = profileData?.tokens ?? [];
-  const loans = profileData?.loans ?? [];
-  const collections = profileData?.collections ?? [];
-  const gifts = profileData?.gifts ?? [];
+  const tokens = safeArray(profileData?.tokens);
+  const loans = safeArray(profileData?.loans);
+  const collections = safeArray(profileData?.collections);
+  const gifts = safeArray(profileData?.gifts);
 
   const totalPaidSum = collections.reduce((acc: number, c: any) => acc + Number(c.amount || 0), 0);
   const activeLoansCount = loans.filter((l: any) => l.status === "active").length;

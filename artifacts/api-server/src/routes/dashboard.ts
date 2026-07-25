@@ -1,6 +1,7 @@
 import { Router, type IRouter } from "express";
-import { db, customersTable, branchesTable, collectorsTable, loansTable, committeesTable, collectionsTable } from "@workspace/db";
+import { db, customersTable, branchesTable, collectorsTable, loansTable, committeesTable, collectionsTable, usersTable } from "@workspace/db";
 import { eq, sql, gte, and, desc } from "drizzle-orm";
+import { safeIso } from "../lib/utils";
 
 const router: IRouter = Router();
 
@@ -100,7 +101,7 @@ router.get("/dashboard/recent-activity", async (req, res): Promise<void> => {
         description: `Payment of ₹${parseFloat(c.c.amount || "0").toLocaleString()} collected via ${c.c.paymentMode || "Cash"}`,
         customerName: c.name || "Customer",
         amount: parseFloat(c.c.amount || "0"),
-        createdAt: c.c.createdAt ? c.c.createdAt.toISOString() : new Date().toISOString(),
+        createdAt: safeIso(c.c.createdAt),
       })),
       ...lns.map((l) => ({
         id: l.l.id + 100000,
@@ -108,7 +109,7 @@ router.get("/dashboard/recent-activity", async (req, res): Promise<void> => {
         description: `Loan ${l.l.status} — ₹${parseFloat(l.l.principalAmount || "0").toLocaleString()}`,
         customerName: l.name || "Customer",
         amount: parseFloat(l.l.principalAmount || "0"),
-        createdAt: l.l.createdAt ? l.l.createdAt.toISOString() : new Date().toISOString(),
+        createdAt: safeIso(l.l.createdAt),
       })),
     ]
       .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())

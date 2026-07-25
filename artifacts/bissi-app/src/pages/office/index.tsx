@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
+import { safeArray } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
@@ -126,10 +127,11 @@ function DiaryTab({ today }: { today: string }) {
   const [isOpen, setIsOpen] = useState(false);
   const [form, setForm] = useState({ entryDate: today, title: "", content: "", category: "general", branchId: "1" });
 
-  const { data: entries = [], isLoading } = useQuery<DiaryEntry[]>({
+  const { data: rawEntries, isLoading } = useQuery<DiaryEntry[]>({
     queryKey: ["office", "diary"],
     queryFn: () => api.get("/office/diary"),
   });
+  const entries = safeArray<DiaryEntry>(rawEntries);
 
   const create = useMutation({
     mutationFn: (d: typeof form) => api.post("/office/diary", { ...d, branchId: parseInt(d.branchId) }),
@@ -224,7 +226,11 @@ function TasksTab() {
   const [isOpen, setIsOpen] = useState(false);
   const [form, setForm] = useState({ title: "", description: "", priority: "medium", dueDate: "", branchId: "1" });
 
-  const { data: tasks = [], isLoading } = useQuery<OfficeTask[]>({ queryKey: ["office", "tasks"], queryFn: () => api.get("/office/tasks") });
+  const { data: rawTasks, isLoading } = useQuery<OfficeTask[]>({
+    queryKey: ["office", "tasks"],
+    queryFn: () => api.get("/office/tasks"),
+  });
+  const tasks = safeArray<OfficeTask>(rawTasks);
 
   const create = useMutation({
     mutationFn: (d: typeof form) => api.post("/office/tasks", { ...d, branchId: parseInt(d.branchId) }),
@@ -337,7 +343,11 @@ function ComplaintsTab() {
   const [isOpen, setIsOpen] = useState(false);
   const [form, setForm] = useState({ title: "", description: "", category: "other", branchId: "1" });
 
-  const { data: complaints = [], isLoading } = useQuery<Complaint[]>({ queryKey: ["office", "complaints"], queryFn: () => api.get("/office/complaints") });
+  const { data: rawComplaints, isLoading } = useQuery<Complaint[]>({
+    queryKey: ["office", "complaints"],
+    queryFn: () => api.get("/office/complaints"),
+  });
+  const complaints = safeArray<Complaint>(rawComplaints);
 
   const create = useMutation({
     mutationFn: (d: typeof form) => api.post("/office/complaints", { ...d, branchId: parseInt(d.branchId) }),
@@ -439,7 +449,11 @@ function DonationsTab() {
   const today = new Date().toISOString().split("T")[0];
   const [form, setForm] = useState({ donorName: "", amount: "", purpose: "", donationDate: today, receiptNumber: "", notes: "", branchId: "1" });
 
-  const { data: donations = [], isLoading } = useQuery<Donation[]>({ queryKey: ["office", "donations"], queryFn: () => api.get("/office/donations") });
+  const { data: rawDonations, isLoading } = useQuery<Donation[]>({
+    queryKey: ["office", "donations"],
+    queryFn: () => api.get("/office/donations"),
+  });
+  const donations = safeArray<Donation>(rawDonations);
 
   const create = useMutation({
     mutationFn: (d: typeof form) => api.post("/office/donations", { ...d, branchId: parseInt(d.branchId) }),
@@ -549,10 +563,11 @@ function ExpensesTab() {
     branchId: "1",
   });
 
-  const { data: expenses = [], isLoading } = useQuery<OfficeExpense[]>({
+  const { data: rawExpenses, isLoading } = useQuery<OfficeExpense[]>({
     queryKey: ["office", "expenses"],
     queryFn: () => api.get("/office/expenses"),
   });
+  const expenses = safeArray<OfficeExpense>(rawExpenses);
 
   const create = useMutation({
     mutationFn: (body: any) => api.post("/office/expenses", body),
