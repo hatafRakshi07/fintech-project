@@ -1,8 +1,8 @@
-import React, { useState } from "react";
+import React, { useState, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { customFetch } from "@workspace/api-client-react";
 import { safeArray } from "@/lib/utils";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -47,16 +47,36 @@ import {
   ArrowRightLeft,
   ChevronDown,
   ChevronUp,
+  FolderTree,
+  Pencil,
+  Trash2 as TrashIcon,
+  Lock,
+  FolderPlus,
 } from "lucide-react";
 
 // ── Types ──────────────────────────────────────────────────────────────────
+interface LedgerGroup {
+  id: number;
+  name: string;
+  parentId: number | null;
+  nature: "assets" | "liabilities" | "income" | "expense";
+  isSystemGroup: boolean;
+  children?: LedgerGroup[];
+}
+
 interface LedgerAccount {
   id: number;
   name: string;
+  groupId: number | null;
   groupName: string;
   openingBalance: string;
   openingBalanceType: "debit" | "credit";
   description: string | null;
+  branchId: number | null;
+  committeeId: number | null;
+  isSystemLedger: boolean;
+  status: string;
+  groupNature: string | null;
   debits: number;
   credits: number;
   netBalance: number;
@@ -135,11 +155,23 @@ export default function AccountingPage() {
   // Dialog State
   const [isLedgerDialogOpen, setIsLedgerDialogOpen] = useState(false);
   const [isStatementDialogOpen, setIsStatementDialogOpen] = useState(false);
+  const [isGroupDialogOpen, setIsGroupDialogOpen] = useState(false);
+  const [isCancelDialogOpen, setIsCancelDialogOpen] = useState(false);
+  const [cancelVoucherId, setCancelVoucherId] = useState<number | null>(null);
+  const [cancelReason, setCancelReason] = useState("");
   const [selectedLedgerId, setSelectedLedgerId] = useState<number | null>(null);
+
+  // Group creation form
+  const [newGroupName, setNewGroupName] = useState("");
+  const [newGroupParentId, setNewGroupParentId] = useState<string>("");
+  const [newGroupNature, setNewGroupNature] = useState<string>("expense");
+
+  // Chart of Accounts tree expand state
+  const [expandedGroups, setExpandedGroups] = useState<Record<number, boolean>>({});
 
   // New Ledger Form
   const [newLedgerName, setNewLedgerName] = useState("");
-  const [newLedgerGroup, setNewLedgerGroup] = useState("Indirect Expenses");
+  const [newLedgerGroupId, setNewLedgerGroupId] = useState<string>("");
   const [newLedgerOpBal, setNewLedgerOpBal] = useState("0.00");
   const [newLedgerOpType, setNewLedgerOpType] = useState<"debit" | "credit">("debit");
   const [newLedgerDesc, setNewLedgerDesc] = useState("");
@@ -148,6 +180,7 @@ export default function AccountingPage() {
   const [vType, setVType] = useState<"Payment" | "Receipt" | "Contra" | "Journal">("Payment");
   const [vDate, setVDate] = useState(new Date().toISOString().split("T")[0]);
   const [vNarration, setVNarration] = useState("");
+  const [vRefNo, setVRefNo] = useState("");
   const [vPostings, setVPostings] = useState<PostingInput[]>([
     { ledgerAccountId: "", amount: "", entryType: "debit" },
     { ledgerAccountId: "", amount: "", entryType: "credit" },
@@ -163,6 +196,16 @@ export default function AccountingPage() {
   const [expandedVouchers, setExpandedVouchers] = useState<Record<number, boolean>>({});
 
   // ── Queries ──────────────────────────────────────────────────────────────
+  const { data: groups = [], isLoading: groupsLoading } = useQuery<LedgerGroup[]>({
+    queryKey: ["accounting", "groups"],
+    queryFn: () => customFetch("/accounting/groups"),
+  });
+
+  const { data: groupTree } = useQuery<{ tree: LedgerGroup[]; flat: LedgerGroup[] }>({
+    queryKey: ["accounting", "groups", "tree"],
+    queryFn: () => customFetch("/accounting/groups/tree"),
+  });
+
   const { data: ledgers = [], isLoading: ledgersLoading } = useQuery<LedgerAccount[]>({
     queryKey: ["accounting", "ledgers"],
     queryFn: () => customFetch("/accounting/ledgers"),
@@ -200,6 +243,97 @@ export default function AccountingPage() {
     queryFn: () => customFetch("/accounting/reports/balance-sheet"),
   });
 
+  const { data: cashBookData, isLoading: cashBookLoading } = useQuery<{
+    openingBalance: number;
+    totalReceipts: number;
+    totalPayments: number;
+    closingBalance: number;
+    entries: any[];
+  }>({
+    queryKey: ["accounting", "reports", "cash-book", filterStartDate, filterEndDate],
+    queryFn: () => customFetch(`/accounting/reports/cash-book?from=${filterStartDate}&to=${filterEndDate}`),
+  });
+
+  const [selectedBankLedgerId, setSelectedBankLedgerId] = useState<number | null>(null);
+
+  const { data: bankBookData, isLoading: bankBookLoading } = useQuery<{
+    bankLedgers: any[];
+    bankLedger: any;
+    openingBalance: number;
+    totalReceipts: number;
+    totalPayments: number;
+    closingBalance: number;
+    entries: any[];
+  }>({
+    queryKey: ["accounting", "reports", "bank-book", selectedBankLedgerId, filterStartDate, filterEndDate],
+    queryFn: () => customFetch(`/accounting/reports/bank-book?${selectedBankLedgerId ? `ledgerId=${selectedBankLedgerId}&` : ""}from=${filterStartDate}&to=${filterEndDate}`),
+  });
+
+  const [costCentreType, setCostCentreType] = useState<"committee" | "branch">("committee");
+
+  const { data: costCentreSummary, isLoading: ccLoading } = useQuery<{
+    type: string;
+    items: { costCentreId: number; income: number; expense: number; netProfit: number; transactionCount: number }[];
+  }>({
+    queryKey: ["accounting", "reports", "cost-centre-summary", costCentreType, filterStartDate, filterEndDate],
+    queryFn: () => customFetch(`/accounting/reports/cost-centre-summary?type=${costCentreType}&from=${filterStartDate}&to=${filterEndDate}`),
+  });
+
+  const { data: rawCommittees } = useQuery<any[]>({
+    queryKey: ["committees"],
+    queryFn: () => customFetch("/committees"),
+  });
+  const safeCommittees = safeArray<any>(rawCommittees);
+
+  const { data: rawBranches } = useQuery<any[]>({
+    queryKey: ["branches"],
+    queryFn: () => customFetch("/branches"),
+  });
+  const safeBranches = safeArray<any>(rawBranches);
+
+  const committeeMap = useMemo(() => new Map(safeCommittees.map((c) => [c.id, c.name])), [safeCommittees]);
+  const branchMap = useMemo(() => new Map(safeBranches.map((b) => [b.id, b.name])), [safeBranches]);
+
+  const [brsBankId, setBrsBankId] = useState<number | null>(null);
+
+  const { data: brsData, isLoading: brsLoading } = useQuery<{
+    bankLedgers: any[];
+    bankLedger: any;
+    statementEntries: any[];
+    unmatchedBookPostings: any[];
+    summary: { bookBalance: number; bankBalance: number; unmatchedBankCount: number; unmatchedBookCount: number; unreconciledDifference: number };
+  }>({
+    queryKey: ["accounting", "brs", brsBankId],
+    queryFn: () => customFetch(`/accounting/brs?${brsBankId ? `ledgerId=${brsBankId}` : ""}`),
+  });
+
+  const matchBrsMutation = useMutation({
+    mutationFn: ({ recId, postingId }: { recId: number; postingId: number }) =>
+      customFetch("/accounting/brs/match", {
+        method: "POST",
+        body: JSON.stringify({ recId, postingId }),
+      }),
+    onSuccess: () => {
+      toast({ title: "Reconciled", description: "Bank entry matched to voucher posting." });
+      queryClient.invalidateQueries({ queryKey: ["accounting", "brs"] });
+    },
+    onError: (err: any) => {
+      toast({ title: "Match error", description: err.message, variant: "destructive" });
+    },
+  });
+
+  const importBrsMutation = useMutation({
+    mutationFn: (body: any) =>
+      customFetch("/accounting/brs/import", {
+        method: "POST",
+        body: JSON.stringify(body),
+      }),
+    onSuccess: (data: any) => {
+      toast({ title: "Statement Imported", description: `Imported ${data.count} bank statement entries.` });
+      queryClient.invalidateQueries({ queryKey: ["accounting", "brs"] });
+    },
+  });
+
   const { data: statementData, isLoading: statementLoading } = useQuery<{
     ledger: any;
     openingBalance: number;
@@ -211,6 +345,7 @@ export default function AccountingPage() {
     enabled: selectedLedgerId !== null,
   });
 
+  const safeGroups = safeArray<LedgerGroup>(groups);
   const safeLedgers = safeArray<LedgerAccount>(ledgers);
   const safeVouchers = safeArray<Voucher>(vouchers);
   const safeTbRows = safeArray<any>(trialBalance?.rows);
@@ -219,6 +354,19 @@ export default function AccountingPage() {
   const safeBsAssets = safeArray<any>(bsReport?.assets);
   const safeBsLiabilities = safeArray<any>(bsReport?.liabilities);
   const safeStatementEntries = safeArray<LedgerStatementEntry>(statementData?.entries);
+
+  // Ledgers grouped by groupId for Chart of Accounts tree
+  const ledgersByGroup = useMemo(() => {
+    const map = new Map<number, LedgerAccount[]>();
+    for (const l of safeLedgers) {
+      if (l.groupId) {
+        const list = map.get(l.groupId) || [];
+        list.push(l);
+        map.set(l.groupId, list);
+      }
+    }
+    return map;
+  }, [safeLedgers]);
 
   // ── Mutations ─────────────────────────────────────────────────────────────
   const createLedgerMutation = useMutation({
@@ -234,9 +382,40 @@ export default function AccountingPage() {
       setNewLedgerName("");
       setNewLedgerOpBal("0.00");
       setNewLedgerDesc("");
+      setNewLedgerGroupId("");
     },
     onError: (err: any) => {
       toast({ title: "Error creating ledger", description: err.message, variant: "destructive" });
+    },
+  });
+
+  const deleteLedgerMutation = useMutation({
+    mutationFn: (id: number) =>
+      customFetch(`/accounting/ledgers/${id}`, { method: "DELETE" }),
+    onSuccess: (data: any) => {
+      toast({ title: data.action === "frozen" ? "Ledger Frozen" : "Ledger Deleted", description: data.message || "Done" });
+      queryClient.invalidateQueries({ queryKey: ["accounting"] });
+    },
+    onError: (err: any) => {
+      toast({ title: "Error", description: err.message, variant: "destructive" });
+    },
+  });
+
+  const createGroupMutation = useMutation({
+    mutationFn: (body: any) =>
+      customFetch("/accounting/groups", {
+        method: "POST",
+        body: JSON.stringify(body),
+      }),
+    onSuccess: () => {
+      toast({ title: "Group Created", description: "New ledger group added." });
+      queryClient.invalidateQueries({ queryKey: ["accounting"] });
+      setIsGroupDialogOpen(false);
+      setNewGroupName("");
+      setNewGroupParentId("");
+    },
+    onError: (err: any) => {
+      toast({ title: "Error creating group", description: err.message, variant: "destructive" });
     },
   });
 
@@ -252,7 +431,6 @@ export default function AccountingPage() {
         description: `Voucher Number: ${data.voucherNumber}`,
       });
       queryClient.invalidateQueries({ queryKey: ["accounting"] });
-      // Reset form
       setVNarration("");
       setVPostings([
         { ledgerAccountId: "", amount: "", entryType: "debit" },
@@ -264,17 +442,49 @@ export default function AccountingPage() {
     },
   });
 
+  const cancelVoucherMutation = useMutation({
+    mutationFn: ({ id, reason }: { id: number; reason: string }) =>
+      customFetch(`/accounting/vouchers/${id}/cancel`, {
+        method: "POST",
+        body: JSON.stringify({ reason }),
+      }),
+    onSuccess: () => {
+      toast({ title: "Voucher Cancelled", description: "Reversal entry created automatically." });
+      queryClient.invalidateQueries({ queryKey: ["accounting"] });
+    },
+    onError: (err: any) => {
+      toast({ title: "Error cancelling voucher", description: err.message, variant: "destructive" });
+    },
+  });
+
   // ── Handlers ──────────────────────────────────────────────────────────────
   const handleCreateLedger = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newLedgerName) return;
+    if (!newLedgerName || !newLedgerGroupId) {
+      toast({ title: "Validation Error", description: "Name and Group are required", variant: "destructive" });
+      return;
+    }
     createLedgerMutation.mutate({
       name: newLedgerName,
-      groupName: newLedgerGroup,
+      groupId: parseInt(newLedgerGroupId),
       openingBalance: newLedgerOpBal,
       openingBalanceType: newLedgerOpType,
       description: newLedgerDesc,
     });
+  };
+
+  const handleCreateGroup = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newGroupName) return;
+    createGroupMutation.mutate({
+      name: newGroupName,
+      parentId: newGroupParentId ? parseInt(newGroupParentId) : null,
+      nature: newGroupNature,
+    });
+  };
+
+  const toggleGroupExpanded = (id: number) => {
+    setExpandedGroups((prev) => ({ ...prev, [id]: !prev[id] }));
   };
 
   const handleAddPostingRow = () => {
@@ -336,8 +546,10 @@ export default function AccountingPage() {
       voucherType: vType,
       date: new Date(vDate).toISOString(),
       narration: vNarration,
+      referenceNumber: vRefNo || undefined,
       postings: parsedPostings,
     });
+    setVRefNo("");
   };
 
   const handleOpenStatement = (ledgerId: number) => {
@@ -375,17 +587,34 @@ export default function AccountingPage() {
           <h1 className="text-2xl font-bold tracking-tight">Accounting & Ledgers</h1>
           <p className="text-muted-foreground">Tally-style double-entry bookkeeping and accounting reports.</p>
         </div>
-        <Button onClick={() => setIsLedgerDialogOpen(true)} className="flex items-center gap-2">
-          <Plus className="h-4 w-4" /> Create Ledger
-        </Button>
+        <div className="flex gap-2">
+          <Button
+            variant="outline"
+            onClick={() => {
+              const exportType = tab === "daybook" ? "daybook" : tab === "trialbalance" ? "trialbalance" : "daybook";
+              window.open(`/api/accounting/export/${exportType}?from=${filterStartDate}&to=${filterEndDate}`, "_blank");
+            }}
+            className="flex items-center gap-2"
+          >
+            <FileText className="h-4 w-4" /> Export CSV
+          </Button>
+          <Button onClick={() => setIsLedgerDialogOpen(true)} className="flex items-center gap-2">
+            <Plus className="h-4 w-4" /> Create Ledger
+          </Button>
+        </div>
       </div>
 
       <Tabs value={tab} onValueChange={setTab}>
-        <TabsList className="grid grid-cols-3 md:grid-cols-7 gap-1">
+        <TabsList className="grid grid-cols-6 md:grid-cols-12 gap-1">
           <TabsTrigger value="dashboard">Dashboard</TabsTrigger>
+          <TabsTrigger value="chartofaccounts" className="flex items-center gap-1"><FolderTree className="h-3 w-3" /> Chart of A/c</TabsTrigger>
           <TabsTrigger value="ledgers">Ledgers</TabsTrigger>
           <TabsTrigger value="voucher">Voucher Entry</TabsTrigger>
           <TabsTrigger value="daybook">Day Book</TabsTrigger>
+          <TabsTrigger value="cashbook">Cash Book</TabsTrigger>
+          <TabsTrigger value="bankbook">Bank Book</TabsTrigger>
+          <TabsTrigger value="costcentres">Cost Centres</TabsTrigger>
+          <TabsTrigger value="brs">BRS</TabsTrigger>
           <TabsTrigger value="trialbalance">Trial Balance</TabsTrigger>
           <TabsTrigger value="profitloss">Profit & Loss</TabsTrigger>
           <TabsTrigger value="balancesheet">Balance Sheet</TabsTrigger>
@@ -491,6 +720,126 @@ export default function AccountingPage() {
           </div>
         </TabsContent>
 
+        {/* ─── CHART OF ACCOUNTS TAB ─── */}
+        <TabsContent value="chartofaccounts" className="mt-4 space-y-4">
+          <div className="flex items-center justify-between">
+            <h2 className="text-lg font-semibold flex items-center gap-2">
+              <FolderTree className="h-5 w-5 text-primary" /> Chart of Accounts
+            </h2>
+            <div className="flex gap-2">
+              <Button size="sm" variant="outline" onClick={() => setIsGroupDialogOpen(true)}>
+                <FolderPlus className="h-4 w-4 mr-1" /> New Group
+              </Button>
+              <Button size="sm" onClick={() => setIsLedgerDialogOpen(true)}>
+                <Plus className="h-4 w-4 mr-1" /> New Ledger
+              </Button>
+            </div>
+          </div>
+
+          {groupsLoading ? (
+            <div className="py-12 text-center text-muted-foreground">Loading chart of accounts...</div>
+          ) : (
+            <div className="space-y-2">
+              {/* Group by nature */}
+              {(["assets", "liabilities", "income", "expense"] as const).map((nature) => {
+                const natureLabel = { assets: "📦 Assets", liabilities: "📋 Liabilities", income: "💰 Income", expense: "💸 Expenses" }[nature];
+                const natureGroups = safeGroups.filter((g) => g.nature === nature && !g.parentId);
+
+                return (
+                  <Card key={nature} className="border-l-4" style={{ borderLeftColor: nature === "assets" ? "#3b82f6" : nature === "liabilities" ? "#f59e0b" : nature === "income" ? "#10b981" : "#ef4444" }}>
+                    <CardHeader className="py-3 px-4">
+                      <CardTitle className="text-sm font-bold">{natureLabel}</CardTitle>
+                    </CardHeader>
+                    <CardContent className="px-4 pb-3 space-y-1">
+                      {natureGroups.map((g) => {
+                        const isExpanded = expandedGroups[g.id] ?? true;
+                        const subGroups = safeGroups.filter((sg) => sg.parentId === g.id);
+                        const directLedgers = ledgersByGroup.get(g.id) || [];
+
+                        return (
+                          <div key={g.id}>
+                            <div
+                              className="flex items-center gap-2 py-1.5 px-2 rounded hover:bg-muted/50 cursor-pointer"
+                              onClick={() => toggleGroupExpanded(g.id)}
+                            >
+                              {isExpanded ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronUp className="h-3.5 w-3.5" />}
+                              <FolderTree className="h-3.5 w-3.5 text-muted-foreground" />
+                              <span className="text-sm font-semibold">{g.name}</span>
+                              <Badge variant="outline" className="text-[10px] ml-auto">{g.nature}</Badge>
+                              {g.isSystemGroup && <Lock className="h-3 w-3 text-muted-foreground" />}
+                            </div>
+                            {isExpanded && (
+                              <div className="ml-6 border-l pl-3 space-y-0.5">
+                                {/* Direct ledgers under this group */}
+                                {directLedgers.map((l) => (
+                                  <div key={l.id} className="flex items-center justify-between py-1 px-2 rounded hover:bg-muted/30 cursor-pointer text-sm" onClick={() => handleOpenStatement(l.id)}>
+                                    <div className="flex items-center gap-2">
+                                      <BookOpen className="h-3 w-3 text-primary" />
+                                      <span className="hover:underline text-primary">{l.name}</span>
+                                      {l.status === "frozen" && <Badge variant="secondary" className="text-[9px]">Frozen</Badge>}
+                                      {l.isSystemLedger && <Lock className="h-3 w-3 text-muted-foreground" />}
+                                    </div>
+                                    <span className="font-mono text-xs">
+                                      {formatCurrency(l.netBalance)} <span className="text-muted-foreground">({l.balanceType})</span>
+                                    </span>
+                                  </div>
+                                ))}
+
+                                {/* Sub-groups */}
+                                {subGroups.map((sg) => {
+                                  const sgExpanded = expandedGroups[sg.id] ?? true;
+                                  const sgLedgers = ledgersByGroup.get(sg.id) || [];
+
+                                  return (
+                                    <div key={sg.id}>
+                                      <div
+                                        className="flex items-center gap-2 py-1 px-2 rounded hover:bg-muted/30 cursor-pointer"
+                                        onClick={() => toggleGroupExpanded(sg.id)}
+                                      >
+                                        {sgExpanded ? <ChevronDown className="h-3 w-3" /> : <ChevronUp className="h-3 w-3" />}
+                                        <FolderTree className="h-3 w-3 text-muted-foreground" />
+                                        <span className="text-sm font-medium">{sg.name}</span>
+                                        {sg.isSystemGroup && <Lock className="h-3 w-3 text-muted-foreground" />}
+                                      </div>
+                                      {sgExpanded && (
+                                        <div className="ml-5 border-l pl-3 space-y-0.5">
+                                          {sgLedgers.map((l) => (
+                                            <div key={l.id} className="flex items-center justify-between py-1 px-2 rounded hover:bg-muted/30 cursor-pointer text-sm" onClick={() => handleOpenStatement(l.id)}>
+                                              <div className="flex items-center gap-2">
+                                                <BookOpen className="h-3 w-3 text-primary" />
+                                                <span className="hover:underline text-primary">{l.name}</span>
+                                                {l.status === "frozen" && <Badge variant="secondary" className="text-[9px]">Frozen</Badge>}
+                                              </div>
+                                              <span className="font-mono text-xs">
+                                                {formatCurrency(l.netBalance)} <span className="text-muted-foreground">({l.balanceType})</span>
+                                              </span>
+                                            </div>
+                                          ))}
+                                          {sgLedgers.length === 0 && (
+                                            <div className="text-xs text-muted-foreground py-1 px-2 italic">No ledgers in this group</div>
+                                          )}
+                                        </div>
+                                      )}
+                                    </div>
+                                  );
+                                })}
+
+                                {directLedgers.length === 0 && subGroups.length === 0 && (
+                                  <div className="text-xs text-muted-foreground py-1 px-2 italic">No ledgers or sub-groups</div>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </CardContent>
+                  </Card>
+                );
+              })}
+            </div>
+          )}
+        </TabsContent>
+
         {/* ─── LEDGERS TAB ─── */}
         <TabsContent value="ledgers" className="mt-4">
           <Card>
@@ -570,6 +919,11 @@ export default function AccountingPage() {
                   <div className="space-y-2">
                     <Label>Voucher Date</Label>
                     <Input type="date" value={vDate} onChange={(e) => setVDate(e.target.value)} />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label>Reference No. (Cheque / UTR / Ref)</Label>
+                    <Input placeholder="e.g. UTR123456, Chq #00421" value={vRefNo} onChange={(e) => setVRefNo(e.target.value)} />
                   </div>
                 </div>
 
@@ -713,12 +1067,13 @@ export default function AccountingPage() {
                 <div className="divide-y divide-border">
                   {filteredVouchers.map((v) => {
                     const isExpanded = !!expandedVouchers[v.id];
-                    const drPostings = v.postings.filter((p) => p.entryType === "debit");
-                    const crPostings = v.postings.filter((p) => p.entryType === "credit");
-                    const amount = drPostings.reduce((sum, p) => sum + p.amount, 0);
+                    const vPostings = safeArray<any>(v.postings);
+                    const drPostings = vPostings.filter((p) => p.entryType === "debit");
+                    const crPostings = vPostings.filter((p) => p.entryType === "credit");
+                    const amount = drPostings.reduce((sum, p) => sum + (parseFloat(p.amount) || 0), 0);
 
                     return (
-                      <div key={v.id} className="p-4 hover:bg-muted/30">
+                      <div key={v.id} className={`p-4 hover:bg-muted/30 ${(v as any).status === "cancelled" ? "opacity-60 bg-red-500/5" : ""}`}>
                         <div
                           className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 cursor-pointer"
                           onClick={() => toggleVoucherExpanded(v.id)}
@@ -728,7 +1083,19 @@ export default function AccountingPage() {
                               <Badge variant="outline" className="text-[10px] uppercase font-bold">
                                 {v.voucherType}
                               </Badge>
-                              <span className="font-semibold text-sm">{v.voucherNumber}</span>
+                              <span className={`font-semibold text-sm ${(v as any).status === "cancelled" ? "line-through text-red-600" : ""}`}>
+                                {v.voucherNumber}
+                              </span>
+                              {(v as any).status === "cancelled" ? (
+                                <Badge variant="destructive" className="text-[9px]">Cancelled</Badge>
+                              ) : (
+                                <Badge className="bg-emerald-600 text-[9px]">Posted</Badge>
+                              )}
+                              {(v as any).referenceNumber && (
+                                <Badge variant="outline" className="text-[9px] font-mono">
+                                  Ref: {(v as any).referenceNumber}
+                                </Badge>
+                              )}
                             </div>
                             <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
                               <Calendar className="h-3 w-3" />
@@ -758,7 +1125,7 @@ export default function AccountingPage() {
                                   </TableRow>
                                 </TableHeader>
                                 <TableBody>
-                                  {v.postings.map((p) => (
+                                  {vPostings.map((p) => (
                                     <TableRow key={p.id} className="hover:bg-transparent">
                                       <TableCell className="pl-4 py-2 font-medium text-xs text-primary">{p.ledgerName}</TableCell>
                                       <TableCell className="py-2 text-xs uppercase font-semibold text-muted-foreground">
@@ -777,6 +1144,23 @@ export default function AccountingPage() {
                                 <strong>Narration:</strong> {v.narration}
                               </div>
                             )}
+                            {(v as any).status === "posted" && !(v.voucherNumber.startsWith("REV-")) && (
+                              <div className="flex justify-end pt-1">
+                                <Button
+                                  variant="destructive"
+                                  size="sm"
+                                  className="h-7 text-xs gap-1"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setCancelVoucherId(v.id);
+                                    setCancelReason("");
+                                    setIsCancelDialogOpen(true);
+                                  }}
+                                >
+                                  <TrashIcon className="h-3 w-3" /> Cancel Voucher (Auto Reversal)
+                                </Button>
+                              </div>
+                            )}
                           </div>
                         )}
                       </div>
@@ -788,7 +1172,457 @@ export default function AccountingPage() {
           </Card>
         </TabsContent>
 
-        {/* ─── TRIAL BALANCE TAB ─── */}
+        {/* ─── CASH BOOK TAB ─── */}
+        <TabsContent value="cashbook" className="mt-4 space-y-4">
+          <Card>
+            <CardHeader className="pb-3 flex flex-col md:flex-row md:items-center justify-between gap-3">
+              <div>
+                <CardTitle className="text-base font-semibold flex items-center gap-2">
+                  <Wallet className="h-5 w-5 text-emerald-600" /> Cash Book (Cash-in-hand)
+                </CardTitle>
+                <CardDescription>Receipts (Inflows) vs Payments (Outflows) with running cash balance.</CardDescription>
+              </div>
+              <div className="flex flex-wrap gap-2 items-center">
+                <div className="flex items-center gap-1.5 text-xs">
+                  <span className="text-muted-foreground">From</span>
+                  <Input type="date" className="w-36 h-8 text-xs" value={filterStartDate} onChange={(e) => setFilterStartDate(e.target.value)} />
+                </div>
+                <div className="flex items-center gap-1.5 text-xs">
+                  <span className="text-muted-foreground">To</span>
+                  <Input type="date" className="w-36 h-8 text-xs" value={filterEndDate} onChange={(e) => setFilterEndDate(e.target.value)} />
+                </div>
+              </div>
+            </CardHeader>
+
+            <CardContent className="space-y-4">
+              {/* Summary Bar */}
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-3 bg-muted/40 p-3 rounded-lg border border-border text-center font-mono">
+                <div>
+                  <div className="text-[10px] text-muted-foreground uppercase">Opening Balance</div>
+                  <div className="text-sm font-bold">{formatCurrency(cashBookData?.openingBalance ?? 0)}</div>
+                </div>
+                <div>
+                  <div className="text-[10px] text-emerald-600 uppercase font-semibold">Total Receipts (+)</div>
+                  <div className="text-sm font-bold text-emerald-600">{formatCurrency(cashBookData?.totalReceipts ?? 0)}</div>
+                </div>
+                <div>
+                  <div className="text-[10px] text-red-600 uppercase font-semibold">Total Payments (-)</div>
+                  <div className="text-sm font-bold text-red-600">{formatCurrency(cashBookData?.totalPayments ?? 0)}</div>
+                </div>
+                <div>
+                  <div className="text-[10px] text-primary uppercase font-semibold">Closing Balance</div>
+                  <div className="text-sm font-bold text-primary">{formatCurrency(cashBookData?.closingBalance ?? 0)}</div>
+                </div>
+              </div>
+
+              {cashBookLoading ? (
+                <div className="py-12 text-center text-muted-foreground text-sm">Loading Cash Book...</div>
+              ) : safeArray(cashBookData?.entries).length === 0 ? (
+                <div className="py-12 text-center text-muted-foreground text-sm">No cash transactions in this period.</div>
+              ) : (
+                <div className="rounded-md border border-border overflow-hidden">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead className="pl-4 h-9 text-xs">Date</TableHead>
+                        <TableHead className="h-9 text-xs">Voucher No.</TableHead>
+                        <TableHead className="h-9 text-xs">Type</TableHead>
+                        <TableHead className="h-9 text-xs">Narration / Ref</TableHead>
+                        <TableHead className="text-right h-9 text-xs text-emerald-600">Receipt (Dr)</TableHead>
+                        <TableHead className="text-right h-9 text-xs text-red-600">Payment (Cr)</TableHead>
+                        <TableHead className="text-right pr-4 h-9 text-xs">Cash Balance</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {safeArray(cashBookData?.entries).map((entry: any) => (
+                        <TableRow key={entry.postingId} className="text-xs">
+                          <TableCell className="pl-4 py-2 font-medium">
+                            {new Date(entry.date).toLocaleDateString("en-IN", { dateStyle: "short" })}
+                          </TableCell>
+                          <TableCell className="py-2 font-semibold text-primary">{entry.voucherNumber}</TableCell>
+                          <TableCell className="py-2 uppercase font-bold text-[10px] text-muted-foreground">
+                            {entry.voucherType}
+                          </TableCell>
+                          <TableCell className="py-2 italic max-w-xs truncate">{entry.narration || entry.referenceNumber || "-"}</TableCell>
+                          <TableCell className="text-right py-2 font-mono text-emerald-600 font-semibold">
+                            {entry.type === "receipt" ? formatCurrency(entry.amount) : ""}
+                          </TableCell>
+                          <TableCell className="text-right py-2 font-mono text-red-600 font-semibold">
+                            {entry.type === "payment" ? formatCurrency(entry.amount) : ""}
+                          </TableCell>
+                          <TableCell className="text-right pr-4 py-2 font-mono font-bold">
+                            {formatCurrency(entry.runningBalance)}
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* ─── BRS TAB ─── */}
+        <TabsContent value="brs" className="mt-4 space-y-4">
+          <Card>
+            <CardHeader className="pb-3 flex flex-col md:flex-row md:items-center justify-between gap-3">
+              <div>
+                <CardTitle className="text-base font-semibold flex items-center gap-2">
+                  <Briefcase className="h-5 w-5 text-emerald-600" /> Bank Reconciliation Statement (BRS)
+                </CardTitle>
+                <CardDescription>Reconcile bank passbook entries with internal ledger postings.</CardDescription>
+              </div>
+              <div className="flex flex-wrap gap-2 items-center">
+                <Select
+                  value={brsBankId?.toString() || (brsData?.bankLedger?.id?.toString() ?? "")}
+                  onValueChange={(val) => setBrsBankId(parseInt(val))}
+                >
+                  <SelectTrigger className="w-52 h-8 text-xs"><SelectValue placeholder="Select Bank Account..." /></SelectTrigger>
+                  <SelectContent>
+                    {safeArray(brsData?.bankLedgers).map((b: any) => (
+                      <SelectItem key={b.id} value={b.id.toString()}>{b.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="h-8 text-xs gap-1"
+                  onClick={() => {
+                    if (!brsData?.bankLedger?.id) return;
+                    importBrsMutation.mutate({
+                      ledgerAccountId: brsData.bankLedger.id,
+                      entries: [
+                        { bankDate: new Date().toISOString(), description: "NEFT Inward Deposit", bankDebit: 0, bankCredit: 25000 },
+                        { bankDate: new Date().toISOString(), description: "ATM Cash Withdrawal", bankDebit: 5000, bankCredit: 0 },
+                      ],
+                    });
+                  }}
+                >
+                  <Plus className="h-3.5 w-3.5" /> Sample Statement Import
+                </Button>
+              </div>
+            </CardHeader>
+
+            <CardContent className="space-y-4">
+              {/* BRS Summary Banner */}
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-3 bg-muted/40 p-4 rounded-lg border border-border text-center font-mono">
+                <div>
+                  <div className="text-[10px] text-muted-foreground uppercase">Balance as per Books</div>
+                  <div className="text-base font-bold text-primary">{formatCurrency(brsData?.summary?.bookBalance ?? 0)}</div>
+                </div>
+                <div>
+                  <div className="text-[10px] text-amber-600 uppercase font-semibold">Unmatched Bank Entries</div>
+                  <div className="text-base font-bold text-amber-600">{brsData?.summary?.unmatchedBankCount ?? 0} items</div>
+                </div>
+                <div>
+                  <div className="text-[10px] text-blue-600 uppercase font-semibold">Unmatched Book Entries</div>
+                  <div className="text-base font-bold text-blue-600">{brsData?.summary?.unmatchedBookCount ?? 0} items</div>
+                </div>
+                <div>
+                  <div className="text-[10px] text-emerald-600 uppercase font-semibold">Status</div>
+                  <div className="text-base font-bold text-emerald-600">✓ Reconciled</div>
+                </div>
+              </div>
+
+              {brsLoading ? (
+                <div className="py-12 text-center text-muted-foreground text-sm">Loading BRS data...</div>
+              ) : (
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                  {/* Left Column: Bank Statement Entries */}
+                  <Card>
+                    <CardHeader className="py-3 px-4 bg-muted/30 border-b">
+                      <CardTitle className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center justify-between">
+                        <span>Passbook / Bank Statement Entries</span>
+                        <Badge variant="secondary">{safeArray(brsData?.statementEntries).length} records</Badge>
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent className="p-0 max-h-96 overflow-y-auto">
+                      <Table>
+                        <TableHeader>
+                          <TableRow className="hover:bg-transparent">
+                            <TableHead className="pl-3 h-8 text-[11px]">Date</TableHead>
+                            <TableHead className="h-8 text-[11px]">Description</TableHead>
+                            <TableHead className="text-right h-8 text-[11px]">Debit (-)</TableHead>
+                            <TableHead className="text-right h-8 text-[11px]">Credit (+)</TableHead>
+                            <TableHead className="text-center pr-3 h-8 text-[11px]">Status</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {safeArray<any>(brsData?.statementEntries).length === 0 ? (
+                            <TableRow>
+                              <TableCell colSpan={5} className="text-center py-8 text-xs text-muted-foreground">
+                                No bank statement lines imported yet. Use Sample Import above.
+                              </TableCell>
+                            </TableRow>
+                          ) : (
+                            safeArray<any>(brsData?.statementEntries).map((e) => (
+                              <TableRow key={e.id} className="text-xs">
+                                <TableCell className="pl-3 py-2 font-medium">
+                                  {new Date(e.bankDate).toLocaleDateString("en-IN", { dateStyle: "short" })}
+                                </TableCell>
+                                <TableCell className="py-2 italic max-w-xs truncate">{e.description || "-"}</TableCell>
+                                <TableCell className="text-right py-2 font-mono text-red-600">
+                                  {e.bankDebit > 0 ? formatCurrency(e.bankDebit) : ""}
+                                </TableCell>
+                                <TableCell className="text-right py-2 font-mono text-emerald-600">
+                                  {e.bankCredit > 0 ? formatCurrency(e.bankCredit) : ""}
+                                </TableCell>
+                                <TableCell className="text-center pr-3 py-2">
+                                  {e.status === "matched" ? (
+                                    <Badge className="bg-emerald-600 text-[9px]">Matched</Badge>
+                                  ) : (
+                                    <Badge variant="outline" className="text-[9px] text-amber-600 border-amber-500">Unmatched</Badge>
+                                  )}
+                                </TableCell>
+                              </TableRow>
+                            ))
+                          )}
+                        </TableBody>
+                      </Table>
+                    </CardContent>
+                  </Card>
+
+                  {/* Right Column: Unmatched Ledger Postings */}
+                  <Card>
+                    <CardHeader className="py-3 px-4 bg-muted/30 border-b">
+                      <CardTitle className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center justify-between">
+                        <span>Ledger Book Postings</span>
+                        <Badge variant="secondary">{safeArray(brsData?.unmatchedBookPostings).length} pending match</Badge>
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent className="p-0 max-h-96 overflow-y-auto">
+                      <Table>
+                        <TableHeader>
+                          <TableRow className="hover:bg-transparent">
+                            <TableHead className="pl-3 h-8 text-[11px]">Voucher No.</TableHead>
+                            <TableHead className="h-8 text-[11px]">Date</TableHead>
+                            <TableHead className="h-8 text-[11px]">Dr/Cr</TableHead>
+                            <TableHead className="text-right pr-3 h-8 text-[11px]">Amount</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {safeArray<any>(brsData?.unmatchedBookPostings).length === 0 ? (
+                            <TableRow>
+                              <TableCell colSpan={4} className="text-center py-8 text-xs text-muted-foreground">
+                                All book postings are reconciled with bank statements!
+                              </TableCell>
+                            </TableRow>
+                          ) : (
+                            safeArray<any>(brsData?.unmatchedBookPostings).map((p) => (
+                              <TableRow key={p.postingId} className="text-xs">
+                                <TableCell className="pl-3 py-2 font-semibold text-primary">{p.voucherNumber}</TableCell>
+                                <TableCell className="py-2">
+                                  {new Date(p.date).toLocaleDateString("en-IN", { dateStyle: "short" })}
+                                </TableCell>
+                                <TableCell className="py-2 font-bold text-[10px] uppercase text-muted-foreground">
+                                  {p.entryType}
+                                </TableCell>
+                                <TableCell className="text-right pr-3 py-2 font-mono font-semibold">
+                                  {formatCurrency(p.amount)}
+                                </TableCell>
+                              </TableRow>
+                            ))
+                          )}
+                        </TableBody>
+                      </Table>
+                    </CardContent>
+                  </Card>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+        <TabsContent value="costcentres" className="mt-4 space-y-4">
+          <Card>
+            <CardHeader className="pb-3 flex flex-col md:flex-row md:items-center justify-between gap-3">
+              <div>
+                <CardTitle className="text-base font-semibold flex items-center gap-2">
+                  <Layers className="h-5 w-5 text-indigo-600" /> Cost Centre Financial Contribution
+                </CardTitle>
+                <CardDescription>Committee & Branch-wise P&L breakdown and net profitability.</CardDescription>
+              </div>
+              <div className="flex flex-wrap gap-2 items-center">
+                <div className="flex border rounded-lg overflow-hidden text-xs">
+                  <Button
+                    size="sm"
+                    variant={costCentreType === "committee" ? "default" : "ghost"}
+                    className="h-8 rounded-none text-xs"
+                    onClick={() => setCostCentreType("committee")}
+                  >
+                    Committees (Bissi)
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant={costCentreType === "branch" ? "default" : "ghost"}
+                    className="h-8 rounded-none text-xs"
+                    onClick={() => setCostCentreType("branch")}
+                  >
+                    Branches
+                  </Button>
+                </div>
+                <div className="flex items-center gap-1.5 text-xs">
+                  <span className="text-muted-foreground">From</span>
+                  <Input type="date" className="w-36 h-8 text-xs" value={filterStartDate} onChange={(e) => setFilterStartDate(e.target.value)} />
+                </div>
+                <div className="flex items-center gap-1.5 text-xs">
+                  <span className="text-muted-foreground">To</span>
+                  <Input type="date" className="w-36 h-8 text-xs" value={filterEndDate} onChange={(e) => setFilterEndDate(e.target.value)} />
+                </div>
+              </div>
+            </CardHeader>
+
+            <CardContent className="space-y-4">
+              {ccLoading ? (
+                <div className="py-12 text-center text-muted-foreground text-sm">Loading Cost Centre Summary...</div>
+              ) : safeArray(costCentreSummary?.items).length === 0 ? (
+                <div className="py-12 text-center text-muted-foreground text-sm">
+                  No cost centre postings recorded for {costCentreType === "committee" ? "committees" : "branches"} in this period.
+                </div>
+              ) : (
+                <div className="rounded-md border border-border overflow-hidden">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead className="pl-4 h-9 text-xs">Cost Centre Name</TableHead>
+                        <TableHead className="h-9 text-xs text-right">Total Incomes</TableHead>
+                        <TableHead className="h-9 text-xs text-right">Total Expenses</TableHead>
+                        <TableHead className="h-9 text-xs text-right">Net Profit / Contribution</TableHead>
+                        <TableHead className="h-9 text-xs text-right pr-4">Postings Count</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {safeArray<{ costCentreId: number; income: number; expense: number; netProfit: number; transactionCount: number }>(costCentreSummary?.items).map((item) => {
+                        const name = costCentreType === "committee"
+                          ? (committeeMap.get(item.costCentreId) || `Committee #${item.costCentreId}`)
+                          : (branchMap.get(item.costCentreId) || `Branch #${item.costCentreId}`);
+
+                        return (
+                          <TableRow key={item.costCentreId} className="text-xs hover:bg-muted/40">
+                            <TableCell className="pl-4 py-2 font-semibold text-primary">{name}</TableCell>
+                            <TableCell className="text-right py-2 font-mono text-emerald-600 font-medium">
+                              {formatCurrency(item.income)}
+                            </TableCell>
+                            <TableCell className="text-right py-2 font-mono text-red-600 font-medium">
+                              {formatCurrency(item.expense)}
+                            </TableCell>
+                            <TableCell className={`text-right py-2 font-mono font-bold ${item.netProfit >= 0 ? "text-emerald-600" : "text-red-600"}`}>
+                              {formatCurrency(item.netProfit)}
+                            </TableCell>
+                            <TableCell className="text-right pr-4 py-2 font-mono text-muted-foreground">
+                              {item.transactionCount}
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })}
+                    </TableBody>
+                  </Table>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+        <TabsContent value="bankbook" className="mt-4 space-y-4">
+          <Card>
+            <CardHeader className="pb-3 flex flex-col md:flex-row md:items-center justify-between gap-3">
+              <div>
+                <CardTitle className="text-base font-semibold flex items-center gap-2">
+                  <Briefcase className="h-5 w-5 text-blue-600" /> Bank Book (Bank Accounts)
+                </CardTitle>
+                <CardDescription>Bank deposits, withdrawals, and cleared running balance.</CardDescription>
+              </div>
+              <div className="flex flex-wrap gap-2 items-center">
+                <Select
+                  value={selectedBankLedgerId?.toString() || (bankBookData?.bankLedger?.id?.toString() ?? "")}
+                  onValueChange={(val) => setSelectedBankLedgerId(parseInt(val))}
+                >
+                  <SelectTrigger className="w-52 h-8 text-xs"><SelectValue placeholder="Select Bank Account..." /></SelectTrigger>
+                  <SelectContent>
+                    {safeArray(bankBookData?.bankLedgers).map((b: any) => (
+                      <SelectItem key={b.id} value={b.id.toString()}>{b.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <div className="flex items-center gap-1.5 text-xs">
+                  <span className="text-muted-foreground">From</span>
+                  <Input type="date" className="w-36 h-8 text-xs" value={filterStartDate} onChange={(e) => setFilterStartDate(e.target.value)} />
+                </div>
+                <div className="flex items-center gap-1.5 text-xs">
+                  <span className="text-muted-foreground">To</span>
+                  <Input type="date" className="w-36 h-8 text-xs" value={filterEndDate} onChange={(e) => setFilterEndDate(e.target.value)} />
+                </div>
+              </div>
+            </CardHeader>
+
+            <CardContent className="space-y-4">
+              {/* Summary Bar */}
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-3 bg-muted/40 p-3 rounded-lg border border-border text-center font-mono">
+                <div>
+                  <div className="text-[10px] text-muted-foreground uppercase">Opening Balance</div>
+                  <div className="text-sm font-bold">{formatCurrency(bankBookData?.openingBalance ?? 0)}</div>
+                </div>
+                <div>
+                  <div className="text-[10px] text-emerald-600 uppercase font-semibold">Total Deposits (+)</div>
+                  <div className="text-sm font-bold text-emerald-600">{formatCurrency(bankBookData?.totalReceipts ?? 0)}</div>
+                </div>
+                <div>
+                  <div className="text-[10px] text-red-600 uppercase font-semibold">Total Withdrawals (-)</div>
+                  <div className="text-sm font-bold text-red-600">{formatCurrency(bankBookData?.totalPayments ?? 0)}</div>
+                </div>
+                <div>
+                  <div className="text-[10px] text-blue-600 uppercase font-semibold">Closing Bank Balance</div>
+                  <div className="text-sm font-bold text-blue-600">{formatCurrency(bankBookData?.closingBalance ?? 0)}</div>
+                </div>
+              </div>
+
+              {bankBookLoading ? (
+                <div className="py-12 text-center text-muted-foreground text-sm">Loading Bank Book...</div>
+              ) : safeArray(bankBookData?.entries).length === 0 ? (
+                <div className="py-12 text-center text-muted-foreground text-sm">No bank transactions recorded in this period.</div>
+              ) : (
+                <div className="rounded-md border border-border overflow-hidden">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead className="pl-4 h-9 text-xs">Date</TableHead>
+                        <TableHead className="h-9 text-xs">Voucher No.</TableHead>
+                        <TableHead className="h-9 text-xs">Type</TableHead>
+                        <TableHead className="h-9 text-xs">Narration / Ref No.</TableHead>
+                        <TableHead className="text-right h-9 text-xs text-emerald-600">Deposit (Dr)</TableHead>
+                        <TableHead className="text-right h-9 text-xs text-red-600">Withdrawal (Cr)</TableHead>
+                        <TableHead className="text-right pr-4 h-9 text-xs">Bank Balance</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {safeArray(bankBookData?.entries).map((entry: any) => (
+                        <TableRow key={entry.postingId} className="text-xs">
+                          <TableCell className="pl-4 py-2 font-medium">
+                            {new Date(entry.date).toLocaleDateString("en-IN", { dateStyle: "short" })}
+                          </TableCell>
+                          <TableCell className="py-2 font-semibold text-primary">{entry.voucherNumber}</TableCell>
+                          <TableCell className="py-2 uppercase font-bold text-[10px] text-muted-foreground">
+                            {entry.voucherType}
+                          </TableCell>
+                          <TableCell className="py-2 italic max-w-xs truncate">{entry.narration || entry.referenceNumber || "-"}</TableCell>
+                          <TableCell className="text-right py-2 font-mono text-emerald-600 font-semibold">
+                            {entry.type === "receipt" ? formatCurrency(entry.amount) : ""}
+                          </TableCell>
+                          <TableCell className="text-right py-2 font-mono text-red-600 font-semibold">
+                            {entry.type === "payment" ? formatCurrency(entry.amount) : ""}
+                          </TableCell>
+                          <TableCell className="text-right pr-4 py-2 font-mono font-bold">
+                            {formatCurrency(entry.runningBalance)}
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
         <TabsContent value="trialbalance" className="mt-4">
           <Card>
             <CardHeader className="pb-3 flex flex-row items-center justify-between">
@@ -1055,18 +1889,15 @@ export default function AccountingPage() {
             </div>
 
             <div className="space-y-1">
-              <Label>Group Class</Label>
-              <Select value={newLedgerGroup} onValueChange={setNewLedgerGroup}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
+              <Label>Ledger Group</Label>
+              <Select value={newLedgerGroupId} onValueChange={setNewLedgerGroupId}>
+                <SelectTrigger><SelectValue placeholder="Select group..." /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="Cash-in-hand">Cash-in-hand</SelectItem>
-                  <SelectItem value="Bank Accounts">Bank Accounts</SelectItem>
-                  <SelectItem value="Indirect Expenses">Indirect Expenses</SelectItem>
-                  <SelectItem value="Indirect Incomes">Indirect Incomes</SelectItem>
-                  <SelectItem value="Capital Account">Capital Account</SelectItem>
-                  <SelectItem value="Loans & Liabilities">Loans & Liabilities</SelectItem>
-                  <SelectItem value="Sundry Debtors">Sundry Debtors</SelectItem>
-                  <SelectItem value="Sundry Creditors">Sundry Creditors</SelectItem>
+                  {safeGroups.map((g) => (
+                    <SelectItem key={g.id} value={g.id.toString()}>
+                      {g.parentId ? `  └ ${g.name}` : g.name} ({g.nature})
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </div>
@@ -1190,6 +2021,102 @@ export default function AccountingPage() {
               </div>
             </div>
           )}
+        </DialogContent>
+      </Dialog>
+
+      {/* ─── CREATE GROUP DIALOG ─── */}
+      <Dialog open={isGroupDialogOpen} onOpenChange={setIsGroupDialogOpen}>
+        <DialogContent className="sm:max-w-[400px]">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2"><FolderPlus className="h-5 w-5" /> Create Ledger Group</DialogTitle>
+            <DialogDescription>Create a custom sub-group under a parent group.</DialogDescription>
+          </DialogHeader>
+          <form onSubmit={handleCreateGroup} className="space-y-4 pt-4">
+            <div className="space-y-1">
+              <Label>Group Name</Label>
+              <Input
+                placeholder="e.g. Committee Funds, Branch Expenses"
+                value={newGroupName}
+                onChange={(e) => setNewGroupName(e.target.value)}
+                required
+              />
+            </div>
+
+            <div className="space-y-1">
+              <Label>Parent Group (optional)</Label>
+              <Select value={newGroupParentId} onValueChange={setNewGroupParentId}>
+                <SelectTrigger><SelectValue placeholder="None (root group)" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="">None (root group)</SelectItem>
+                  {safeGroups.filter((g) => !g.parentId).map((g) => (
+                    <SelectItem key={g.id} value={g.id.toString()}>{g.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-1">
+              <Label>Nature</Label>
+              <Select value={newGroupNature} onValueChange={setNewGroupNature}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="assets">Assets</SelectItem>
+                  <SelectItem value="liabilities">Liabilities</SelectItem>
+                  <SelectItem value="income">Income</SelectItem>
+                  <SelectItem value="expense">Expense</SelectItem>
+                </SelectContent>
+              </Select>
+              <p className="text-[10px] text-muted-foreground">If a parent group is selected, nature is inherited automatically.</p>
+            </div>
+
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={() => setIsGroupDialogOpen(false)}>Cancel</Button>
+              <Button type="submit" disabled={createGroupMutation.isPending}>
+                {createGroupMutation.isPending ? "Creating..." : "Create Group"}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+      {/* ─── CANCEL VOUCHER DIALOG ─── */}
+      <Dialog open={isCancelDialogOpen} onOpenChange={setIsCancelDialogOpen}>
+        <DialogContent className="sm:max-w-[400px]">
+          <DialogHeader>
+            <DialogTitle className="text-destructive flex items-center gap-2">
+              <TrashIcon className="h-5 w-5" /> Cancel Voucher Entry
+            </DialogTitle>
+            <DialogDescription>
+              Cancelling a voucher creates an automatic <strong>Reversal Journal Entry</strong> with swapped debit/credit lines to maintain strict double-entry audit compliance.
+            </DialogDescription>
+          </DialogHeader>
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              if (cancelVoucherId) {
+                cancelVoucherMutation.mutate({ id: cancelVoucherId, reason: cancelReason });
+                setIsCancelDialogOpen(false);
+              }
+            }}
+            className="space-y-4 pt-2"
+          >
+            <div className="space-y-1">
+              <Label>Reason for Cancellation</Label>
+              <Input
+                placeholder="e.g. Wrong amount entered, Cheque bounced, Duplicate entry"
+                value={cancelReason}
+                onChange={(e) => setCancelReason(e.target.value)}
+                required
+              />
+            </div>
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={() => setIsCancelDialogOpen(false)}>
+                Keep Voucher
+              </Button>
+              <Button type="submit" variant="destructive" disabled={cancelVoucherMutation.isPending}>
+                {cancelVoucherMutation.isPending ? "Cancelling..." : "Confirm Cancellation & Reverse"}
+              </Button>
+            </DialogFooter>
+          </form>
         </DialogContent>
       </Dialog>
     </div>

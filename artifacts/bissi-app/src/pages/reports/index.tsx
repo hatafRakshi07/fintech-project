@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import { safeArray } from "@/lib/utils";
 import {
   useGetCollectionReport,
   useGetLoanReport,
@@ -158,40 +159,42 @@ export default function ReportsPage() {
                   </CardContent>
                 </Card>
 
-                {/* By Payment Mode */}
-                <Card>
-                  <CardHeader className="pb-2">
-                    <CardTitle className="text-sm">By Payment Mode</CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    {colReport.byPaymentMode?.length === 0 ? (
-                      <div className="h-48 flex items-center justify-center text-muted-foreground text-sm">No data</div>
-                    ) : (
-                      <ResponsiveContainer width="100%" height={220}>
-                        <PieChart>
-                          <Pie
-                            data={colReport.byPaymentMode}
-                            dataKey="amount"
-                            nameKey="mode"
-                            cx="50%"
-                            cy="50%"
-                            outerRadius={80}
-                            label={({ mode, percent }) => `${mode} ${(percent * 100).toFixed(0)}%`}
-                          >
-                            {colReport.byPaymentMode.map((_, i) => (
-                              <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />
-                            ))}
-                          </Pie>
-                          <Tooltip formatter={(v: number) => formatCurrency(v)} />
-                        </PieChart>
-                      </ResponsiveContainer>
-                    )}
-                  </CardContent>
-                </Card>
+                {/* By Payment Mode Chart */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <Card>
+                    <CardHeader className="pb-2">
+                      <CardTitle className="text-sm">By Payment Mode</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      {safeArray(colReport?.byPaymentMode).length === 0 ? (
+                        <div className="h-48 flex items-center justify-center text-xs text-muted-foreground">No data</div>
+                      ) : (
+                        <ResponsiveContainer width="100%" height={220}>
+                          <PieChart>
+                            <Pie
+                              data={safeArray(colReport?.byPaymentMode)}
+                              dataKey="amount"
+                              nameKey="mode"
+                              cx="50%"
+                              cy="50%"
+                              outerRadius={80}
+                              label={({ mode, percent }) => `${mode} ${(percent * 100).toFixed(0)}%`}
+                            >
+                              {safeArray(colReport?.byPaymentMode).map((_, i) => (
+                                <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />
+                              ))}
+                            </Pie>
+                            <Tooltip formatter={(v: number) => formatCurrency(v)} />
+                          </PieChart>
+                        </ResponsiveContainer>
+                      )}
+                    </CardContent>
+                  </Card>
+                </div>
               </div>
 
               {/* By Branch Table */}
-              {colReport.byBranch && colReport.byBranch.length > 0 && (
+              {safeArray(colReport?.byBranch).length > 0 && (
                 <Card>
                   <CardHeader className="pb-2">
                     <CardTitle className="text-sm">Branch-wise Breakdown</CardTitle>
@@ -206,7 +209,7 @@ export default function ReportsPage() {
                         </TableRow>
                       </TableHeader>
                       <TableBody>
-                        {colReport.byBranch.map((row) => (
+                        {safeArray<any>(colReport?.byBranch).map((row) => (
                           <TableRow key={row.branchName}>
                             <TableCell className="pl-4 font-medium">{row.branchName}</TableCell>
                             <TableCell className="text-right">{row.count}</TableCell>
@@ -305,7 +308,7 @@ export default function ReportsPage() {
                           </TableRow>
                         </TableHeader>
                         <TableBody>
-                          {loanReport.byBranch.map((row) => (
+                          {safeArray<any>(loanReport?.byBranch).map((row) => (
                             <TableRow key={row.branchName}>
                               <TableCell className="pl-4 font-medium">{row.branchName}</TableCell>
                               <TableCell className="text-right">{row.count}</TableCell>

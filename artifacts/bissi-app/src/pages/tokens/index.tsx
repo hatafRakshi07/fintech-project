@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import { safeArray } from "@/lib/utils";
 import {
   useListTokens,
   useCreateToken,
@@ -74,8 +75,9 @@ export default function TokensPage() {
   const { data: rawCommittees } = useListCommittees();
   const { data: customers } = useListCustomers({ limit: 200 });
 
-  const tokens = Array.isArray(rawTokens) ? rawTokens : [];
-  const committees = Array.isArray(rawCommittees) ? rawCommittees : [];
+  const tokens = safeArray<any>(rawTokens);
+  const committees = safeArray<any>(rawCommittees);
+  const customersList = safeArray<any>(customers);
   const createToken = useCreateToken();
   const updateToken = useUpdateToken();
   const queryClient = useQueryClient();
@@ -152,7 +154,7 @@ export default function TokensPage() {
                             <SelectTrigger><SelectValue placeholder="Select customer" /></SelectTrigger>
                           </FormControl>
                           <SelectContent>
-                            {customers?.data?.map((c) => (
+                            {customersList.map((c) => (
                               <SelectItem key={c.id} value={c.id.toString()}>{c.name} ({c.referenceNumber})</SelectItem>
                             ))}
                           </SelectContent>
@@ -223,7 +225,7 @@ export default function TokensPage() {
                         <SelectTrigger><SelectValue placeholder="Select customer" /></SelectTrigger>
                       </FormControl>
                       <SelectContent>
-                        {customers?.data?.map((c) => (
+                        {customersList.map((c) => (
                           <SelectItem key={c.id} value={c.id.toString()}>{c.name} ({c.referenceNumber})</SelectItem>
                         ))}
                       </SelectContent>

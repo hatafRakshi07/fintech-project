@@ -1,4 +1,5 @@
 import React, { useRef, useState } from "react";
+import { safeArray } from "@/lib/utils";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -134,7 +135,7 @@ function calcTotals(items: LineItem[], sellerState: string, buyerState: string) 
   let totalIgst = 0;
   const sameState = sellerState === buyerState;
 
-  const rows = items.map((item) => {
+  const rows = safeArray<LineItem>(items).map((item) => {
     const taxable = item.qty * item.rate;
     const gstAmt = (taxable * item.gstRate) / 100;
     const cgst = sameState ? gstAmt / 2 : 0;
@@ -444,7 +445,7 @@ function InvoiceForm({
         <CardContent className="p-0">
           {/* Mobile: card per item */}
           <div className="sm:hidden space-y-3 p-4">
-            {inv.items.map((item, i) => (
+            {safeArray<LineItem>(inv.items).map((item, i) => (
               <div key={item.id} className="border rounded-lg p-3 space-y-2 relative">
                 <div className="flex items-center justify-between">
                   <span className="text-xs font-semibold text-muted-foreground">Item #{i + 1}</span>

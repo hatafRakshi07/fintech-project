@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import { safeArray } from "@/lib/utils";
 import { useParams, Link } from "wouter";
 import { 
   useGetCustomer, 
@@ -257,7 +258,7 @@ export default function CustomerDetailPage() {
                         <p className="text-xs text-muted-foreground capitalize">{m.type} · ₹{m.installment?.toLocaleString("en-IN")}/month</p>
                       </div>
                       <div className="flex flex-wrap gap-1">
-                        {m.tokens.sort((a: string, b: string) => parseInt(a)-parseInt(b)).map((t: string) => (
+                        {safeArray<string>(m.tokens).slice().sort((a: string, b: string) => parseInt(a)-parseInt(b)).map((t: string) => (
                           <span key={t} className="px-2 py-0.5 rounded text-xs font-mono font-bold bg-primary/10 text-primary border border-primary/20">{t}</span>
                         ))}
                       </div>

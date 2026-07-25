@@ -339,9 +339,16 @@ function AdminDashboard() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold tracking-tight">Overview</h1>
-        <p className="text-muted-foreground">Welcome to Shree Krishna Association dashboard.</p>
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight">Overview</h1>
+          <p className="text-muted-foreground">Welcome to Shree Krishna Association dashboard.</p>
+        </div>
+        <Link href="/accounting">
+          <Button variant="default" className="flex items-center gap-2 bg-gradient-to-r from-emerald-600 to-teal-700 hover:from-emerald-700 hover:to-teal-800 text-white shadow">
+            <TrendingUp className="h-4 w-4" /> Accounting (Tally Prime)
+          </Button>
+        </Link>
       </div>
 
       {/* KPI Cards — 2-col on mobile, 4-col on desktop */}
