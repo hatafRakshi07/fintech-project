@@ -196,17 +196,63 @@ export default function LoginPage() {
             </CardDescription>
           </CardHeader>
           <CardContent className="px-5 pb-5 pt-2">
-            <Tabs defaultValue="otp" className="w-full">
+            <Tabs defaultValue="password" className="w-full">
               <TabsList className="grid w-full grid-cols-2 mb-4 h-11">
-                <TabsTrigger value="otp" className="text-xs sm:text-sm font-semibold gap-1">
-                  <Flame className="h-4 w-4 text-orange-500" /> Firebase SMS
+                <TabsTrigger value="password" className="text-xs sm:text-sm font-bold gap-1 text-amber-500">
+                  <KeyRound className="h-4 w-4" /> Password / Phone Login
                 </TabsTrigger>
-                <TabsTrigger value="password" className="text-xs sm:text-sm font-semibold gap-1">
-                  <KeyRound className="h-4 w-4" /> Password
+                <TabsTrigger value="otp" className="text-xs sm:text-sm font-semibold gap-1">
+                  <Flame className="h-4 w-4 text-emerald-500" /> WhatsApp / SMS OTP
                 </TabsTrigger>
               </TabsList>
 
-              {/* Mobile OTP Login Tab (Firebase Real SMS) */}
+              {/* Password / Name & Phone Login Tab */}
+              <TabsContent value="password">
+                <Form {...form}>
+                  <form onSubmit={form.handleSubmit(onSubmitPassword)} className="space-y-4">
+                    <FormField
+                      control={form.control}
+                      name="username"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel className="font-semibold text-sm">Customer Name or Mobile Number</FormLabel>
+                          <FormControl>
+                            <div className="relative">
+                              <Building2 className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+                              <Input className="pl-9 h-11 text-base font-medium" placeholder="e.g. Pyare Mohan or 9876543210" autoComplete="username" {...field} />
+                            </div>
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
+                    <FormField
+                      control={form.control}
+                      name="password"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel className="font-semibold text-sm">Phone Number or Password</FormLabel>
+                          <FormControl>
+                            <div className="relative">
+                              <KeyRound className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+                              <Input className="pl-9 h-11 text-base font-medium" type="password" placeholder="Enter your 10-digit Mobile Number" autoComplete="current-password" {...field} />
+                            </div>
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
+                    <Button type="submit" disabled={login.isPending} className="w-full h-11 text-base font-bold gap-2 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 shadow-md">
+                      {login.isPending ? "Signing In..." : "Sign In to Account"}
+                      <ArrowRight className="h-4 w-4" />
+                    </Button>
+                  </form>
+                </Form>
+              </TabsContent>
+
+              {/* Mobile OTP Login Tab (WhatsApp / SMS) */}
               <TabsContent value="otp">
                 {!otpSent ? (
                   <form onSubmit={handleSendOtp} className="space-y-4">
@@ -276,51 +322,6 @@ export default function LoginPage() {
                     </Button>
                   </form>
                 )}
-              </TabsContent>
-
-              {/* Password Login Tab */}
-              <TabsContent value="password">
-                <Form {...form}>
-                  <form onSubmit={form.handleSubmit(onSubmitPassword)} className="space-y-4">
-                    <FormField
-                      control={form.control}
-                      name="username"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Username</FormLabel>
-                          <FormControl>
-                            <div className="relative">
-                              <Building2 className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-                              <Input className="pl-9 h-11 text-base" placeholder="admin" autoComplete="username" {...field} />
-                            </div>
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-
-                    <FormField
-                      control={form.control}
-                      name="password"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Password</FormLabel>
-                          <FormControl>
-                            <div className="relative">
-                              <KeyRound className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-                              <Input className="pl-9 h-11 text-base" type="password" placeholder="••••••••" autoComplete="current-password" {...field} />
-                            </div>
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-
-                    <Button type="submit" className="w-full h-11 text-base font-semibold" disabled={login.isPending}>
-                      {login.isPending ? "Signing in..." : "Sign in"}
-                    </Button>
-                  </form>
-                </Form>
               </TabsContent>
             </Tabs>
           </CardContent>

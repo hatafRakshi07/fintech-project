@@ -10,8 +10,8 @@ type LoginResponse = {
 
 export default function LoginPage() {
   const [, setLocation] = useLocation();
-  const [tab, setTab] = useState<"otp" | "password">("otp");
-  
+  const [tab, setTab] = useState<"otp" | "password">("password");
+
   // Password state
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
@@ -230,27 +230,27 @@ export default function LoginPage() {
         ) : (
           <form onSubmit={handlePasswordSubmit} className="space-y-4">
             <div>
-              <label className="block text-xs font-semibold text-slate-300 mb-1.5">Username</label>
+              <label className="block text-xs font-semibold text-slate-300 mb-1.5">Customer Name or Mobile Number</label>
               <input
                 type="text"
                 autoComplete="username"
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
-                placeholder="collector1"
+                placeholder="e.g. Pyare Mohan or 9876543210"
                 required
                 className="w-full h-11 bg-slate-950 border border-slate-800 text-slate-100 placeholder-slate-500 rounded-xl px-4 text-sm font-semibold focus:outline-none focus:border-amber-500 focus:ring-1 focus:ring-amber-500 transition-colors"
               />
             </div>
 
             <div>
-              <label className="block text-xs font-semibold text-slate-300 mb-1.5">Password</label>
+              <label className="block text-xs font-semibold text-slate-300 mb-1.5">Phone Number or Password</label>
               <div className="relative">
                 <input
                   type={showPwd ? "text" : "password"}
                   autoComplete="current-password"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  placeholder="••••••••"
+                  placeholder="Enter 10-digit Mobile Number"
                   required
                   className="w-full h-11 bg-slate-950 border border-slate-800 text-slate-100 placeholder-slate-500 rounded-xl px-4 pr-11 text-sm font-semibold focus:outline-none focus:border-amber-500 focus:ring-1 focus:ring-amber-500 transition-colors"
                 />
