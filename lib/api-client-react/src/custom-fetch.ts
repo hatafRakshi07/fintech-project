@@ -65,6 +65,7 @@ function applyBaseUrl(input: RequestInfo | URL): RequestInfo | URL {
   const url = resolveUrl(input);
   // Only prepend to relative paths (starting with /)
   if (!url.startsWith("/")) return input;
+  if (url.startsWith(_baseUrl)) return input;
 
   const absolute = `${_baseUrl}${url}`;
   if (typeof input === "string") return absolute;

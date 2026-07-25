@@ -40,6 +40,8 @@ import {
   Calendar,
 } from "lucide-react";
 
+import { api } from "@/lib/api";
+
 const formatCurrency = (amount: number) => {
   return new Intl.NumberFormat("en-IN", {
     style: "currency",
@@ -67,7 +69,7 @@ export default function CustomerPortalPage() {
   // Fetch logged in customer's 360 data by mobile & name
   const { data: customerData, isLoading, isError, refetch } = useQuery<any>({
     queryKey: ["customer-portal-360", authCustomer?.mobile, authCustomer?.name],
-    queryFn: () => customFetch(`/profile/kyc-lookup?mobile=${encodeURIComponent(authCustomer?.mobile || "")}&name=${encodeURIComponent(authCustomer?.name || "")}`),
+    queryFn: () => api.get(`/profile/kyc-lookup?mobile=${encodeURIComponent(authCustomer?.mobile || "")}&name=${encodeURIComponent(authCustomer?.name || "")}`),
     enabled: !!authCustomer?.mobile,
   });
 
