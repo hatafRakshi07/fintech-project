@@ -293,7 +293,6 @@ export default function CustomerPortalPage() {
           <TabsTrigger value="passbook" className="text-xs sm:text-sm font-semibold gap-1.5">
             <FileSpreadsheet className="h-4 w-4" /> Passbook
           </TabsTrigger>
-          </TabsTrigger>
           <TabsTrigger value="tokens" className="text-xs sm:text-sm font-semibold gap-1.5">
             <Ticket className="h-4 w-4" /> Tokens
           </TabsTrigger>
@@ -479,7 +478,6 @@ export default function CustomerPortalPage() {
         </TabsContent>
 
         {/* 2. Payment Passbook (Read-only) */}
->>>>>>> cb00e1a (Fix workspace type errors, API auth middleware, and implement KYC process with view-only customer details)
         <TabsContent value="passbook" className="mt-6">
           <Card className="border-border shadow-md">
             <CardHeader className="pb-3">

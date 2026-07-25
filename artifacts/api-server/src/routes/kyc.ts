@@ -153,7 +153,7 @@ router.post("/kyc/:id/review", async (req: Request, res: Response): Promise<void
       return;
     }
 
-    const kycId = parseInt(id, 10);
+    const kycId = parseInt(String(id), 10);
     const [kyc] = await db.select().from(kycVerificationsTable).where(eq(kycVerificationsTable.id, kycId));
     if (!kyc) {
       res.status(404).json({ error: "KYC verification record not found" });

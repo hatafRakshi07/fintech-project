@@ -39,7 +39,7 @@ function getPool() {
       ...(process.env.DATABASE_SSL === "false" || url.includes("ssl=false") || url.includes("localhost") || url.includes("127.0.0.1")
         ? {}
         : { ssl: { rejectUnauthorized: false } }),
-    });
+    } as any);
 
     poolInstance.on("connect", (client) => {
       client.query("SET search_path TO public;").catch(() => {});

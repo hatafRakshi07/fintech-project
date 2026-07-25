@@ -110,6 +110,8 @@ router.post("/auth/clerk-sync", async (req: Request, res: Response): Promise<voi
           name: displayName,
           mobile: cleanPhone || null,
           email: email || null,
+          referenceNumber: `CUST-${Math.floor(100000 + Math.random() * 900000)}`,
+          branchId: 1,
         })
         .returning();
 
@@ -310,8 +312,6 @@ router.post("/auth/send-otp", async (req: Request, res: Response): Promise<void>
   } catch (err: any) {
     console.error("[SEND-OTP FATAL ERROR]", err);
     res.status(500).json({ error: err.message || "Failed to send OTP" });
-  }
-});
   }
 });
 
