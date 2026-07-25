@@ -23,11 +23,12 @@ app.use(
       ? {
           directives: {
             defaultSrc: ["'self'"],
-            scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'"],
+            scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'", "https://www.google.com/recaptcha/", "https://www.gstatic.com/", "https://*.firebaseapp.com", "https://*.googleapis.com"],
             styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
             imgSrc: ["'self'", "data:", "blob:", "https:", "http:"],
             fontSrc: ["'self'", "data:", "https://fonts.gstatic.com"],
-            connectSrc: ["'self'", "https:", "http:", "ws:", "wss:"],
+            connectSrc: ["'self'", "https:", "http:", "ws:", "wss:", "https://*.googleapis.com", "https://*.firebaseio.com"],
+            frameSrc: ["'self'", "https://www.google.com/recaptcha/", "https://recaptcha.google.com/", "https://*.firebaseapp.com"],
             frameAncestors: ["'none'"],
           },
         }
