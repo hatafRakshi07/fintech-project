@@ -84,7 +84,7 @@ router.post("/auth/clerk-sync", async (req: Request, res: Response): Promise<voi
             branchId: customer.branchId,
             customerId: customer.id,
             phone: cleanPhone || customer.mobile,
-            email: email || customer.email ?? null,
+            email: (email || customer.email) ?? null,
           })
           .returning();
         user = newUser;
