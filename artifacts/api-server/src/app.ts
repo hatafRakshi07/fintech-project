@@ -1,4 +1,10 @@
 import express, { type Express, type Request, type Response, type NextFunction } from "express";
+import * as zod from "zod";
+
+if (!(zod as any).looseObject) {
+  (zod as any).looseObject = <T extends zod.ZodRawShape>(shape: T) =>
+    zod.object(shape).passthrough();
+}
 import cookieParser from "cookie-parser";
 import cors from "cors";
 import helmet from "helmet";
