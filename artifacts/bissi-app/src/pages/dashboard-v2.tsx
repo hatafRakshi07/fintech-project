@@ -21,12 +21,12 @@ export default function DashboardV2Page() {
   // Simplification for UI prototype
   const getDates = () => {
     const today = new Date().toISOString();
-    return \`?startDate=\${today}&endDate=\${today}\`;
+    return `?startDate=${today}&endDate=${today}`;
   };
 
   const { data: response, isLoading } = useQuery<{ success: boolean; data: any[] }>({
     queryKey: ["dashboard", "v2-summary", dateFilter],
-    queryFn: () => customFetch(\`/v2/dashboard/summary\${getDates()}\`),
+    queryFn: () => customFetch(`/v2/dashboard/summary${getDates()}`),
   });
 
   const schemesData = response?.data || [];
@@ -74,7 +74,7 @@ export default function DashboardV2Page() {
               
               <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
                 {/* BOX 1: Collected Amount */}
-                <Link href={\`/collections?schemeId=\${scheme.schemeId}\`}>
+                <Link href={`/collections?schemeId=${scheme.schemeId}`}>
                   <Card className="hover:shadow-md transition-shadow cursor-pointer bg-emerald-50/50 border-emerald-100">
                     <CardHeader className="flex flex-row items-center justify-between pb-2">
                       <CardTitle className="text-sm font-medium text-emerald-800">Collected Amount</CardTitle>
@@ -87,7 +87,7 @@ export default function DashboardV2Page() {
                 </Link>
 
                 {/* BOX 2: Due Amount */}
-                <Link href={\`/pending?schemeId=\${scheme.schemeId}\`}>
+                <Link href={`/pending?schemeId=${scheme.schemeId}`}>
                   <Card className="hover:shadow-md transition-shadow cursor-pointer bg-rose-50/50 border-rose-100">
                     <CardHeader className="flex flex-row items-center justify-between pb-2">
                       <CardTitle className="text-sm font-medium text-rose-800">Due Amount</CardTitle>
@@ -100,7 +100,7 @@ export default function DashboardV2Page() {
                 </Link>
 
                 {/* BOX 3: Due Tokens */}
-                <Link href={\`/tokens/pending?schemeId=\${scheme.schemeId}\`}>
+                <Link href={`/tokens/pending?schemeId=${scheme.schemeId}`}>
                   <Card className="hover:shadow-md transition-shadow cursor-pointer bg-amber-50/50 border-amber-100">
                     <CardHeader className="flex flex-row items-center justify-between pb-2">
                       <CardTitle className="text-sm font-medium text-amber-800">Due Tokens</CardTitle>
@@ -113,7 +113,7 @@ export default function DashboardV2Page() {
                 </Link>
 
                 {/* BOX 4: Members */}
-                <Link href={\`/memberships?schemeId=\${scheme.schemeId}\`}>
+                <Link href={`/memberships?schemeId=${scheme.schemeId}`}>
                   <Card className="hover:shadow-md transition-shadow cursor-pointer bg-blue-50/50 border-blue-100">
                     <CardHeader className="flex flex-row items-center justify-between pb-2">
                       <CardTitle className="text-sm font-medium text-blue-800">Members</CardTitle>

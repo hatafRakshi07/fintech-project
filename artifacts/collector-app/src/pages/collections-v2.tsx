@@ -37,7 +37,7 @@ export default function CollectionsV2Page() {
     queryKey: ["v2-schemes"],
     queryFn: () => api.get("/v2/collector/schemes"),
   });
-  const schemes = safeArray(schemesRaw);
+  const schemes = safeArray(schemesRaw) as Scheme[];
 
   // Search Customers
   const { data: searchResultsRaw } = useQuery<Customer[]>({
@@ -45,7 +45,7 @@ export default function CollectionsV2Page() {
     queryFn: () => api.get(`/v2/collector/customers/search?query=${encodeURIComponent(customerSearch)}`),
     enabled: customerSearch.length >= 2,
   });
-  const searchResults = safeArray(searchResultsRaw);
+  const searchResults = safeArray(searchResultsRaw) as Customer[];
 
   // Fetch Tokens when Scheme & Customer selected
   const { data: tokensRaw, isLoading: loadingTokens } = useQuery<Token[]>({
@@ -53,7 +53,7 @@ export default function CollectionsV2Page() {
     queryFn: () => api.get(`/v2/collector/tokens?customerId=${selectedCustomer?.id}&schemeId=${selectedScheme?.id}`),
     enabled: !!selectedCustomer && !!selectedScheme,
   });
-  const tokens = safeArray(tokensRaw);
+  const tokens = safeArray(tokensRaw) as Token[];
 
   // Initialize splits when tokens load
   useEffect(() => {
@@ -80,12 +80,13 @@ export default function CollectionsV2Page() {
         if (selectedCount > 0) {
           const perToken = Math.floor((sum / selectedCount) * 100) / 100;
           let remaining = sum;
+          const lastSelectedIndex = tokenSplits.map(p => p.selected).lastIndexOf(true);
           
           setTokenSplits(prev => prev.map((t, i) => {
             if (!t.selected) return { ...t, amount: "" };
             
             // Last selected token gets the remainder to avoid rounding errors
-            const isLastSelected = i === prev.findLastIndex(p => p.selected);
+            const isLastSelected = i === lastSelectedIndex;
             const amt = isLastSelected ? Math.max(0, Math.round(remaining * 100) / 100) : perToken;
             remaining -= amt;
             

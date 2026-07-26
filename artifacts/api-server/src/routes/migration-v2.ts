@@ -14,7 +14,8 @@ const upload = multer({ dest: "uploads/" });
  */
 router.post("/upload", upload.single("file"), async (req, res) => {
   if (!req.file) {
-    return res.status(400).json({ success: false, error: "No file uploaded" });
+    res.status(400).json({ success: false, error: "No file uploaded" });
+    return;
   }
 
   try {
@@ -33,7 +34,8 @@ router.post("/upload", upload.single("file"), async (req, res) => {
     const [targetScheme] = await db.select().from(schemes).where(eq(schemes.status, "ACTIVE")).limit(1);
     
     if (!targetScheme) {
-      return res.status(400).json({ success: false, error: "No active scheme found in database to migrate data into." });
+      res.status(400).json({ success: false, error: "No active scheme found in database to migrate data into." });
+      return;
     }
 
     // Process rows
@@ -48,7 +50,7 @@ router.post("/upload", upload.single("file"), async (req, res) => {
         const tokenNo = row["Token"] || row["token"] || row["Token No"];
         
         if (!name || !phone) {
-          errors.push(\`Row \${rowNumber}: Missing Name or Phone\`);
+          errors.push(`Row ${rowNumber}: Missing Name or Phone`);
           continue;
         }
 
@@ -58,14 +60,14 @@ router.post("/upload", upload.single("file"), async (req, res) => {
         
         if (existingCustomers.length > 0) {
           customerRecord = existingCustomers[0];
-          logs.push(\`Row \${rowNumber}: Found existing customer \${name}\`);
+          logs.push(`Row ${rowNumber}: Found existing customer ${name}`);
         } else {
           const [newCustomer] = await db.insert(customers).values({
             name: name,
             phone: phone.toString(),
           }).returning();
           customerRecord = newCustomer;
-          logs.push(\`Row \${rowNumber}: Created new customer \${name}\`);
+          logs.push(`Row ${rowNumber}: Created new customer ${name}`);
         }
 
         // Create Membership
@@ -87,7 +89,7 @@ router.post("/upload", upload.single("file"), async (req, res) => {
         
         successCount++;
       } catch (err: any) {
-        errors.push(\`Row \${index + 2} failed: \${err.message}\`);
+        errors.push(`Row ${index + 2} failed: ${err.message}`);
       }
     }
 

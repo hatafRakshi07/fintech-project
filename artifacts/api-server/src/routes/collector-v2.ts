@@ -23,7 +23,8 @@ router.get("/customers/search", async (req, res) => {
   try {
     const { query } = req.query;
     if (!query || String(query).length < 2) {
-      return res.json([]);
+      res.json([]);
+      return;
     }
     const data = await db.select()
       .from(customers)
@@ -39,7 +40,10 @@ router.get("/customers/search", async (req, res) => {
 router.get("/tokens", async (req, res) => {
   try {
     const { customerId, schemeId } = req.query;
-    if (!customerId || !schemeId) return res.status(400).json({ error: "customerId and schemeId required" });
+    if (!customerId || !schemeId) {
+       res.status(400).json({ error: "customerId and schemeId required" });
+       return;
+    }
 
     const mems = await db.select({
       membershipId: memberships.id,
@@ -68,7 +72,8 @@ router.post("/payments", async (req, res) => {
   // allocations: { tokenId, amount }[]
 
   if (!customerId || !paymentMode || !allocations || allocations.length === 0) {
-    return res.status(400).json({ error: "Missing required fields" });
+    res.status(400).json({ error: "Missing required fields" });
+    return;
   }
 
   try {

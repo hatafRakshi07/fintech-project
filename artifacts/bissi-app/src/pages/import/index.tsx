@@ -25,10 +25,10 @@ export default function ImportPage() {
       // We can't use customFetch easily for multipart without configuring it,
       // so we use standard fetch for this specific endpoint.
       const baseUrl = import.meta.env.VITE_API_BASE_URL || "/api";
-      const res = await fetch(\`\${baseUrl}/v2/migration/upload\`, {
+      const res = await fetch(`${baseUrl}/v2/migration/upload`, {
         method: "POST",
         headers: {
-          "Authorization": \`Bearer \${token}\`
+          "Authorization": `Bearer ${token}`
         },
         body: formData
       });
@@ -43,7 +43,7 @@ export default function ImportPage() {
       setResult(data);
       toast({
         title: "Migration complete",
-        description: \`Processed \${data.totalProcessed} rows. \${data.successCount} successful.\`,
+        description: `Processed ${data.totalProcessed} rows. ${data.successCount} successful.`,
       });
     },
     onError: (e: any) => toast({ title: "Migration failed", description: e.message, variant: "destructive" }),
@@ -120,7 +120,7 @@ export default function ImportPage() {
             </Card>
             <Card className={result.errorCount > 0 ? "border-red-500 bg-red-50/50" : ""}>
               <CardHeader className="pb-2"><CardTitle className="text-sm font-medium flex items-center gap-1"><XCircle className="h-4 w-4 text-red-600" />Failed</CardTitle></CardHeader>
-              <CardContent><div className={\`text-2xl font-bold \${result.errorCount > 0 ? "text-red-700" : ""}\`}>{result.errorCount}</div></CardContent>
+              <CardContent><div className={`text-2xl font-bold ${result.errorCount > 0 ? "text-red-700" : ""}`}>{result.errorCount}</div></CardContent>
             </Card>
           </div>
 
