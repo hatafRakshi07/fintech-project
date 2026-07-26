@@ -229,7 +229,7 @@ export default function CustomerPortalPage() {
                     {customer.photoUrl ? (
                       <img src={customer.photoUrl} alt={customer.name} className="w-full h-full object-cover" />
                     ) : (
-                      (customer.name || authCustomer.name).charAt(0).toUpperCase()
+                      (customer?.name || authCustomer?.name || "Customer").charAt(0).toUpperCase()
                     )}
                   </div>
                   <div>

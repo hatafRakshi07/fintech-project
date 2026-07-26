@@ -156,6 +156,9 @@ export function Shell({ children }: { children: React.ReactNode }) {
   if (isLoading) return <div className="min-h-screen bg-background flex items-center justify-center">Loading...</div>;
   if (!user) return null;
 
+  const userName = (user as any)?.name || (user as any)?.user?.name || "Admin";
+  const userInitial = userName.charAt(0).toUpperCase();
+
   const handleLogout = () => {
     logout.mutate(undefined, {
       onSuccess: () => {
@@ -212,10 +215,10 @@ export function Shell({ children }: { children: React.ReactNode }) {
             <DropdownMenuTrigger asChild>
               <Button variant="ghost" className="w-full justify-start gap-3 h-auto p-2">
                 <Avatar className="h-8 w-8 bg-primary/10 shrink-0">
-                  <AvatarFallback className="text-primary text-xs">{user.name.charAt(0)}</AvatarFallback>
+                  <AvatarFallback className="text-primary text-xs">{userInitial}</AvatarFallback>
                 </Avatar>
                 <div className="flex flex-col items-start text-left flex-1 min-w-0">
-                  <span className="text-sm font-medium truncate w-full">{user.name}</span>
+                  <span className="text-sm font-medium truncate w-full">{userName}</span>
                   <Badge variant={badgeVariant} className="mt-0.5 text-[10px] h-4 px-1.5">{roleLabel}</Badge>
                 </div>
               </Button>
@@ -262,10 +265,10 @@ export function Shell({ children }: { children: React.ReactNode }) {
             <SheetContent side="left" className="p-0 w-72 bg-sidebar border-sidebar-border">
               <div className="p-4 border-b border-sidebar-border flex items-center gap-3">
                 <Avatar className="h-10 w-10 bg-primary/10">
-                  <AvatarFallback className="text-primary font-bold">{user.name.charAt(0)}</AvatarFallback>
+                  <AvatarFallback className="text-primary font-bold">{userInitial}</AvatarFallback>
                 </Avatar>
                 <div className="flex-1 min-w-0">
-                  <p className="font-semibold text-sm text-sidebar-foreground truncate">{user.name}</p>
+                  <p className="font-semibold text-sm text-sidebar-foreground truncate">{userName}</p>
                   <Badge variant={badgeVariant} className="text-[10px] h-4 px-1.5 mt-0.5">{roleLabel}</Badge>
                 </div>
               </div>
