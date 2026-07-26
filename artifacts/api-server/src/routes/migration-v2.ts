@@ -13,13 +13,14 @@ const upload = multer({ dest: "uploads/" });
  * Processes the uploaded Excel file to map and normalize data into Supabase
  */
 router.post("/upload", upload.single("file"), async (req, res) => {
-  if (!req.file) {
+  const uploadedFile = (req as any).file;
+  if (!uploadedFile) {
     res.status(400).json({ success: false, error: "No file uploaded" });
     return;
   }
 
   try {
-    const workbook = xlsx.readFile(req.file.path);
+    const workbook = xlsx.readFile(uploadedFile.path);
     const sheetName = workbook.SheetNames[0];
     const sheet = workbook.Sheets[sheetName];
     
