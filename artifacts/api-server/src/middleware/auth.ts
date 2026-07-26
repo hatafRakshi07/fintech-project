@@ -1,5 +1,5 @@
 import { type Request, type Response, type NextFunction } from "express";
-import { db, sessionsTable, usersTable } from "@workspace/db";
+import { db, sessions as sessionsTable, users as usersTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
 import jwt from "jsonwebtoken";
 

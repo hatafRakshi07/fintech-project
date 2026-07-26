@@ -1,5 +1,5 @@
 import { Router, type IRouter, type Request, type Response, type NextFunction } from "express";
-import { db, usersTable, sessionsTable, otpsTable, customersTable } from "@workspace/db";
+import { db, users as usersTable, sessions as sessionsTable, otps as otpsTable, customers as customersTable } from "@workspace/db";
 import { eq, lt, gt, and, or, sql } from "drizzle-orm";
 import { requireAuth } from "../middleware/auth";
 import { log } from "../utils/log";

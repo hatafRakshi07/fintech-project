@@ -9,11 +9,12 @@ let poolInstance: pg.Pool | null = null;
 let dbInstance: any = null;
 
 function getPool() {
-  let url = process.env.DATABASE_URL || "postgresql://neondb_owner:npg_qSQN29ZxTKzt@ep-frosty-cloud-at51tjed.c-9.us-east-1.aws.neon.tech/neondb?sslmode=require";
-  // Always rewrite Supabase URLs (direct or pooler) to Neon DB host (containing 4,180 clean customers & tokens)
-  if (url.includes("supabase.co") || url.includes("supabase.com") || url.includes("pooler.supabase")) {
-    url = "postgresql://neondb_owner:npg_qSQN29ZxTKzt@ep-frosty-cloud-at51tjed.c-9.us-east-1.aws.neon.tech/neondb?sslmode=require";
+  let url = process.env.DATABASE_URL;
+  
+  if (!url) {
+    throw new Error("DATABASE_URL is missing in environment variables");
   }
+
   if (!poolInstance) {
     poolInstance = new Pool({
       connectionString: url,
