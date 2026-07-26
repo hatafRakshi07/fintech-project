@@ -12,6 +12,7 @@ const router: IRouter = Router();
 
 router.use(healthRouter);
 // Public: login, logout, me
+router.use("/auth", authRouter);
 router.use(authRouter);
 // All routes below require a valid session token
 router.use(requireAuth);
