@@ -1,14 +1,13 @@
-import { pgEnum } from 'drizzle-orm/pg-core';
 
-export const roleEnum = pgEnum('role_enum', ['ADMIN', 'MANAGER', 'CLERK', 'COLLECTOR']);
-export const customerStatusEnum = pgEnum('customer_status_enum', ['ACTIVE', 'INACTIVE', 'BLACKLISTED']);
-export const membershipStatusEnum = pgEnum('membership_status_enum', ['ACTIVE', 'LUCKY', 'SETTLED', 'MATURED', 'CANCELLED']);
-export const loanTypeEnum = pgEnum('loan_type_enum', ['SECURED', 'UNSECURED']);
-export const loanStatusEnum = pgEnum('loan_status_enum', ['ACTIVE', 'CLOSED', 'DEFAULTED']);
-export const paymentMethodEnum = pgEnum('payment_method_enum', ['CASH', 'UPI', 'BANK_TRANSFER', 'CHEQUE']);
-export const paymentItemTypeEnum = pgEnum('payment_item_type_enum', [
-  'INSTALLMENT', 'LOAN_EMI', 'INTEREST', 'PENALTY', 
-  'SECURITY_DEPOSIT', 'REGISTRATION_FEE', 'GIFT_PAYMENT', 'REFUND', 'SETTLEMENT'
-]);
-export const giftSelectionEnum = pgEnum('gift_selection_enum', ['GIFT_TAKEN', 'CASH_TAKEN']);
-export const visitStatusEnum = pgEnum('visit_status_enum', ['COLLECTED', 'NOT_AVAILABLE', 'PROMISE_TO_PAY', 'REFUSED']);
+import { pgEnum } from 'drizzle-orm/pg-core';
+export const roleEnum = pgEnum('role', ['SUPER_ADMIN', 'OWNER', 'BRANCH_MANAGER', 'ACCOUNTANT', 'COLLECTOR', 'CUSTOMER']);
+export const docTypeEnum = pgEnum('doc_type', ['AADHAAR', 'PAN', 'PASSPORT', 'DRIVING_LICENSE', 'VOTER_ID', 'OTHER']);
+export const schemeStatusEnum = pgEnum('scheme_status', ['DRAFT', 'ACTIVE', 'COMPLETED', 'CANCELLED']);
+export const membershipStatusEnum = pgEnum('membership_status', ['ACTIVE', 'LUCKY', 'EXITED', 'SETTLED', 'DEFAULTED']);
+export const tokenStatusEnum = pgEnum('token_status', ['ACTIVE', 'INACTIVE']);
+export const paymentMethodEnum = pgEnum('payment_method', ['CASH', 'UPI', 'BANK_TRANSFER', 'CHEQUE', 'ADJUSTMENT']);
+export const paymentItemTypeEnum = pgEnum('payment_item_type', ['INSTALLMENT', 'SECURITY_DEPOSIT', 'REGISTRATION_FEE', 'PENALTY', 'GIFT_PAYMENT', 'SETTLEMENT', 'MISC']);
+export const visitOutcomeEnum = pgEnum('visit_outcome', ['COLLECTED', 'PROMISE_TO_PAY', 'NOT_AVAILABLE', 'SHOP_CLOSED', 'PHONE_OFF', 'FOLLOW_UP']);
+export const depositStatusEnum = pgEnum('deposit_status', ['HELD', 'ADJUSTED', 'REFUNDED', 'FORFEITED']);
+export const giftStatusEnum = pgEnum('gift_status', ['PENDING', 'DELIVERED', 'CASH_TAKEN']);
+export const ledgerTypeEnum = pgEnum('ledger_type', ['CREDIT', 'DEBIT']);

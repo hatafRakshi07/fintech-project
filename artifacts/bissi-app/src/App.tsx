@@ -12,7 +12,7 @@ setAuthTokenGetter(() => localStorage.getItem("auth_token"));
 
 // Pages
 import LoginPage from "@/pages/login";
-import DashboardPage from "@/pages/dashboard";
+import DashboardPage from "@/pages/dashboard-v2";
 import CustomersPage from "@/pages/customers";
 import CustomerDetailPage from "@/pages/customers/[id]";
 import BranchesPage from "@/pages/branches";

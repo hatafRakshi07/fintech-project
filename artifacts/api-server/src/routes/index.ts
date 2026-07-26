@@ -3,6 +3,8 @@ import { requireAuth, requireRole } from "../middleware/auth";
 import healthRouter from "./health";
 import authRouter from "./auth";
 import collectorV2Router from "./collector-v2";
+import dashboardV2Routes from "./dashboard-v2";
+import migrationV2Routes from "./migration-v2";
 
 const router: IRouter = Router();
 

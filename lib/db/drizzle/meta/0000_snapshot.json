@@ -1,5 +1,5 @@
 {
-  "id": "23faee06-fa0e-40bc-b2a8-87d1171c0d44",
+  "id": "a6f75e63-4c88-4c79-86f6-e3a3b412b8d2",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "version": "7",
   "dialect": "postgresql",
@@ -21,11 +21,17 @@
           "primaryKey": false,
           "notNull": true
         },
-        "max_cash_limit": {
-          "name": "max_cash_limit",
-          "type": "numeric(12, 2)",
+        "area": {
+          "name": "area",
+          "type": "varchar(100)",
           "primaryKey": false,
-          "notNull": true
+          "notNull": false
+        },
+        "commission_rate": {
+          "name": "commission_rate",
+          "type": "varchar(10)",
+          "primaryKey": false,
+          "notNull": false
         },
         "created_at": {
           "name": "created_at",
@@ -60,7 +66,7 @@
           "columnsTo": [
             "id"
           ],
-          "onDelete": "restrict",
+          "onDelete": "no action",
           "onUpdate": "no action"
         }
       },
@@ -89,13 +95,19 @@
         },
         "name": {
           "name": "name",
-          "type": "varchar(255)",
+          "type": "varchar(100)",
           "primaryKey": false,
           "notNull": true
         },
-        "salary": {
-          "name": "salary",
-          "type": "numeric(12, 2)",
+        "phone": {
+          "name": "phone",
+          "type": "varchar(20)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "email": {
+          "name": "email",
+          "type": "varchar(100)",
           "primaryKey": false,
           "notNull": false
         },
@@ -132,10 +144,63 @@
           "columnsTo": [
             "id"
           ],
-          "onDelete": "restrict",
+          "onDelete": "no action",
           "onUpdate": "no action"
         }
       },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.roles_permissions": {
+      "name": "roles_permissions",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "role": {
+          "name": "role",
+          "type": "role",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "permission": {
+          "name": "permission",
+          "type": "varchar(50)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "deleted_at": {
+          "name": "deleted_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
       "policies": {},
@@ -153,31 +218,32 @@
           "notNull": true,
           "default": "gen_random_uuid()"
         },
-        "phone": {
-          "name": "phone",
-          "type": "varchar(20)",
+        "username": {
+          "name": "username",
+          "type": "varchar(50)",
           "primaryKey": false,
           "notNull": true
         },
-        "email": {
-          "name": "email",
-          "type": "varchar(255)",
-          "primaryKey": false,
-          "notNull": false
-        },
         "password_hash": {
           "name": "password_hash",
-          "type": "text",
+          "type": "varchar(255)",
           "primaryKey": false,
           "notNull": true
         },
         "role": {
           "name": "role",
-          "type": "role_enum",
+          "type": "role",
           "typeSchema": "public",
           "primaryKey": false,
           "notNull": true,
-          "default": "'CLERK'"
+          "default": "'CUSTOMER'"
+        },
+        "is_active": {
+          "name": "is_active",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": true
         },
         "created_at": {
           "name": "created_at",
@@ -204,105 +270,14 @@
       "foreignKeys": {},
       "compositePrimaryKeys": {},
       "uniqueConstraints": {
-        "users_phone_unique": {
-          "name": "users_phone_unique",
+        "users_username_unique": {
+          "name": "users_username_unique",
           "nullsNotDistinct": false,
           "columns": [
-            "phone"
-          ]
-        },
-        "users_email_unique": {
-          "name": "users_email_unique",
-          "nullsNotDistinct": false,
-          "columns": [
-            "email"
+            "username"
           ]
         }
       },
-      "policies": {},
-      "checkConstraints": {},
-      "isRLSEnabled": false
-    },
-    "public.customer_addresses": {
-      "name": "customer_addresses",
-      "schema": "",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "uuid",
-          "primaryKey": true,
-          "notNull": true,
-          "default": "gen_random_uuid()"
-        },
-        "customer_id": {
-          "name": "customer_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "type": {
-          "name": "type",
-          "type": "varchar(50)",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "address_line": {
-          "name": "address_line",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "city": {
-          "name": "city",
-          "type": "varchar(100)",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "pincode": {
-          "name": "pincode",
-          "type": "varchar(20)",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        },
-        "updated_at": {
-          "name": "updated_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        },
-        "deleted_at": {
-          "name": "deleted_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": false
-        }
-      },
-      "indexes": {},
-      "foreignKeys": {
-        "customer_addresses_customer_id_customers_id_fk": {
-          "name": "customer_addresses_customer_id_customers_id_fk",
-          "tableFrom": "customer_addresses",
-          "tableTo": "customers",
-          "columnsFrom": [
-            "customer_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
       "policies": {},
       "checkConstraints": {},
       "isRLSEnabled": false
@@ -324,15 +299,16 @@
           "primaryKey": false,
           "notNull": true
         },
-        "document_type": {
-          "name": "document_type",
-          "type": "varchar(50)",
+        "doc_type": {
+          "name": "doc_type",
+          "type": "doc_type",
+          "typeSchema": "public",
           "primaryKey": false,
           "notNull": true
         },
-        "document_number": {
-          "name": "document_number",
-          "type": "varchar(100)",
+        "doc_number": {
+          "name": "doc_number",
+          "type": "varchar(50)",
           "primaryKey": false,
           "notNull": false
         },
@@ -402,14 +378,14 @@
           "primaryKey": false,
           "notNull": true
         },
-        "reference_name": {
-          "name": "reference_name",
-          "type": "varchar(255)",
+        "name": {
+          "name": "name",
+          "type": "varchar(100)",
           "primaryKey": false,
           "notNull": true
         },
-        "reference_phone": {
-          "name": "reference_phone",
+        "phone": {
+          "name": "phone",
           "type": "varchar(20)",
           "primaryKey": false,
           "notNull": true
@@ -418,7 +394,7 @@
           "name": "relation",
           "type": "varchar(50)",
           "primaryKey": false,
-          "notNull": true
+          "notNull": false
         },
         "created_at": {
           "name": "created_at",
@@ -474,9 +450,15 @@
           "notNull": true,
           "default": "gen_random_uuid()"
         },
+        "user_id": {
+          "name": "user_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
         "name": {
           "name": "name",
-          "type": "varchar(255)",
+          "type": "varchar(100)",
           "primaryKey": false,
           "notNull": true
         },
@@ -486,25 +468,23 @@
           "primaryKey": false,
           "notNull": true
         },
-        "dob": {
-          "name": "dob",
-          "type": "timestamp",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "avatar_url": {
-          "name": "avatar_url",
+        "address": {
+          "name": "address",
           "type": "text",
           "primaryKey": false,
           "notNull": false
         },
-        "status": {
-          "name": "status",
-          "type": "customer_status_enum",
-          "typeSchema": "public",
+        "city": {
+          "name": "city",
+          "type": "varchar(50)",
           "primaryKey": false,
-          "notNull": true,
-          "default": "'ACTIVE'"
+          "notNull": false
+        },
+        "dob": {
+          "name": "dob",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": false
         },
         "created_at": {
           "name": "created_at",
@@ -528,7 +508,21 @@
         }
       },
       "indexes": {},
-      "foreignKeys": {},
+      "foreignKeys": {
+        "customers_user_id_users_id_fk": {
+          "name": "customers_user_id_users_id_fk",
+          "tableFrom": "customers",
+          "tableTo": "users",
+          "columnsFrom": [
+            "user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
       "compositePrimaryKeys": {},
       "uniqueConstraints": {
         "customers_phone_unique": {
@@ -543,8 +537,8 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
-    "public.scheme_configs": {
-      "name": "scheme_configs",
+    "public.scheme_prizes": {
+      "name": "scheme_prizes",
       "schema": "",
       "columns": {
         "id": {
@@ -560,107 +554,30 @@
           "primaryKey": false,
           "notNull": true
         },
-        "duration_months": {
-          "name": "duration_months",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "installment_amount": {
-          "name": "installment_amount",
-          "type": "numeric(12, 2)",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "security_deposit_amount": {
-          "name": "security_deposit_amount",
-          "type": "numeric(12, 2)",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "draw_day_of_month": {
-          "name": "draw_day_of_month",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "settlement_percentage": {
-          "name": "settlement_percentage",
-          "type": "numeric(5, 2)",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        },
-        "updated_at": {
-          "name": "updated_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        },
-        "deleted_at": {
-          "name": "deleted_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": false
-        }
-      },
-      "indexes": {},
-      "foreignKeys": {
-        "scheme_configs_scheme_id_schemes_id_fk": {
-          "name": "scheme_configs_scheme_id_schemes_id_fk",
-          "tableFrom": "scheme_configs",
-          "tableTo": "schemes",
-          "columnsFrom": [
-            "scheme_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {},
-      "isRLSEnabled": false
-    },
-    "public.scheme_prize_catalog": {
-      "name": "scheme_prize_catalog",
-      "schema": "",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "uuid",
-          "primaryKey": true,
-          "notNull": true,
-          "default": "gen_random_uuid()"
-        },
-        "scheme_id": {
-          "name": "scheme_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "month_no": {
-          "name": "month_no",
+        "month_number": {
+          "name": "month_number",
           "type": "integer",
           "primaryKey": false,
           "notNull": true
         },
         "gift_name": {
           "name": "gift_name",
-          "type": "varchar(255)",
+          "type": "varchar(100)",
           "primaryKey": false,
           "notNull": true
+        },
+        "gift_value": {
+          "name": "gift_value",
+          "type": "numeric(12, 2)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "gift_quantity": {
+          "name": "gift_quantity",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "default": 1
         },
         "cash_alternative": {
           "name": "cash_alternative",
@@ -668,6 +585,12 @@
           "primaryKey": false,
           "notNull": false
         },
+        "prize_category": {
+          "name": "prize_category",
+          "type": "varchar(50)",
+          "primaryKey": false,
+          "notNull": false
+        },
         "created_at": {
           "name": "created_at",
           "type": "timestamp with time zone",
@@ -691,9 +614,9 @@
       },
       "indexes": {},
       "foreignKeys": {
-        "scheme_prize_catalog_scheme_id_schemes_id_fk": {
-          "name": "scheme_prize_catalog_scheme_id_schemes_id_fk",
-          "tableFrom": "scheme_prize_catalog",
+        "scheme_prizes_scheme_id_schemes_id_fk": {
+          "name": "scheme_prizes_scheme_id_schemes_id_fk",
+          "tableFrom": "scheme_prizes",
           "tableTo": "schemes",
           "columnsFrom": [
             "scheme_id"
@@ -724,21 +647,94 @@
         },
         "name": {
           "name": "name",
-          "type": "varchar(255)",
+          "type": "varchar(100)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "code": {
+          "name": "code",
+          "type": "varchar(20)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "draw_day": {
+          "name": "draw_day",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "draw_time": {
+          "name": "draw_time",
+          "type": "time",
           "primaryKey": false,
           "notNull": true
         },
         "start_date": {
           "name": "start_date",
-          "type": "timestamp",
+          "type": "date",
           "primaryKey": false,
           "notNull": true
         },
         "end_date": {
           "name": "end_date",
-          "type": "timestamp",
+          "type": "date",
           "primaryKey": false,
           "notNull": false
+        },
+        "monthly_installment": {
+          "name": "monthly_installment",
+          "type": "numeric(12, 2)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "duration_months": {
+          "name": "duration_months",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "security_deposit": {
+          "name": "security_deposit",
+          "type": "numeric(12, 2)",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "'0'"
+        },
+        "grace_days": {
+          "name": "grace_days",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "default": 0
+        },
+        "late_fee": {
+          "name": "late_fee",
+          "type": "numeric(12, 2)",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "'0'"
+        },
+        "cancellation_percentage": {
+          "name": "cancellation_percentage",
+          "type": "numeric(5, 2)",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "'0'"
+        },
+        "settlement_percentage": {
+          "name": "settlement_percentage",
+          "type": "numeric(5, 2)",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "'0'"
+        },
+        "status": {
+          "name": "status",
+          "type": "scheme_status",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'DRAFT'"
         },
         "created_at": {
           "name": "created_at",
@@ -764,7 +760,15 @@
       "indexes": {},
       "foreignKeys": {},
       "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
+      "uniqueConstraints": {
+        "schemes_code_unique": {
+          "name": "schemes_code_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "code"
+          ]
+        }
+      },
       "policies": {},
       "checkConstraints": {},
       "isRLSEnabled": false
@@ -780,31 +784,50 @@
           "notNull": true,
           "default": "gen_random_uuid()"
         },
-        "scheme_id": {
-          "name": "scheme_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
         "customer_id": {
           "name": "customer_id",
           "type": "uuid",
           "primaryKey": false,
           "notNull": true
         },
-        "joining_date": {
-          "name": "joining_date",
-          "type": "timestamp",
+        "scheme_id": {
+          "name": "scheme_id",
+          "type": "uuid",
           "primaryKey": false,
           "notNull": true
         },
+        "joining_date": {
+          "name": "joining_date",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "security_deposit": {
+          "name": "security_deposit",
+          "type": "numeric(12, 2)",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "'0'"
+        },
         "status": {
           "name": "status",
-          "type": "membership_status_enum",
+          "type": "membership_status",
           "typeSchema": "public",
           "primaryKey": false,
           "notNull": true,
           "default": "'ACTIVE'"
+        },
+        "lucky_status": {
+          "name": "lucky_status",
+          "type": "varchar(50)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "exit_date": {
+          "name": "exit_date",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": false
         },
         "created_at": {
           "name": "created_at",
@@ -829,19 +852,6 @@
       },
       "indexes": {},
       "foreignKeys": {
-        "memberships_scheme_id_schemes_id_fk": {
-          "name": "memberships_scheme_id_schemes_id_fk",
-          "tableFrom": "memberships",
-          "tableTo": "schemes",
-          "columnsFrom": [
-            "scheme_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "restrict",
-          "onUpdate": "no action"
-        },
         "memberships_customer_id_customers_id_fk": {
           "name": "memberships_customer_id_customers_id_fk",
           "tableFrom": "memberships",
@@ -852,80 +862,20 @@
           "columnsTo": [
             "id"
           ],
-          "onDelete": "restrict",
+          "onDelete": "no action",
           "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {},
-      "isRLSEnabled": false
-    },
-    "public.security_deposits": {
-      "name": "security_deposits",
-      "schema": "",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "uuid",
-          "primaryKey": true,
-          "notNull": true,
-          "default": "gen_random_uuid()"
         },
-        "membership_id": {
-          "name": "membership_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "amount": {
-          "name": "amount",
-          "type": "numeric(12, 2)",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "is_paid": {
-          "name": "is_paid",
-          "type": "boolean",
-          "primaryKey": false,
-          "notNull": true,
-          "default": false
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        },
-        "updated_at": {
-          "name": "updated_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        },
-        "deleted_at": {
-          "name": "deleted_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": false
-        }
-      },
-      "indexes": {},
-      "foreignKeys": {
-        "security_deposits_membership_id_memberships_id_fk": {
-          "name": "security_deposits_membership_id_memberships_id_fk",
-          "tableFrom": "security_deposits",
-          "tableTo": "memberships",
+        "memberships_scheme_id_schemes_id_fk": {
+          "name": "memberships_scheme_id_schemes_id_fk",
+          "tableFrom": "memberships",
+          "tableTo": "schemes",
           "columnsFrom": [
-            "membership_id"
+            "scheme_id"
           ],
           "columnsTo": [
             "id"
           ],
-          "onDelete": "cascade",
+          "onDelete": "no action",
           "onUpdate": "no action"
         }
       },
@@ -952,17 +902,19 @@
           "primaryKey": false,
           "notNull": true
         },
-        "scheme_id": {
-          "name": "scheme_id",
-          "type": "uuid",
+        "token_number": {
+          "name": "token_number",
+          "type": "varchar(20)",
           "primaryKey": false,
           "notNull": true
         },
-        "token_number": {
-          "name": "token_number",
-          "type": "varchar(50)",
+        "status": {
+          "name": "status",
+          "type": "token_status",
+          "typeSchema": "public",
           "primaryKey": false,
-          "notNull": true
+          "notNull": true,
+          "default": "'ACTIVE'"
         },
         "created_at": {
           "name": "created_at",
@@ -999,19 +951,6 @@
           ],
           "onDelete": "cascade",
           "onUpdate": "no action"
-        },
-        "tokens_scheme_id_schemes_id_fk": {
-          "name": "tokens_scheme_id_schemes_id_fk",
-          "tableFrom": "tokens",
-          "tableTo": "schemes",
-          "columnsFrom": [
-            "scheme_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "restrict",
-          "onUpdate": "no action"
         }
       },
       "compositePrimaryKeys": {},
@@ -1020,8 +959,8 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
-    "public.installments": {
-      "name": "installments",
+    "public.collection_visits": {
+      "name": "collection_visits",
       "schema": "",
       "columns": {
         "id": {
@@ -1031,169 +970,40 @@
           "notNull": true,
           "default": "gen_random_uuid()"
         },
-        "membership_id": {
-          "name": "membership_id",
+        "collector_id": {
+          "name": "collector_id",
           "type": "uuid",
           "primaryKey": false,
           "notNull": true
         },
-        "month_no": {
-          "name": "month_no",
-          "type": "integer",
+        "customer_id": {
+          "name": "customer_id",
+          "type": "uuid",
           "primaryKey": false,
           "notNull": true
         },
-        "amount_due": {
-          "name": "amount_due",
-          "type": "numeric(12, 2)",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "due_date": {
-          "name": "due_date",
-          "type": "timestamp",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "is_paid": {
-          "name": "is_paid",
-          "type": "boolean",
-          "primaryKey": false,
-          "notNull": true,
-          "default": false
-        },
-        "created_at": {
-          "name": "created_at",
+        "visit_time": {
+          "name": "visit_time",
           "type": "timestamp with time zone",
           "primaryKey": false,
           "notNull": true,
           "default": "now()"
         },
-        "updated_at": {
-          "name": "updated_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        },
-        "deleted_at": {
-          "name": "deleted_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": false
-        }
-      },
-      "indexes": {},
-      "foreignKeys": {
-        "installments_membership_id_memberships_id_fk": {
-          "name": "installments_membership_id_memberships_id_fk",
-          "tableFrom": "installments",
-          "tableTo": "memberships",
-          "columnsFrom": [
-            "membership_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "restrict",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {},
-      "isRLSEnabled": false
-    },
-    "public.ledger_accounts": {
-      "name": "ledger_accounts",
-      "schema": "",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "uuid",
-          "primaryKey": true,
-          "notNull": true,
-          "default": "gen_random_uuid()"
-        },
-        "name": {
-          "name": "name",
-          "type": "varchar(255)",
+        "outcome": {
+          "name": "outcome",
+          "type": "visit_outcome",
+          "typeSchema": "public",
           "primaryKey": false,
           "notNull": true
         },
-        "type": {
-          "name": "type",
-          "type": "varchar(50)",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        },
-        "updated_at": {
-          "name": "updated_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        },
-        "deleted_at": {
-          "name": "deleted_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": false
-        }
-      },
-      "indexes": {},
-      "foreignKeys": {},
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {},
-      "isRLSEnabled": false
-    },
-    "public.ledger_transactions": {
-      "name": "ledger_transactions",
-      "schema": "",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "uuid",
-          "primaryKey": true,
-          "notNull": true,
-          "default": "gen_random_uuid()"
-        },
-        "account_id": {
-          "name": "account_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "amount": {
-          "name": "amount",
-          "type": "numeric(12, 2)",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "is_debit": {
-          "name": "is_debit",
-          "type": "boolean",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "receipt_id": {
-          "name": "receipt_id",
-          "type": "uuid",
+        "promise_date": {
+          "name": "promise_date",
+          "type": "date",
           "primaryKey": false,
           "notNull": false
         },
-        "description": {
-          "name": "description",
+        "notes": {
+          "name": "notes",
           "type": "text",
           "primaryKey": false,
           "notNull": false
@@ -1221,12 +1031,12 @@
       },
       "indexes": {},
       "foreignKeys": {
-        "ledger_transactions_account_id_ledger_accounts_id_fk": {
-          "name": "ledger_transactions_account_id_ledger_accounts_id_fk",
-          "tableFrom": "ledger_transactions",
-          "tableTo": "ledger_accounts",
+        "collection_visits_collector_id_collectors_id_fk": {
+          "name": "collection_visits_collector_id_collectors_id_fk",
+          "tableFrom": "collection_visits",
+          "tableTo": "collectors",
           "columnsFrom": [
-            "account_id"
+            "collector_id"
           ],
           "columnsTo": [
             "id"
@@ -1234,12 +1044,103 @@
           "onDelete": "no action",
           "onUpdate": "no action"
         },
-        "ledger_transactions_receipt_id_payment_receipts_id_fk": {
-          "name": "ledger_transactions_receipt_id_payment_receipts_id_fk",
-          "tableFrom": "ledger_transactions",
-          "tableTo": "payment_receipts",
+        "collection_visits_customer_id_customers_id_fk": {
+          "name": "collection_visits_customer_id_customers_id_fk",
+          "tableFrom": "collection_visits",
+          "tableTo": "customers",
           "columnsFrom": [
-            "receipt_id"
+            "customer_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.ledger_transactions": {
+      "name": "ledger_transactions",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "customer_id": {
+          "name": "customer_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "type": {
+          "name": "type",
+          "type": "ledger_type",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "amount": {
+          "name": "amount",
+          "type": "numeric(12, 2)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "category": {
+          "name": "category",
+          "type": "varchar(50)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "reference_id": {
+          "name": "reference_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "notes": {
+          "name": "notes",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "deleted_at": {
+          "name": "deleted_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "ledger_transactions_customer_id_customers_id_fk": {
+          "name": "ledger_transactions_customer_id_customers_id_fk",
+          "tableFrom": "ledger_transactions",
+          "tableTo": "customers",
+          "columnsFrom": [
+            "customer_id"
           ],
           "columnsTo": [
             "id"
@@ -1273,7 +1174,7 @@
         },
         "type": {
           "name": "type",
-          "type": "payment_item_type_enum",
+          "type": "payment_item_type",
           "typeSchema": "public",
           "primaryKey": false,
           "notNull": true
@@ -1362,15 +1263,9 @@
           "primaryKey": false,
           "notNull": false
         },
-        "visit_id": {
-          "name": "visit_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": false
-        },
         "payment_method": {
           "name": "payment_method",
-          "type": "payment_method_enum",
+          "type": "payment_method",
           "typeSchema": "public",
           "primaryKey": false,
           "notNull": true
@@ -1380,6 +1275,18 @@
           "type": "numeric(12, 2)",
           "primaryKey": false,
           "notNull": true
+        },
+        "reference_no": {
+          "name": "reference_no",
+          "type": "varchar(100)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "notes": {
+          "name": "notes",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
         },
         "created_at": {
           "name": "created_at",
@@ -1429,19 +1336,6 @@
           ],
           "onDelete": "no action",
           "onUpdate": "no action"
-        },
-        "payment_receipts_visit_id_collection_visits_id_fk": {
-          "name": "payment_receipts_visit_id_collection_visits_id_fk",
-          "tableFrom": "payment_receipts",
-          "tableTo": "collection_visits",
-          "columnsFrom": [
-            "visit_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
         }
       },
       "compositePrimaryKeys": {},
@@ -1458,8 +1352,8 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
-    "public.penalties": {
-      "name": "penalties",
+    "public.security_deposits": {
+      "name": "security_deposits",
       "schema": "",
       "columns": {
         "id": {
@@ -1475,115 +1369,39 @@
           "primaryKey": false,
           "notNull": true
         },
-        "amount": {
-          "name": "amount",
+        "deposit_amount": {
+          "name": "deposit_amount",
           "type": "numeric(12, 2)",
           "primaryKey": false,
           "notNull": true
         },
-        "reason": {
-          "name": "reason",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "is_paid": {
-          "name": "is_paid",
-          "type": "boolean",
-          "primaryKey": false,
-          "notNull": true,
-          "default": false
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        },
-        "updated_at": {
-          "name": "updated_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        },
-        "deleted_at": {
-          "name": "deleted_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": false
-        }
-      },
-      "indexes": {},
-      "foreignKeys": {
-        "penalties_membership_id_memberships_id_fk": {
-          "name": "penalties_membership_id_memberships_id_fk",
-          "tableFrom": "penalties",
-          "tableTo": "memberships",
-          "columnsFrom": [
-            "membership_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {},
-      "isRLSEnabled": false
-    },
-    "public.collection_visits": {
-      "name": "collection_visits",
-      "schema": "",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "uuid",
-          "primaryKey": true,
-          "notNull": true,
-          "default": "gen_random_uuid()"
-        },
-        "collector_id": {
-          "name": "collector_id",
-          "type": "uuid",
+        "deposit_date": {
+          "name": "deposit_date",
+          "type": "date",
           "primaryKey": false,
           "notNull": true
         },
-        "customer_id": {
-          "name": "customer_id",
-          "type": "uuid",
+        "adjustment_amount": {
+          "name": "adjustment_amount",
+          "type": "numeric(12, 2)",
           "primaryKey": false,
-          "notNull": true
+          "notNull": false,
+          "default": "'0'"
+        },
+        "refund_amount": {
+          "name": "refund_amount",
+          "type": "numeric(12, 2)",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "'0'"
         },
         "status": {
           "name": "status",
-          "type": "visit_status_enum",
+          "type": "deposit_status",
           "typeSchema": "public",
           "primaryKey": false,
-          "notNull": true
-        },
-        "notes": {
-          "name": "notes",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "location_lat": {
-          "name": "location_lat",
-          "type": "numeric(10, 6)",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "location_lng": {
-          "name": "location_lng",
-          "type": "numeric(10, 6)",
-          "primaryKey": false,
-          "notNull": false
+          "notNull": true,
+          "default": "'HELD'"
         },
         "created_at": {
           "name": "created_at",
@@ -1608,188 +1426,12 @@
       },
       "indexes": {},
       "foreignKeys": {
-        "collection_visits_collector_id_collectors_id_fk": {
-          "name": "collection_visits_collector_id_collectors_id_fk",
-          "tableFrom": "collection_visits",
-          "tableTo": "collectors",
+        "security_deposits_membership_id_memberships_id_fk": {
+          "name": "security_deposits_membership_id_memberships_id_fk",
+          "tableFrom": "security_deposits",
+          "tableTo": "memberships",
           "columnsFrom": [
-            "collector_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        },
-        "collection_visits_customer_id_customers_id_fk": {
-          "name": "collection_visits_customer_id_customers_id_fk",
-          "tableFrom": "collection_visits",
-          "tableTo": "customers",
-          "columnsFrom": [
-            "customer_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {},
-      "isRLSEnabled": false
-    },
-    "public.collector_cash_handovers": {
-      "name": "collector_cash_handovers",
-      "schema": "",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "uuid",
-          "primaryKey": true,
-          "notNull": true,
-          "default": "gen_random_uuid()"
-        },
-        "collector_id": {
-          "name": "collector_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "closing_id": {
-          "name": "closing_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "amount_handed_over": {
-          "name": "amount_handed_over",
-          "type": "numeric(12, 2)",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "receiver_id": {
-          "name": "receiver_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        },
-        "updated_at": {
-          "name": "updated_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        },
-        "deleted_at": {
-          "name": "deleted_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": false
-        }
-      },
-      "indexes": {},
-      "foreignKeys": {
-        "collector_cash_handovers_collector_id_collectors_id_fk": {
-          "name": "collector_cash_handovers_collector_id_collectors_id_fk",
-          "tableFrom": "collector_cash_handovers",
-          "tableTo": "collectors",
-          "columnsFrom": [
-            "collector_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        },
-        "collector_cash_handovers_closing_id_collector_daily_closings_id_fk": {
-          "name": "collector_cash_handovers_closing_id_collector_daily_closings_id_fk",
-          "tableFrom": "collector_cash_handovers",
-          "tableTo": "collector_daily_closings",
-          "columnsFrom": [
-            "closing_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {},
-      "isRLSEnabled": false
-    },
-    "public.collector_daily_closings": {
-      "name": "collector_daily_closings",
-      "schema": "",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "uuid",
-          "primaryKey": true,
-          "notNull": true,
-          "default": "gen_random_uuid()"
-        },
-        "collector_id": {
-          "name": "collector_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "closing_date": {
-          "name": "closing_date",
-          "type": "timestamp",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "total_collected": {
-          "name": "total_collected",
-          "type": "numeric(12, 2)",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        },
-        "updated_at": {
-          "name": "updated_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        },
-        "deleted_at": {
-          "name": "deleted_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": false
-        }
-      },
-      "indexes": {},
-      "foreignKeys": {
-        "collector_daily_closings_collector_id_collectors_id_fk": {
-          "name": "collector_daily_closings_collector_id_collectors_id_fk",
-          "tableFrom": "collector_daily_closings",
-          "tableTo": "collectors",
-          "columnsFrom": [
-            "collector_id"
+            "membership_id"
           ],
           "columnsTo": [
             "id"
@@ -1827,11 +1469,18 @@
           "primaryKey": false,
           "notNull": true
         },
-        "prize_amount": {
-          "name": "prize_amount",
-          "type": "numeric(12, 2)",
+        "prize_id": {
+          "name": "prize_id",
+          "type": "uuid",
           "primaryKey": false,
           "notNull": true
+        },
+        "is_cash_alternative": {
+          "name": "is_cash_alternative",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
         },
         "created_at": {
           "name": "created_at",
@@ -1881,6 +1530,19 @@
           ],
           "onDelete": "no action",
           "onUpdate": "no action"
+        },
+        "draw_results_prize_id_scheme_prizes_id_fk": {
+          "name": "draw_results_prize_id_scheme_prizes_id_fk",
+          "tableFrom": "draw_results",
+          "tableTo": "scheme_prizes",
+          "columnsFrom": [
+            "prize_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
         }
       },
       "compositePrimaryKeys": {},
@@ -1906,17 +1568,23 @@
           "primaryKey": false,
           "notNull": true
         },
-        "draw_date": {
-          "name": "draw_date",
-          "type": "timestamp",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "month_no": {
-          "name": "month_no",
+        "draw_month": {
+          "name": "draw_month",
           "type": "integer",
           "primaryKey": false,
           "notNull": true
+        },
+        "draw_date": {
+          "name": "draw_date",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "notes": {
+          "name": "notes",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
         },
         "created_at": {
           "name": "created_at",
@@ -1972,21 +1640,35 @@
           "notNull": true,
           "default": "gen_random_uuid()"
         },
-        "selection_id": {
-          "name": "selection_id",
+        "draw_result_id": {
+          "name": "draw_result_id",
           "type": "uuid",
           "primaryKey": false,
           "notNull": true
+        },
+        "customer_id": {
+          "name": "customer_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "status": {
+          "name": "status",
+          "type": "gift_status",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'PENDING'"
         },
         "delivery_date": {
           "name": "delivery_date",
-          "type": "timestamp",
+          "type": "date",
           "primaryKey": false,
           "notNull": false
         },
-        "photo_url": {
-          "name": "photo_url",
-          "type": "varchar(1024)",
+        "notes": {
+          "name": "notes",
+          "type": "text",
           "primaryKey": false,
           "notNull": false
         },
@@ -2013,89 +1695,30 @@
       },
       "indexes": {},
       "foreignKeys": {
-        "gift_deliveries_selection_id_gift_selections_id_fk": {
-          "name": "gift_deliveries_selection_id_gift_selections_id_fk",
+        "gift_deliveries_draw_result_id_draw_results_id_fk": {
+          "name": "gift_deliveries_draw_result_id_draw_results_id_fk",
           "tableFrom": "gift_deliveries",
-          "tableTo": "gift_selections",
+          "tableTo": "draw_results",
           "columnsFrom": [
-            "selection_id"
+            "draw_result_id"
           ],
           "columnsTo": [
             "id"
           ],
-          "onDelete": "cascade",
+          "onDelete": "no action",
           "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {},
-      "isRLSEnabled": false
-    },
-    "public.gift_history": {
-      "name": "gift_history",
-      "schema": "",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "uuid",
-          "primaryKey": true,
-          "notNull": true,
-          "default": "gen_random_uuid()"
         },
-        "item_id": {
-          "name": "item_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "change_quantity": {
-          "name": "change_quantity",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "reason": {
-          "name": "reason",
-          "type": "varchar(255)",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        },
-        "updated_at": {
-          "name": "updated_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        },
-        "deleted_at": {
-          "name": "deleted_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": false
-        }
-      },
-      "indexes": {},
-      "foreignKeys": {
-        "gift_history_item_id_gift_inventory_id_fk": {
-          "name": "gift_history_item_id_gift_inventory_id_fk",
-          "tableFrom": "gift_history",
-          "tableTo": "gift_inventory",
+        "gift_deliveries_customer_id_customers_id_fk": {
+          "name": "gift_deliveries_customer_id_customers_id_fk",
+          "tableFrom": "gift_deliveries",
+          "tableTo": "customers",
           "columnsFrom": [
-            "item_id"
+            "customer_id"
           ],
           "columnsTo": [
             "id"
           ],
-          "onDelete": "cascade",
+          "onDelete": "no action",
           "onUpdate": "no action"
         }
       },
@@ -2118,16 +1741,22 @@
         },
         "item_name": {
           "name": "item_name",
-          "type": "varchar(255)",
+          "type": "varchar(100)",
           "primaryKey": false,
           "notNull": true
         },
-        "stock_quantity": {
-          "name": "stock_quantity",
+        "stock_count": {
+          "name": "stock_count",
           "type": "integer",
           "primaryKey": false,
           "notNull": true,
           "default": 0
+        },
+        "unit_value": {
+          "name": "unit_value",
+          "type": "numeric(12, 2)",
+          "primaryKey": false,
+          "notNull": false
         },
         "created_at": {
           "name": "created_at",
@@ -2158,290 +1787,8 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
-    "public.gift_selections": {
-      "name": "gift_selections",
-      "schema": "",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "uuid",
-          "primaryKey": true,
-          "notNull": true,
-          "default": "gen_random_uuid()"
-        },
-        "result_id": {
-          "name": "result_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "selection": {
-          "name": "selection",
-          "type": "gift_selection_enum",
-          "typeSchema": "public",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "item_id": {
-          "name": "item_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "cash_amount": {
-          "name": "cash_amount",
-          "type": "numeric(12, 2)",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        },
-        "updated_at": {
-          "name": "updated_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        },
-        "deleted_at": {
-          "name": "deleted_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": false
-        }
-      },
-      "indexes": {},
-      "foreignKeys": {
-        "gift_selections_result_id_draw_results_id_fk": {
-          "name": "gift_selections_result_id_draw_results_id_fk",
-          "tableFrom": "gift_selections",
-          "tableTo": "draw_results",
-          "columnsFrom": [
-            "result_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        },
-        "gift_selections_item_id_gift_inventory_id_fk": {
-          "name": "gift_selections_item_id_gift_inventory_id_fk",
-          "tableFrom": "gift_selections",
-          "tableTo": "gift_inventory",
-          "columnsFrom": [
-            "item_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {},
-      "isRLSEnabled": false
-    },
-    "public.loan_emis": {
-      "name": "loan_emis",
-      "schema": "",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "uuid",
-          "primaryKey": true,
-          "notNull": true,
-          "default": "gen_random_uuid()"
-        },
-        "loan_id": {
-          "name": "loan_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "due_date": {
-          "name": "due_date",
-          "type": "timestamp",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "principal_component": {
-          "name": "principal_component",
-          "type": "numeric(12, 2)",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "interest_component": {
-          "name": "interest_component",
-          "type": "numeric(12, 2)",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "is_paid": {
-          "name": "is_paid",
-          "type": "timestamp",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        },
-        "updated_at": {
-          "name": "updated_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        },
-        "deleted_at": {
-          "name": "deleted_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": false
-        }
-      },
-      "indexes": {},
-      "foreignKeys": {
-        "loan_emis_loan_id_loans_id_fk": {
-          "name": "loan_emis_loan_id_loans_id_fk",
-          "tableFrom": "loan_emis",
-          "tableTo": "loans",
-          "columnsFrom": [
-            "loan_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {},
-      "isRLSEnabled": false
-    },
-    "public.loans": {
-      "name": "loans",
-      "schema": "",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "uuid",
-          "primaryKey": true,
-          "notNull": true,
-          "default": "gen_random_uuid()"
-        },
-        "customer_id": {
-          "name": "customer_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "membership_id": {
-          "name": "membership_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "type": {
-          "name": "type",
-          "type": "loan_type_enum",
-          "typeSchema": "public",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "status": {
-          "name": "status",
-          "type": "loan_status_enum",
-          "typeSchema": "public",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "'ACTIVE'"
-        },
-        "principal_amount": {
-          "name": "principal_amount",
-          "type": "numeric(12, 2)",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "interest_rate": {
-          "name": "interest_rate",
-          "type": "numeric(5, 2)",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        },
-        "updated_at": {
-          "name": "updated_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        },
-        "deleted_at": {
-          "name": "deleted_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": false
-        }
-      },
-      "indexes": {},
-      "foreignKeys": {
-        "loans_customer_id_customers_id_fk": {
-          "name": "loans_customer_id_customers_id_fk",
-          "tableFrom": "loans",
-          "tableTo": "customers",
-          "columnsFrom": [
-            "customer_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        },
-        "loans_membership_id_memberships_id_fk": {
-          "name": "loans_membership_id_memberships_id_fk",
-          "tableFrom": "loans",
-          "tableTo": "memberships",
-          "columnsFrom": [
-            "membership_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {},
-      "isRLSEnabled": false
-    },
-    "public.maturity_payments": {
-      "name": "maturity_payments",
+    "public.maturities": {
+      "name": "maturities",
       "schema": "",
       "columns": {
         "id": {
@@ -2457,8 +1804,14 @@
           "primaryKey": false,
           "notNull": true
         },
-        "calculated_amount": {
-          "name": "calculated_amount",
+        "maturity_date": {
+          "name": "maturity_date",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "expected_amount": {
+          "name": "expected_amount",
           "type": "numeric(12, 2)",
           "primaryKey": false,
           "notNull": true
@@ -2467,80 +1820,19 @@
           "name": "paid_amount",
           "type": "numeric(12, 2)",
           "primaryKey": false,
-          "notNull": true,
-          "default": "'0'"
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        },
-        "updated_at": {
-          "name": "updated_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        },
-        "deleted_at": {
-          "name": "deleted_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": false
-        }
-      },
-      "indexes": {},
-      "foreignKeys": {
-        "maturity_payments_membership_id_memberships_id_fk": {
-          "name": "maturity_payments_membership_id_memberships_id_fk",
-          "tableFrom": "maturity_payments",
-          "tableTo": "memberships",
-          "columnsFrom": [
-            "membership_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {},
-      "isRLSEnabled": false
-    },
-    "public.refunds": {
-      "name": "refunds",
-      "schema": "",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "uuid",
-          "primaryKey": true,
-          "notNull": true,
-          "default": "gen_random_uuid()"
-        },
-        "membership_id": {
-          "name": "membership_id",
-          "type": "uuid",
-          "primaryKey": false,
           "notNull": true
         },
-        "amount": {
-          "name": "amount",
+        "pending_amount": {
+          "name": "pending_amount",
           "type": "numeric(12, 2)",
           "primaryKey": false,
           "notNull": true
         },
-        "reason": {
-          "name": "reason",
+        "status": {
+          "name": "status",
           "type": "text",
           "primaryKey": false,
-          "notNull": false
+          "notNull": true
         },
         "created_at": {
           "name": "created_at",
@@ -2565,9 +1857,9 @@
       },
       "indexes": {},
       "foreignKeys": {
-        "refunds_membership_id_memberships_id_fk": {
-          "name": "refunds_membership_id_memberships_id_fk",
-          "tableFrom": "refunds",
+        "maturities_membership_id_memberships_id_fk": {
+          "name": "maturities_membership_id_memberships_id_fk",
+          "tableFrom": "maturities",
           "tableTo": "memberships",
           "columnsFrom": [
             "membership_id"
@@ -2602,21 +1894,32 @@
           "primaryKey": false,
           "notNull": true
         },
-        "refund_calculated": {
-          "name": "refund_calculated",
+        "settlement_date": {
+          "name": "settlement_date",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "total_paid_amount": {
+          "name": "total_paid_amount",
           "type": "numeric(12, 2)",
           "primaryKey": false,
           "notNull": true
         },
-        "deductions": {
-          "name": "deductions",
-          "type": "numeric(12, 2)",
+        "refund_percentage": {
+          "name": "refund_percentage",
+          "type": "numeric(5, 2)",
           "primaryKey": false,
-          "notNull": true,
-          "default": "'0'"
+          "notNull": true
         },
-        "final_amount": {
-          "name": "final_amount",
+        "deduction_percentage": {
+          "name": "deduction_percentage",
+          "type": "numeric(5, 2)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "final_refund_amount": {
+          "name": "final_refund_amount",
           "type": "numeric(12, 2)",
           "primaryKey": false,
           "notNull": true
@@ -2693,20 +1996,26 @@
           "primaryKey": false,
           "notNull": true
         },
-        "table_name": {
-          "name": "table_name",
+        "entity_type": {
+          "name": "entity_type",
           "type": "varchar(100)",
           "primaryKey": false,
           "notNull": true
         },
-        "record_id": {
-          "name": "record_id",
+        "entity_id": {
+          "name": "entity_id",
           "type": "uuid",
           "primaryKey": false,
-          "notNull": true
+          "notNull": false
         },
-        "changes": {
-          "name": "changes",
+        "old_data": {
+          "name": "old_data",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "new_data": {
+          "name": "new_data",
           "type": "jsonb",
           "primaryKey": false,
           "notNull": false
@@ -2733,7 +2042,21 @@
         }
       },
       "indexes": {},
-      "foreignKeys": {},
+      "foreignKeys": {
+        "audit_logs_user_id_users_id_fk": {
+          "name": "audit_logs_user_id_users_id_fk",
+          "tableFrom": "audit_logs",
+          "tableTo": "users",
+          "columnsFrom": [
+            "user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
       "policies": {},
@@ -2763,17 +2086,18 @@
           "primaryKey": false,
           "notNull": true
         },
-        "body": {
-          "name": "body",
+        "message": {
+          "name": "message",
           "type": "text",
           "primaryKey": false,
           "notNull": true
         },
         "is_read": {
           "name": "is_read",
-          "type": "text",
+          "type": "boolean",
           "primaryKey": false,
-          "notNull": false
+          "notNull": true,
+          "default": false
         },
         "created_at": {
           "name": "created_at",
@@ -2808,7 +2132,7 @@
           "columnsTo": [
             "id"
           ],
-          "onDelete": "cascade",
+          "onDelete": "no action",
           "onUpdate": "no action"
         }
       },
@@ -2880,94 +2204,120 @@
     }
   },
   "enums": {
-    "public.customer_status_enum": {
-      "name": "customer_status_enum",
+    "public.deposit_status": {
+      "name": "deposit_status",
       "schema": "public",
       "values": [
-        "ACTIVE",
-        "INACTIVE",
-        "BLACKLISTED"
+        "HELD",
+        "ADJUSTED",
+        "REFUNDED",
+        "FORFEITED"
       ]
     },
-    "public.gift_selection_enum": {
-      "name": "gift_selection_enum",
+    "public.doc_type": {
+      "name": "doc_type",
       "schema": "public",
       "values": [
-        "GIFT_TAKEN",
+        "AADHAAR",
+        "PAN",
+        "PASSPORT",
+        "DRIVING_LICENSE",
+        "VOTER_ID",
+        "OTHER"
+      ]
+    },
+    "public.gift_status": {
+      "name": "gift_status",
+      "schema": "public",
+      "values": [
+        "PENDING",
+        "DELIVERED",
         "CASH_TAKEN"
       ]
     },
-    "public.loan_status_enum": {
-      "name": "loan_status_enum",
+    "public.ledger_type": {
+      "name": "ledger_type",
       "schema": "public",
       "values": [
-        "ACTIVE",
-        "CLOSED",
-        "DEFAULTED"
+        "CREDIT",
+        "DEBIT"
       ]
     },
-    "public.loan_type_enum": {
-      "name": "loan_type_enum",
-      "schema": "public",
-      "values": [
-        "SECURED",
-        "UNSECURED"
-      ]
-    },
-    "public.membership_status_enum": {
-      "name": "membership_status_enum",
+    "public.membership_status": {
+      "name": "membership_status",
       "schema": "public",
       "values": [
         "ACTIVE",
         "LUCKY",
+        "EXITED",
         "SETTLED",
-        "MATURED",
-        "CANCELLED"
+        "DEFAULTED"
       ]
     },
-    "public.payment_item_type_enum": {
-      "name": "payment_item_type_enum",
+    "public.payment_item_type": {
+      "name": "payment_item_type",
       "schema": "public",
       "values": [
         "INSTALLMENT",
-        "LOAN_EMI",
-        "INTEREST",
-        "PENALTY",
         "SECURITY_DEPOSIT",
         "REGISTRATION_FEE",
+        "PENALTY",
         "GIFT_PAYMENT",
-        "REFUND",
-        "SETTLEMENT"
+        "SETTLEMENT",
+        "MISC"
       ]
     },
-    "public.payment_method_enum": {
-      "name": "payment_method_enum",
+    "public.payment_method": {
+      "name": "payment_method",
       "schema": "public",
       "values": [
         "CASH",
         "UPI",
         "BANK_TRANSFER",
-        "CHEQUE"
+        "CHEQUE",
+        "ADJUSTMENT"
       ]
     },
-    "public.role_enum": {
-      "name": "role_enum",
+    "public.role": {
+      "name": "role",
       "schema": "public",
       "values": [
-        "ADMIN",
-        "MANAGER",
-        "CLERK",
-        "COLLECTOR"
+        "SUPER_ADMIN",
+        "OWNER",
+        "BRANCH_MANAGER",
+        "ACCOUNTANT",
+        "COLLECTOR",
+        "CUSTOMER"
       ]
     },
-    "public.visit_status_enum": {
-      "name": "visit_status_enum",
+    "public.scheme_status": {
+      "name": "scheme_status",
+      "schema": "public",
+      "values": [
+        "DRAFT",
+        "ACTIVE",
+        "COMPLETED",
+        "CANCELLED"
+      ]
+    },
+    "public.token_status": {
+      "name": "token_status",
+      "schema": "public",
+      "values": [
+        "ACTIVE",
+        "INACTIVE"
+      ]
+    },
+    "public.visit_outcome": {
+      "name": "visit_outcome",
       "schema": "public",
       "values": [
         "COLLECTED",
-        "NOT_AVAILABLE",
         "PROMISE_TO_PAY",
-        "REFUSED"
+        "NOT_AVAILABLE",
+        "SHOP_CLOSED",
+        "PHONE_OFF",
+        "FOLLOW_UP"
       ]
     }
   },

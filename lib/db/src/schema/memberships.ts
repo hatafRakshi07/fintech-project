@@ -1,30 +1,26 @@
-import { pgTable, uuid, varchar, timestamp, boolean, decimal } from 'drizzle-orm/pg-core';
-import { membershipStatusEnum } from './enums';
+
+import { pgTable, uuid, varchar, numeric, date } from 'drizzle-orm/pg-core';
 import { timestamps } from './utils';
-import { schemes } from './schemes';
+import { membershipStatusEnum, tokenStatusEnum } from './enums';
 import { customers } from './crm';
+import { schemes } from './schemes';
 
 export const memberships = pgTable('memberships', {
   id: uuid('id').defaultRandom().primaryKey(),
-  schemeId: uuid('scheme_id').references(() => schemes.id, { onDelete: 'restrict' }).notNull(),
-  customerId: uuid('customer_id').references(() => customers.id, { onDelete: 'restrict' }).notNull(),
-  joiningDate: timestamp('joining_date').notNull(),
+  customerId: uuid('customer_id').references(() => customers.id).notNull(),
+  schemeId: uuid('scheme_id').references(() => schemes.id).notNull(),
+  joiningDate: date('joining_date').notNull(),
+  securityDeposit: numeric('security_deposit', { precision: 12, scale: 2 }).default('0'),
   status: membershipStatusEnum('status').default('ACTIVE').notNull(),
+  luckyStatus: varchar('lucky_status', { length: 50 }),
+  exitDate: date('exit_date'),
   ...timestamps
 });
 
 export const tokens = pgTable('tokens', {
   id: uuid('id').defaultRandom().primaryKey(),
   membershipId: uuid('membership_id').references(() => memberships.id, { onDelete: 'cascade' }).notNull(),
-  schemeId: uuid('scheme_id').references(() => schemes.id, { onDelete: 'restrict' }).notNull(),
-  tokenNumber: varchar('token_number', { length: 50 }).notNull(),
-  ...timestamps
-});
-
-export const securityDeposits = pgTable('security_deposits', {
-  id: uuid('id').defaultRandom().primaryKey(),
-  membershipId: uuid('membership_id').references(() => memberships.id, { onDelete: 'cascade' }).notNull(),
-  amount: decimal('amount', { precision: 12, scale: 2 }).notNull(),
-  isPaid: boolean('is_paid').default(false).notNull(),
+  tokenNumber: varchar('token_number', { length: 20 }).notNull(),
+  status: tokenStatusEnum('status').default('ACTIVE').notNull(),
   ...timestamps
 });

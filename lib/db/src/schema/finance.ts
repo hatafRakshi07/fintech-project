@@ -1,19 +1,20 @@
-import { pgTable, uuid, varchar, timestamp, text, integer, boolean, decimal } from 'drizzle-orm/pg-core';
-import { paymentMethodEnum, paymentItemTypeEnum } from './enums';
+
+import { pgTable, uuid, varchar, text, numeric, date } from 'drizzle-orm/pg-core';
 import { timestamps } from './utils';
+import { paymentMethodEnum, paymentItemTypeEnum, depositStatusEnum, ledgerTypeEnum } from './enums';
 import { customers } from './crm';
 import { collectors } from './iam';
-import { collectionVisits } from './operations';
 import { memberships } from './memberships';
 
 export const paymentReceipts = pgTable('payment_receipts', {
   id: uuid('id').defaultRandom().primaryKey(),
-  receiptNo: varchar('receipt_no', { length: 50 }).unique().notNull(),
+  receiptNo: varchar('receipt_no', { length: 50 }).notNull().unique(),
   customerId: uuid('customer_id').references(() => customers.id).notNull(),
   collectorId: uuid('collector_id').references(() => collectors.id),
-  visitId: uuid('visit_id').references(() => collectionVisits.id),
   paymentMethod: paymentMethodEnum('payment_method').notNull(),
-  totalAmount: decimal('total_amount', { precision: 12, scale: 2 }).notNull(),
+  totalAmount: numeric('total_amount', { precision: 12, scale: 2 }).notNull(),
+  referenceNo: varchar('reference_no', { length: 100 }),
+  notes: text('notes'),
   ...timestamps
 });
 
@@ -21,43 +22,29 @@ export const paymentItems = pgTable('payment_items', {
   id: uuid('id').defaultRandom().primaryKey(),
   receiptId: uuid('receipt_id').references(() => paymentReceipts.id, { onDelete: 'cascade' }).notNull(),
   type: paymentItemTypeEnum('type').notNull(),
-  amount: decimal('amount', { precision: 12, scale: 2 }).notNull(),
-  referenceId: uuid('reference_id'), // Connects to installments, loans, penalties
+  amount: numeric('amount', { precision: 12, scale: 2 }).notNull(),
+  referenceId: uuid('reference_id'), // polymorphic: membership_id, draw_id, etc.
   ...timestamps
 });
 
-export const installments = pgTable('installments', {
+export const securityDeposits = pgTable('security_deposits', {
   id: uuid('id').defaultRandom().primaryKey(),
-  membershipId: uuid('membership_id').references(() => memberships.id, { onDelete: 'restrict' }).notNull(),
-  monthNo: integer('month_no').notNull(),
-  amountDue: decimal('amount_due', { precision: 12, scale: 2 }).notNull(),
-  dueDate: timestamp('due_date').notNull(),
-  isPaid: boolean('is_paid').default(false).notNull(),
-  ...timestamps
-});
-
-export const penalties = pgTable('penalties', {
-  id: uuid('id').defaultRandom().primaryKey(),
-  membershipId: uuid('membership_id').references(() => memberships.id, { onDelete: 'cascade' }).notNull(),
-  amount: decimal('amount', { precision: 12, scale: 2 }).notNull(),
-  reason: text('reason'),
-  isPaid: boolean('is_paid').default(false).notNull(),
-  ...timestamps
-});
-
-export const ledgerAccounts = pgTable('ledger_accounts', {
-  id: uuid('id').defaultRandom().primaryKey(),
-  name: varchar('name', { length: 255 }).notNull(),
-  type: varchar('type', { length: 50 }).notNull(), // ASSET, LIABILITY, INCOME, EXPENSE
+  membershipId: uuid('membership_id').references(() => memberships.id).notNull(),
+  depositAmount: numeric('deposit_amount', { precision: 12, scale: 2 }).notNull(),
+  depositDate: date('deposit_date').notNull(),
+  adjustmentAmount: numeric('adjustment_amount', { precision: 12, scale: 2 }).default('0'),
+  refundAmount: numeric('refund_amount', { precision: 12, scale: 2 }).default('0'),
+  status: depositStatusEnum('status').default('HELD').notNull(),
   ...timestamps
 });
 
 export const ledgerTransactions = pgTable('ledger_transactions', {
   id: uuid('id').defaultRandom().primaryKey(),
-  accountId: uuid('account_id').references(() => ledgerAccounts.id).notNull(),
-  amount: decimal('amount', { precision: 12, scale: 2 }).notNull(),
-  isDebit: boolean('is_debit').notNull(),
-  receiptId: uuid('receipt_id').references(() => paymentReceipts.id),
-  description: text('description'),
+  customerId: uuid('customer_id').references(() => customers.id),
+  type: ledgerTypeEnum('type').notNull(),
+  amount: numeric('amount', { precision: 12, scale: 2 }).notNull(),
+  category: varchar('category', { length: 50 }).notNull(), // INSTALLMENT, PENALTY, etc
+  referenceId: uuid('reference_id'),
+  notes: text('notes'),
   ...timestamps
 });
