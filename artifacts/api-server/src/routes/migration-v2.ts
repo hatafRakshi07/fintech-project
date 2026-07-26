@@ -1,33 +1,37 @@
 import { Router } from "express";
-import multer from "multer";
 import * as xlsx from "xlsx";
 import { db } from "@workspace/db";
 import { customers, memberships, tokens, schemes } from "@workspace/db";
 import { eq } from "drizzle-orm";
 
 const router = Router();
-const upload = multer({ dest: "uploads/" });
 
 /**
  * POST /api/v2/migration/upload
- * Processes the uploaded Excel file to map and normalize data into Supabase
+ * Accepts Excel file as base64-encoded JSON body:
+ *   { "fileData": "<base64 string>", "fileName": "data.xlsx" }
+ *
+ * This avoids needing multer (which has CJS/pnpm bundling issues on Render).
  */
-router.post("/upload", upload.single("file"), async (req, res) => {
-  const uploadedFile = (req as any).file;
-  if (!uploadedFile) {
-    res.status(400).json({ success: false, error: "No file uploaded" });
-    return;
-  }
-
+router.post("/upload", async (req, res) => {
   try {
-    const workbook = xlsx.readFile(uploadedFile.path);
+    const { fileData } = req.body as { fileData?: string; fileName?: string };
+
+    if (!fileData) {
+      res.status(400).json({ success: false, error: "No file data provided. Send { fileData: '<base64>' }" });
+      return;
+    }
+
+    // Decode base64 to buffer and read as workbook
+    const buffer = Buffer.from(fileData, "base64");
+    const workbook = xlsx.read(buffer, { type: "buffer" });
     const sheetName = workbook.SheetNames[0];
     const sheet = workbook.Sheets[sheetName];
     
     // Parse Excel as JSON
     const data: any[] = xlsx.utils.sheet_to_json(sheet);
-    const logs = [];
-    const errors = [];
+    const logs: string[] = [];
+    const errors: string[] = [];
     
     // 1. Ensure we have an active scheme to map this to, or create a mock one.
     // In a real migration, the UI should ask "Which Scheme are we importing to?"
@@ -75,7 +79,7 @@ router.post("/upload", upload.single("file"), async (req, res) => {
         const [newMembership] = await db.insert(memberships).values({
           customerId: customerRecord.id,
           schemeId: targetScheme.id,
-          joiningDate: new Date().toISOString(), // Mocking to today, or parse from Excel
+          joiningDate: new Date().toISOString(),
           status: "ACTIVE",
         }).returning();
 
@@ -112,3 +116,4 @@ router.post("/upload", upload.single("file"), async (req, res) => {
 });
 
 export { router as migrationV2Router };
+

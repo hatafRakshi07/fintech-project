@@ -17,27 +17,30 @@ export default function ImportPage() {
 
   const uploadMutation = useMutation({
     mutationFn: async (file: File) => {
-      const formData = new FormData();
-      formData.append("file", file);
-      
-      const token = localStorage.getItem("auth_token") || "";
-      
-      // We can't use customFetch easily for multipart without configuring it,
-      // so we use standard fetch for this specific endpoint.
-      const baseUrl = import.meta.env.VITE_API_BASE_URL || "/api";
-      const res = await fetch(`${baseUrl}/v2/migration/upload`, {
-        method: "POST",
-        headers: {
-          "Authorization": `Bearer ${token}`
-        },
-        body: formData
+      const base64 = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => {
+          const result = reader.result as string;
+          // Strip data URL prefix e.g. "data:application/vnd.openxmlformats-officedocument.spreadsheetml.sheet;base64,"
+          const base64Data = result.includes(",") ? result.split(",")[1] : result;
+          resolve(base64Data);
+        };
+        reader.onerror = error => reject(error);
+        reader.readAsDataURL(file);
       });
-      
-      const json = await res.json();
-      if (!res.ok || !json.success) {
-        throw new Error(json.error || "Upload failed");
+
+      const res = (await customFetch("/v2/migration/upload", {
+        method: "POST",
+        body: JSON.stringify({
+          fileData: base64,
+          fileName: file.name
+        })
+      })) as any;
+
+      if (!res.success) {
+        throw new Error(res.error || "Upload failed");
       }
-      return json.data;
+      return res.data;
     },
     onSuccess: (data) => {
       setResult(data);
