@@ -85,19 +85,12 @@ const queryClient = new QueryClient({
 function AppRoutes() {
   const [location, setLocation] = useLocation();
 
-  React.useEffect(() => {
-    const token = localStorage.getItem("auth_token");
-    if (!token && location !== "/login" && location !== "/customer-portal") {
-      setLocation("/login");
-    }
-  }, [location, setLocation]);
-
   if (location === "/customer-portal") {
     return <CustomerPortalPage />;
   }
 
   if (location === "/login") {
-    return <LoginPage />;
+    return <Redirect to="/" />;
   }
 
   return (

@@ -72,3 +72,4 @@ artifacts/api-server/dist/
 !.env.template
 
 
+.vercel

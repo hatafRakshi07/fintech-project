@@ -24,7 +24,7 @@ import {
 } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
-import { Plus, Gift, Trophy, CalendarDays, Users, Banknote } from "lucide-react";
+import { Plus, Gift, Trophy, CalendarDays, Users, Banknote, ShieldAlert } from "lucide-react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
@@ -60,6 +60,7 @@ export default function LotteriesPage() {
   const [drawCashTaken, setDrawCashTaken] = useState("");
   const [membersLotteryId, setMembersLotteryId] = useState<number | null>(null);
   const [selectedWinnerId, setSelectedWinnerId] = useState<string>("random");
+  const [historyGroup, setHistoryGroup] = useState<{ commName: string; draws: any[] } | null>(null);
 
   const { data: rawLotteries, isLoading } = useListLotteries({
     status: statusFilter !== "all" ? statusFilter : undefined,
@@ -335,103 +336,200 @@ export default function LotteriesPage() {
         </Card>
       </div>
 
-      <Card>
-        <CardHeader className="p-4 border-b flex flex-row gap-4 flex-wrap">
-          <Select value={statusFilter} onValueChange={setStatusFilter}>
-            <SelectTrigger className="w-40"><SelectValue placeholder="Status" /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All Statuses</SelectItem>
-              <SelectItem value="scheduled">Scheduled</SelectItem>
-              <SelectItem value="completed">Completed</SelectItem>
-              <SelectItem value="cancelled">Cancelled</SelectItem>
-            </SelectContent>
-          </Select>
-          <Select value={committeeFilter} onValueChange={setCommitteeFilter}>
-            <SelectTrigger className="w-[200px]"><SelectValue placeholder="Committee" /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All Committees</SelectItem>
-              {committees?.map((c) => (
-                <SelectItem key={c.id} value={c.id.toString()}>{c.name}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </CardHeader>
-        <CardContent className="p-0 overflow-x-auto">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead className="pl-4">Committee</TableHead>
-                <TableHead>Draw Date</TableHead>
-                <TableHead>Winner</TableHead>
-                <TableHead>Token</TableHead>
-                <TableHead className="text-right">Prize</TableHead>
-                <TableHead>Reward</TableHead>
-                <TableHead className="text-center">Status</TableHead>
-                <TableHead className="pr-4" />
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {isLoading ? (
+      {/* Draw History Modal */}
+      <Dialog open={historyGroup !== null} onOpenChange={(o) => !o && setHistoryGroup(null)}>
+        <DialogContent className="max-w-3xl">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Trophy className="h-5 w-5 text-amber-500" />
+              Draw History — {historyGroup?.commName}
+            </DialogTitle>
+          </DialogHeader>
+          <div className="max-h-[60vh] overflow-y-auto">
+            <Table>
+              <TableHeader>
                 <TableRow>
-                  <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">Loading lotteries...</TableCell>
+                  <TableHead>Date &amp; Time</TableHead>
+                  <TableHead>Winner</TableHead>
+                  <TableHead>Token #</TableHead>
+                  <TableHead className="text-right">Prize Amount</TableHead>
+                  <TableHead>Reward</TableHead>
+                  <TableHead className="text-center">Status</TableHead>
                 </TableRow>
-              ) : !lotteries?.length ? (
-                <TableRow>
-                  <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
-                    <Gift className="h-8 w-8 mx-auto mb-2 opacity-30" />
-                    No lotteries found
-                  </TableCell>
-                </TableRow>
-              ) : (
-                lotteries.map((lottery) => (
-                  <TableRow key={lottery.id} className="hover:bg-muted/50">
-                    <TableCell className="pl-4 font-medium">{lottery.committeeName ?? `#${lottery.committeeId}`}</TableCell>
-                    <TableCell>{new Date(lottery.drawDate).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })}</TableCell>
-                    <TableCell>
-                      {lottery.winnerName ? (
-                        <span className="flex items-center gap-1 text-emerald-700 font-medium">
-                          <Trophy className="h-4 w-4" /> {lottery.winnerName}
-                        </span>
-                      ) : "—"}
-                    </TableCell>
-                    <TableCell className="font-mono text-sm">{lottery.winnerToken ?? "—"}</TableCell>
-                    <TableCell className="text-right">
-                      {lottery.prizeAmount ? formatCurrency(lottery.prizeAmount) : "—"}
+              </TableHeader>
+              <TableBody>
+                {historyGroup?.draws.map((d: any) => (
+                  <TableRow key={d.id}>
+                    <TableCell className="font-medium text-xs">
+                      {new Date(d.drawDate).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })}
                     </TableCell>
                     <TableCell>
-                      {(lottery as any).rewardType === "cash" ? (
-                        <span className="flex items-center gap-1 text-emerald-700 text-sm font-medium">
-                          <Banknote className="h-4 w-4" />
-                          {(lottery as any).cashTaken ? formatCurrency((lottery as any).cashTaken) : "Cash"}
+                      {d.winnerName ? (
+                        <span className="flex items-center gap-1 text-emerald-600 font-bold text-xs">
+                          <Trophy className="h-3.5 w-3.5 text-amber-500" /> {d.winnerName}
                         </span>
-                      ) : (lottery as any).rewardType === "gift" ? (
-                        <span className="flex items-center gap-1 text-purple-600 text-sm font-medium">
-                          <Gift className="h-4 w-4" /> Gift
+                      ) : (
+                        <span className="text-muted-foreground italic text-xs">Pending Draw</span>
+                      )}
+                    </TableCell>
+                    <TableCell className="font-mono text-xs font-semibold">{d.winnerToken ?? "—"}</TableCell>
+                    <TableCell className="text-right text-xs font-medium">
+                      {d.prizeAmount ? formatCurrency(d.prizeAmount) : "—"}
+                    </TableCell>
+                    <TableCell className="text-xs">
+                      {d.rewardType === "cash" ? (
+                        <span className="inline-flex items-center gap-1 text-emerald-600 font-semibold">
+                          <Banknote className="h-3.5 w-3.5" />
+                          {d.cashTaken ? formatCurrency(d.cashTaken) : "Cash"}
+                        </span>
+                      ) : d.rewardType === "gift" ? (
+                        <span className="inline-flex items-center gap-1 text-purple-600 font-semibold">
+                          <Gift className="h-3.5 w-3.5" /> Gift Item
                         </span>
                       ) : "—"}
                     </TableCell>
                     <TableCell className="text-center">
-                      <Badge variant={statusBadge[lottery.status] ?? "secondary"}>{lottery.status}</Badge>
-                    </TableCell>
-                    <TableCell className="pr-4 text-right">
-                      <div className="flex justify-end gap-1.5">
-                        <Button size="sm" variant="outline" className="h-7 px-2" onClick={() => setMembersLotteryId(lottery.id)}>
-                          <Users className="h-3.5 w-3.5 mr-1" /> Members
-                        </Button>
-                        {lottery.status === "scheduled" && (
-                          <Button size="sm" variant="default" className="h-7 px-2" onClick={() => { setDrawConfirmId(lottery.id); setDrawRewardType("cash"); setDrawCashTaken(""); }}>
-                            <Gift className="h-3 w-3 mr-1" /> Draw
-                          </Button>
-                        )}
-                      </div>
+                      <Badge variant={statusBadge[d.status] ?? "secondary"} className="text-[10px]">{d.status}</Badge>
                     </TableCell>
                   </TableRow>
-                ))
-              )}
-            </TableBody>
-          </Table>
-        </CardContent>
-      </Card>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Filter bar */}
+      <div className="flex flex-row gap-4 flex-wrap items-center bg-card p-3 rounded-lg border border-border">
+        <Select value={statusFilter} onValueChange={setStatusFilter}>
+          <SelectTrigger className="w-40"><SelectValue placeholder="Status" /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All Statuses</SelectItem>
+            <SelectItem value="scheduled">Scheduled</SelectItem>
+            <SelectItem value="completed">Completed</SelectItem>
+            <SelectItem value="cancelled">Cancelled</SelectItem>
+          </SelectContent>
+        </Select>
+        <Select value={committeeFilter} onValueChange={setCommitteeFilter}>
+          <SelectTrigger className="w-[200px]"><SelectValue placeholder="Committee" /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All Committees</SelectItem>
+            {committees?.map((c) => (
+              <SelectItem key={c.id} value={c.id.toString()}>{c.name}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+
+      {isLoading ? (
+        <Card className="p-8 text-center text-muted-foreground">Loading lotteries...</Card>
+      ) : !lotteries?.length ? (
+        <Card className="p-8 text-center text-muted-foreground">
+          <Gift className="h-10 w-10 mx-auto mb-2 opacity-30" />
+          No lottery draws scheduled yet.
+        </Card>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {/* SINGLE CARD PER COMMITTEE */}
+          {Object.entries(
+            lotteries.reduce((groups: Record<string, any[]>, item: any) => {
+              const name = item.committeeName || `Committee #${item.committeeId}`;
+              if (!groups[name]) groups[name] = [];
+              groups[name].push(item);
+              return groups;
+            }, {})
+          ).map(([commName, commLotteries]: [string, any[]]) => {
+            const scheduledDraw = commLotteries.find((l) => l.status === "scheduled");
+            const latestCompleted = commLotteries.find((l) => l.status === "completed");
+            const firstLotteryId = commLotteries[0]?.id;
+
+            return (
+              <Card key={commName} className="overflow-hidden border border-border shadow-sm flex flex-col justify-between">
+                <CardHeader className="p-4 bg-slate-900 text-white border-b flex flex-row items-center justify-between gap-2">
+                  <div className="flex items-center gap-2 truncate">
+                    <ShieldAlert className="h-5 w-5 text-amber-400 shrink-0" />
+                    <h2 className="text-base font-bold truncate">{commName}</h2>
+                  </div>
+                  <Badge variant="outline" className="text-xs bg-slate-800 text-amber-400 border-amber-500/30 shrink-0">
+                    {commLotteries.length} Total Draws
+                  </Badge>
+                </CardHeader>
+
+                <CardContent className="p-4 space-y-3 flex-1">
+                  {/* Status / Scheduled banner */}
+                  {scheduledDraw ? (
+                    <div className="p-3 bg-amber-500/10 border border-amber-500/30 rounded-lg flex items-center justify-between gap-2">
+                      <div>
+                        <span className="text-xs font-bold text-amber-600 dark:text-amber-400 flex items-center gap-1">
+                          <CalendarDays className="h-3.5 w-3.5" /> Next Scheduled Draw
+                        </span>
+                        <p className="text-sm font-semibold text-foreground mt-0.5">
+                          {new Date(scheduledDraw.drawDate).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })}
+                        </p>
+                      </div>
+                      <Button
+                        size="sm"
+                        className="bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs h-8 px-3"
+                        onClick={() => { setDrawConfirmId(scheduledDraw.id); setDrawRewardType("cash"); setDrawCashTaken(""); }}
+                      >
+                        <Trophy className="h-3.5 w-3.5 mr-1" /> Conduct Draw
+                      </Button>
+                    </div>
+                  ) : (
+                    <div className="p-3 bg-muted/40 border border-border rounded-lg text-xs text-muted-foreground flex items-center justify-between">
+                      <span>No pending draw scheduled</span>
+                      <Button size="sm" variant="ghost" className="h-7 text-xs text-primary" onClick={() => setIsCreateOpen(true)}>
+                        + Schedule Draw
+                      </Button>
+                    </div>
+                  )}
+
+                  {/* Latest Winner Card */}
+                  {latestCompleted && (
+                    <div className="p-3 bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-500/20 rounded-lg space-y-1">
+                      <div className="flex items-center justify-between text-xs text-emerald-700 dark:text-emerald-400 font-semibold">
+                        <span className="flex items-center gap-1"><Trophy className="h-3.5 w-3.5 text-amber-500" /> Latest Winner</span>
+                        <span>{new Date(latestCompleted.drawDate).toLocaleDateString("en-IN", { day: "2-digit", month: "short" })}</span>
+                      </div>
+                      <div className="flex items-baseline justify-between pt-0.5">
+                        <span className="text-sm font-bold text-foreground">{latestCompleted.winnerName || "Winner Declared"}</span>
+                        <span className="font-mono text-xs font-bold text-emerald-600 dark:text-emerald-400">Token: {latestCompleted.winnerToken ?? "—"}</span>
+                      </div>
+                      {latestCompleted.prizeAmount && (
+                        <div className="text-xs text-muted-foreground flex items-center gap-2 pt-0.5">
+                          <span>Prize: {formatCurrency(latestCompleted.prizeAmount)}</span>
+                          {latestCompleted.rewardType === "cash" && <Badge variant="outline" className="text-[10px] text-emerald-600">Cash ₹</Badge>}
+                          {latestCompleted.rewardType === "gift" && <Badge variant="outline" className="text-[10px] text-purple-600">Gift Item</Badge>}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </CardContent>
+
+                {/* Footer Action Buttons */}
+                <div className="p-3 bg-muted/20 border-t flex items-center justify-between gap-2">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="h-8 text-xs font-semibold"
+                    onClick={() => setHistoryGroup({ commName, draws: commLotteries })}
+                  >
+                    📜 View Draw History ({commLotteries.length})
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    className="h-8 text-xs text-muted-foreground"
+                    onClick={() => firstLotteryId && setMembersLotteryId(firstLotteryId)}
+                  >
+                    <Users className="h-3.5 w-3.5 mr-1" /> Members
+                  </Button>
+                </div>
+              </Card>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }

@@ -9,6 +9,9 @@ const originalConsoleLog = console.log;
 console.log = (...args) => log(appName, ...args);
 
 // Ensure demo token & user are pre-set so no login screen is required
+if (!localStorage.getItem("collector_token")) {
+  localStorage.setItem("collector_token", "demo-presentation-token");
+}
 if (!localStorage.getItem("auth_token")) {
   localStorage.setItem("auth_token", "demo-presentation-token");
 }

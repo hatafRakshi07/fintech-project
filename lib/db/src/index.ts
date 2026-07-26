@@ -19,28 +19,14 @@ function getPool() {
       connectionString: url,
       // Force public schema to prevent collisions with Supabase internal auth.users table
       options: "-c search_path=public",
-      // Smart lookup: prefer IPv4 for Render compatibility, fall back to default if IPv4 ENOTFOUND (e.g. Supabase IPv6)
-      lookup: (hostname: string, options: any, callback: any) => {
-        if (typeof options === "function") {
-          callback = options;
-          options = {};
-        }
-        dns.lookup(hostname, { ...options, family: 4 }, (err: any, address: any, family: any) => {
-          if (err && (err.code === "ENOTFOUND" || err.code === "EINVAL")) {
-            dns.lookup(hostname, options, callback);
-          } else {
-            callback(err, address, family);
-          }
-        });
-      },
       // Production-grade pool settings
       max: parseInt(process.env.DB_POOL_MAX ?? "10", 10),
-      min: parseInt(process.env.DB_POOL_MIN ?? "2", 10),
+      min: parseInt(process.env.DB_POOL_MIN ?? "1", 10),
       idleTimeoutMillis: 30_000,           // release idle clients after 30s
-      connectionTimeoutMillis: 5_000,      // fail fast if DB is unreachable
+      connectionTimeoutMillis: 10_000,     // fail fast if DB is unreachable
       keepAlive: true,
       keepAliveInitialDelayMillis: 10_000,
-      // SSL for cloud DBs (CockroachDB, Neon, Supabase, Render, etc.)
+      // SSL for cloud DBs (CockroachDB, Neon, Supabase, Render, Vercel, etc.)
       ...(process.env.DATABASE_SSL === "false" || url.includes("ssl=false") || url.includes("localhost") || url.includes("127.0.0.1")
         ? {}
         : { ssl: { rejectUnauthorized: false } }),

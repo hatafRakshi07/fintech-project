@@ -1,12 +1,11 @@
 {
   "version": 2,
-  "installCommand": "npm install -g pnpm@9 && pnpm install --frozen-lockfile",
+  "installCommand": "pnpm install --no-frozen-lockfile",
   "buildCommand": "node scripts/vercel-build.mjs",
   "outputDirectory": "artifacts/api-server/dist/public",
   "framework": null,
   "functions": {
     "api/index.js": {
-      "runtime": "@vercel/node@3",
       "maxDuration": 30,
       "memory": 512
     }
@@ -19,7 +18,7 @@
   "crons": [
     {
       "path": "/api/cron/cleanup",
-      "schedule": "0 * * * *"
+      "schedule": "0 0 * * *"
     }
   ],
   "headers": [

@@ -25,7 +25,7 @@ export const ROLE_ALLOWED_ROUTES: Record<UserRole, string[]> = {
 
 export function useRole() {
   const { data: user } = useGetMe();
-  const role = (user?.role ?? null) as UserRole | null;
+  const role = (user?.role ?? "super_admin") as UserRole;
 
   function hasAnyRole(...roles: UserRole[]): boolean {
     if (!role) return false;

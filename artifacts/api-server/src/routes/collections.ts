@@ -33,9 +33,9 @@ router.get("/collections", async (req, res): Promise<void> => {
     return;
   }
 
-  const { customerId, collectorId, branchId, committeeId, loanId, date, status, page = "1", limit = "20" } = req.query;
+  const { customerId, collectorId, branchId, committeeId, loanId, date, status, page = "1", limit = "100" } = req.query;
   const pageNum = parseInt(page as string, 10);
-  const limitNum = Math.min(parseInt(limit as string, 10), 100);
+  const limitNum = Math.min(parseInt(limit as string, 10), 10000);
   const offset = (pageNum - 1) * limitNum;
 
   let rows = await db
@@ -50,12 +50,16 @@ router.get("/collections", async (req, res): Promise<void> => {
     .leftJoin(customersTable, eq(collectionsTable.customerId, customersTable.id))
     .leftJoin(collectorsTable, eq(collectionsTable.collectorId, collectorsTable.id))
     .leftJoin(committeesTable, eq(collectionsTable.committeeId, committeesTable.id))
-    .orderBy(collectionsTable.collectedAt);
+    .orderBy(desc(collectionsTable.collectedAt));
 
   const targetCustomerId = customerLimitId !== undefined ? customerLimitId : (customerId ? parseInt(customerId as string, 10) : undefined);
 
   if (targetCustomerId !== undefined) rows = rows.filter((r) => r.c.customerId === targetCustomerId);
-  if (collectorId) rows = rows.filter((r) => r.c.collectorId === parseInt(collectorId as string, 10));
+  if (collectorId) {
+    const colIdNum = parseInt(collectorId as string, 10);
+    const filtered = rows.filter((r) => r.c.collectorId === colIdNum);
+    if (filtered.length > 0) rows = filtered;
+  }
   if (committeeId) rows = rows.filter((r) => r.c.committeeId === parseInt(committeeId as string, 10));
   if (loanId) rows = rows.filter((r) => r.c.loanId === parseInt(loanId as string, 10));
   if (branchId) rows = rows.filter((r) => r.c.branchId === parseInt(branchId as string, 10));

@@ -5,6 +5,7 @@ import helmet from "helmet";
 import pinoHttp from "pino-http";
 import { rateLimit } from "express-rate-limit";
 import { randomUUID } from "node:crypto";
+import { existsSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, resolve, join } from "node:path";
 import router from "./routes";
@@ -101,6 +102,7 @@ const globalLimiter = rateLimit({
   max: parseInt(process.env.RATE_LIMIT_MAX ?? "300", 10),
   standardHeaders: "draft-8",
   legacyHeaders: false,
+  validate: { trustProxy: false },
   message: { error: "Too many requests. Please slow down." },
   skip: (req) => req.path === "/api/healthz", // never rate-limit health checks
 });
@@ -133,30 +135,44 @@ app.use(cookieParser());
 app.use("/api", router);
 
 // ---------------------------------------------------------------------------
-// Static frontend serving (production only)
+// Static frontend serving (Render / Production)
 // Serves the built bissi-app on / and collector-app on /collector
 // ---------------------------------------------------------------------------
-if (process.env.NODE_ENV === "production") {
-  let bissiDist: string;
-  let collectorDist: string;
+const cwd = process.cwd();
+const __serverDir = dirname(fileURLToPath(import.meta.url));
 
-  if (process.env.VERCEL) {
-    bissiDist = resolve(process.cwd(), "artifacts/api-server/dist/public");
-    collectorDist = resolve(process.cwd(), "artifacts/api-server/dist/collector");
+const collectorDist = existsSync(resolve(cwd, "artifacts/api-server/dist/collector"))
+  ? resolve(cwd, "artifacts/api-server/dist/collector")
+  : existsSync(resolve(cwd, "artifacts/collector-app/dist"))
+  ? resolve(cwd, "artifacts/collector-app/dist")
+  : resolve(__serverDir, "./collector");
+
+const bissiDist = existsSync(resolve(cwd, "artifacts/api-server/dist/public"))
+  ? resolve(cwd, "artifacts/api-server/dist/public")
+  : existsSync(resolve(cwd, "artifacts/bissi-app/dist"))
+  ? resolve(cwd, "artifacts/bissi-app/dist")
+  : resolve(__serverDir, "./public");
+
+app.use("/collector", express.static(collectorDist));
+app.get(["/collector", "/collector/*"], (_req, res) => {
+  const indexFile = join(collectorDist, "index.html");
+  if (existsSync(indexFile)) {
+    res.sendFile(indexFile);
   } else {
-    const __serverDir = dirname(fileURLToPath(import.meta.url));
-    bissiDist = resolve(__serverDir, "./public");
-    collectorDist = resolve(__serverDir, "./collector");
+    res.status(404).send("Collector App build index.html not found");
   }
+});
 
-  // Collector app — must be registered before the root static handler
-  app.use("/collector", express.static(collectorDist));
-  app.get(/^\/collector(?:\/(.*))?$/, (_req, res) => res.sendFile(join(collectorDist, "index.html")));
-
-  // Bissi main app
-  app.use(express.static(bissiDist));
-  app.get(/^\/(.*)$/, (_req, res) => res.sendFile(join(bissiDist, "index.html")));
-}
+app.use(express.static(bissiDist));
+app.get("*", (req, res, next) => {
+  if (req.path.startsWith("/api")) return next();
+  const indexFile = join(bissiDist, "index.html");
+  if (existsSync(indexFile)) {
+    res.sendFile(indexFile);
+  } else {
+    next();
+  }
+});
 
 // ---------------------------------------------------------------------------
 // Global error handler — must be last, must have 4 params

@@ -1,0 +1,8 @@
+admin-app
+.git
+node_modules
+pglite-data
+api/src
+artifacts/collector-app/node_modules
+artifacts/api-server/node_modules
+artifacts/bissi-app/node_modules
