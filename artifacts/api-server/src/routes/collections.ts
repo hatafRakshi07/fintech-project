@@ -27,65 +27,86 @@ function genReceipt(): string {
 }
 
 router.get("/collections", async (req, res): Promise<void> => {
-  const customerLimitId = await getCustomerLimitId(req.userId, req.userRole);
-  if (customerLimitId === null) {
-    res.status(403).json({ error: "Access Denied: Customer profile not linked." });
-    return;
+  try {
+    const customerLimitId = await getCustomerLimitId(req.userId, req.userRole);
+    if (customerLimitId === null) {
+      res.status(403).json({ error: "Access Denied: Customer profile not linked." });
+      return;
+    }
+
+    const { customerId, collectorId, branchId, committeeId, loanId, date, verificationStatus, status, page = "1", limit = "50" } = req.query;
+    const pageNum = Math.max(1, parseInt(page as string, 10) || 1);
+    const limitNum = Math.min(Math.max(1, parseInt(limit as string, 10) || 50), 5000);
+    const offset = (pageNum - 1) * limitNum;
+
+    const conditions = [];
+    const targetCustomerId = customerLimitId !== undefined ? customerLimitId : (customerId ? parseInt(customerId as string, 10) : undefined);
+    if (targetCustomerId !== undefined && !isNaN(targetCustomerId)) {
+      conditions.push(eq(collectionsTable.customerId, targetCustomerId));
+    }
+    if (collectorId && !isNaN(parseInt(collectorId as string, 10))) {
+      conditions.push(eq(collectionsTable.collectorId, parseInt(collectorId as string, 10)));
+    }
+    if (committeeId && !isNaN(parseInt(committeeId as string, 10))) {
+      conditions.push(eq(collectionsTable.committeeId, parseInt(committeeId as string, 10)));
+    }
+    if (loanId && !isNaN(parseInt(loanId as string, 10))) {
+      conditions.push(eq(collectionsTable.loanId, parseInt(loanId as string, 10)));
+    }
+    if (branchId && !isNaN(parseInt(branchId as string, 10))) {
+      conditions.push(eq(collectionsTable.branchId, parseInt(branchId as string, 10)));
+    }
+    const verStatus = verificationStatus || status;
+    if (verStatus && typeof verStatus === "string" && verStatus !== "all") {
+      conditions.push(eq(collectionsTable.verificationStatus, verStatus as any));
+    }
+
+    let query = db
+      .select({
+        c: collectionsTable,
+        customerName: customersTable.name,
+        customerMobile: customersTable.mobile,
+        collectorName: collectorsTable.name,
+        committeeName: committeesTable.name,
+      })
+      .from(collectionsTable)
+      .leftJoin(customersTable, eq(collectionsTable.customerId, customersTable.id))
+      .leftJoin(collectorsTable, eq(collectionsTable.collectorId, collectorsTable.id))
+      .leftJoin(committeesTable, eq(collectionsTable.committeeId, committeesTable.id))
+      .$dynamic();
+
+    if (conditions.length > 0) {
+      query = (query as any).where(and(...conditions));
+    }
+
+    let countQuery = db.select({ total: sql<number>`count(*)::int` }).from(collectionsTable).$dynamic();
+    if (conditions.length > 0) {
+      countQuery = (countQuery as any).where(and(...conditions));
+    }
+
+    const [rows, countRes] = await Promise.all([
+      (query as any).orderBy(desc(collectionsTable.collectedAt)).offset(offset).limit(limitNum),
+      countQuery.catch(() => [{ total: 0 }]),
+    ]);
+
+    const total = countRes[0]?.total ?? rows.length;
+
+    const data = rows.map((r: any) => ({
+      ...r.c,
+      customerName: r.customerName,
+      customerMobile: r.customerMobile,
+      collectorName: r.collectorName,
+      committeeName: r.committeeName,
+      amount: parseFloat(r.c.amount),
+      collectedAt: safeIso(r.c.collectedAt),
+      createdAt: safeIso(r.c.createdAt),
+    }));
+
+    res.json({ data, total, page: pageNum, limit: limitNum });
+  } catch (err) {
+    console.error("[GET /collections ERROR]", err);
+    res.status(500).json({ error: "Failed to fetch collections", data: [], total: 0 });
   }
-
-  const { customerId, collectorId, branchId, committeeId, loanId, date, status, page = "1", limit = "100" } = req.query;
-  const pageNum = parseInt(page as string, 10);
-  const limitNum = Math.min(parseInt(limit as string, 10), 10000);
-  const offset = (pageNum - 1) * limitNum;
-
-  let rows = await db
-    .select({
-      c: collectionsTable,
-      customerName: customersTable.name,
-      customerMobile: customersTable.mobile,
-      collectorName: collectorsTable.name,
-      committeeName: committeesTable.name,
-    })
-    .from(collectionsTable)
-    .leftJoin(customersTable, eq(collectionsTable.customerId, customersTable.id))
-    .leftJoin(collectorsTable, eq(collectionsTable.collectorId, collectorsTable.id))
-    .leftJoin(committeesTable, eq(collectionsTable.committeeId, committeesTable.id))
-    .orderBy(desc(collectionsTable.collectedAt));
-
-  const targetCustomerId = customerLimitId !== undefined ? customerLimitId : (customerId ? parseInt(customerId as string, 10) : undefined);
-
-  if (targetCustomerId !== undefined) rows = rows.filter((r) => r.c.customerId === targetCustomerId);
-  if (collectorId) {
-    const colIdNum = parseInt(collectorId as string, 10);
-    const filtered = rows.filter((r) => r.c.collectorId === colIdNum);
-    if (filtered.length > 0) rows = filtered;
-  }
-  if (committeeId) rows = rows.filter((r) => r.c.committeeId === parseInt(committeeId as string, 10));
-  if (loanId) rows = rows.filter((r) => r.c.loanId === parseInt(loanId as string, 10));
-  if (branchId) rows = rows.filter((r) => r.c.branchId === parseInt(branchId as string, 10));
-  if (date) {
-    const d = new Date(date as string);
-    rows = rows.filter((r) => {
-      const cd = new Date(r.c.collectedAt);
-      return cd.toDateString() === d.toDateString();
-    });
-  }
-
-  const total = rows.length;
-  const sliced = rows.slice(offset, offset + limitNum);
-
-  const data = sliced.map((r) => ({
-    ...r.c,
-    customerName: r.customerName,
-    customerMobile: r.customerMobile,
-    collectorName: r.collectorName,
-    committeeName: r.committeeName,
-    amount: parseFloat(r.c.amount),
-    collectedAt: safeIso(r.c.collectedAt),
-    createdAt: safeIso(r.c.createdAt),
-  }));
-
-  res.json({ data, total, page: pageNum, limit: limitNum });
 });
 
 router.post("/collections", async (req, res): Promise<void> => {
