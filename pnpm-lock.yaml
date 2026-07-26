@@ -111,6 +111,30 @@ importers:
 
   artifacts/api-server:
     dependencies:
+      '@types/bcryptjs':
+        specifier: ^3.0.0
+        version: 3.0.0
+      '@types/cookie-parser':
+        specifier: ^1.4.10
+        version: 1.4.10(@types/express@5.0.6)
+      '@types/cors':
+        specifier: ^2.8.19
+        version: 2.8.19
+      '@types/express':
+        specifier: ^5.0.6
+        version: 5.0.6
+      '@types/express-rate-limit':
+        specifier: ^6.0.2
+        version: 6.0.2(express@5.2.1)
+      '@types/jsonwebtoken':
+        specifier: ^9.0.10
+        version: 9.0.10
+      '@types/multer':
+        specifier: ^1.4.13
+        version: 1.4.13
+      '@types/node-cron':
+        specifier: ^3.0.11
+        version: 3.0.11
       '@workspace/api-zod':
         specifier: workspace:*
         version: link:../../lib/api-zod
@@ -157,33 +181,9 @@ importers:
         specifier: ^0.18.5
         version: 0.18.5
     devDependencies:
-      '@types/bcryptjs':
-        specifier: ^3.0.0
-        version: 3.0.0
-      '@types/cookie-parser':
-        specifier: ^1.4.10
-        version: 1.4.10(@types/express@5.0.6)
-      '@types/cors':
-        specifier: ^2.8.19
-        version: 2.8.19
-      '@types/express':
-        specifier: ^5.0.6
-        version: 5.0.6
-      '@types/express-rate-limit':
-        specifier: ^6.0.2
-        version: 6.0.2(express@5.2.1)
-      '@types/jsonwebtoken':
-        specifier: ^9.0.10
-        version: 9.0.10
-      '@types/multer':
-        specifier: ^1.4.13
-        version: 1.4.13
       '@types/node':
         specifier: 'catalog:'
         version: 25.9.4
-      '@types/node-cron':
-        specifier: ^3.0.11
-        version: 3.0.11
       esbuild:
         specifier: 0.27.3
         version: 0.27.3
@@ -801,7 +801,6 @@ packages:
   '@esbuild/win32-x64@0.27.7':
     resolution: {integrity: sha512-56hiAJPhwQ1R4i+21FVF7V8kSD5zZTdHcVuRFMW0hn753vVfQN8xlx4uOPT4xoGH0Z/oVATuR82AiqSTDIpaHg==}
     engines: {node: '>=18'}
-    cpu: [x64]
     os: [win32]
 
   '@firebase/ai@2.13.1':
@@ -1928,7 +1927,6 @@ packages:
 
   '@rollup/rollup-win32-x64-msvc@4.62.2':
     resolution: {integrity: sha512-BfzEnDJOt9T8M989/lA37EcJgat01wLRnoi5dQf3QzOH7jzpqTAzdDbVfRljVr5r+jzKqpbHeyOfAaXxAd0PAA==}
-    cpu: [x64]
     os: [win32]
 
   '@scalar/helpers@0.9.0':
@@ -2059,7 +2057,6 @@ packages:
   '@tailwindcss/oxide-win32-x64-msvc@4.3.1':
     resolution: {integrity: sha512-xDEyu1rg290472FEGaKHnzyDyh5QH+AlWvsU5hMoMtPpzmKlRI0jaYKCgSHDYtaQWZOYbMaduSyCwFwY4n1HmA==}
     engines: {node: '>= 20'}
-    cpu: [x64]
     os: [win32]
 
   '@tailwindcss/oxide@4.3.1':
@@ -3106,7 +3103,6 @@ packages:
   lightningcss-win32-x64-msvc@1.32.0:
     resolution: {integrity: sha512-Amq9B/SoZYdDi1kFrojnoqPLxYhQ4Wo5XiL8EVJrVsB8ARoC1PWW6VGtT0WKCemjy8aC+louJnjS7U18x3b06Q==}
     engines: {node: '>= 12.0.0'}
-    cpu: [x64]
     os: [win32]
 
   lightningcss@1.32.0:
