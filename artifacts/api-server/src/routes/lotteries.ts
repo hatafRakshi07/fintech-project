@@ -18,8 +18,24 @@ router.get("/lotteries", async (req, res): Promise<void> => {
     if (committeeId) rows = rows.filter((r: (typeof rows)[number]) => r.l.committeeId === parseInt(committeeId as string, 10));
     if (status) rows = rows.filter((r: (typeof rows)[number]) => r.l.status === status);
 
+    // Deduplicate by committeeId + drawDate so imported token duplicates merge into 1 clean draw entry
+    const dedupedMap = new Map<string, (typeof rows)[number]>();
+    for (const r of rows) {
+      const dateStr = r.l.drawDate ? new Date(r.l.drawDate).toISOString().split("T")[0] : String(r.l.id);
+      const key = `${r.l.committeeId}_${dateStr}`;
+      const existing = dedupedMap.get(key);
+      if (!existing) {
+        dedupedMap.set(key, r);
+      } else {
+        if (r.l.winnerId || (r.l.status === "completed" && existing.l.status !== "completed")) {
+          dedupedMap.set(key, r);
+        }
+      }
+    }
+    const finalRows = Array.from(dedupedMap.values());
+
     const result = await Promise.all(
-      rows.map(async (row: (typeof rows)[number]) => {
+      finalRows.map(async (row: (typeof finalRows)[number]) => {
         let winnerName = null;
         let winnerToken = null;
         if (row.l.winnerId) {
