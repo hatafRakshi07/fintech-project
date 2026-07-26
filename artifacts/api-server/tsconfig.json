@@ -5,7 +5,7 @@
     "tsBuildInfoFile": ".tsbuildinfo",
     "outDir": "dist",
     "rootDir": "src",
-    "types": ["node"],
+    "types": ["node", "express", "multer", "cookie-parser", "cors", "bcryptjs", "jsonwebtoken", "node-cron"],
     "esModuleInterop": true,
     "allowSyntheticDefaultImports": true
   },
