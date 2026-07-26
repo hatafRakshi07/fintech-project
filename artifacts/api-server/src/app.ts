@@ -154,24 +154,28 @@ const bissiDist = existsSync(resolve(cwd, "artifacts/api-server/dist/public"))
   : resolve(__serverDir, "./public");
 
 app.use("/collector", express.static(collectorDist));
-app.get(["/collector", "/collector/*"], (_req, res) => {
-  const indexFile = join(collectorDist, "index.html");
-  if (existsSync(indexFile)) {
-    res.sendFile(indexFile);
-  } else {
+app.use((req, res, next) => {
+  if (req.path === "/collector" || req.path.startsWith("/collector/")) {
+    const indexFile = join(collectorDist, "index.html");
+    if (existsSync(indexFile)) {
+      res.sendFile(indexFile);
+      return;
+    }
     res.status(404).send("Collector App build index.html not found");
+    return;
   }
+  next();
 });
 
 app.use(express.static(bissiDist));
-app.get("*", (req, res, next) => {
+app.use((req, res, next) => {
   if (req.path.startsWith("/api")) return next();
   const indexFile = join(bissiDist, "index.html");
   if (existsSync(indexFile)) {
     res.sendFile(indexFile);
-  } else {
-    next();
+    return;
   }
+  next();
 });
 
 // ---------------------------------------------------------------------------
