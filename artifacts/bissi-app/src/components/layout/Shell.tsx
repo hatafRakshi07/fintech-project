@@ -41,6 +41,8 @@ import {
   UserCircle,
   Megaphone,
   Landmark,
+  Calendar as CalendarIcon,
+  TrendingDown,
 } from "lucide-react";
 
 
@@ -91,6 +93,12 @@ const ALL_NAV_ITEMS: NavItem[] = [
   { icon: Megaphone, label: "Message Broadcast", href: "/broadcast", roles: ["super_admin","owner","branch_manager"] },
   { icon: BarChart3, label: "Reports", href: "/reports", roles: ["super_admin","owner","branch_manager","accountant"] },
   { icon: ShieldAlert, label: "KYC Verification", href: "/admin/kyc", roles: ["super_admin","owner","branch_manager"] },
+
+  // NEW PHASE 2 NAVIGATION
+  { icon: CalendarIcon, label: "Calendar", href: "/calendar", roles: ["super_admin","owner","branch_manager","collector"] },
+  { icon: TrendingUp, label: "Sales Ledger", href: "/ledgers/sales", roles: ["super_admin","owner","branch_manager","accountant"] },
+  { icon: TrendingDown, label: "Purchase Ledger", href: "/ledgers/purchase", roles: ["super_admin","owner","branch_manager","accountant"] },
+  { icon: Wallet, label: "Cashbook", href: "/ledgers/cashbook", roles: ["super_admin","owner","branch_manager","accountant"] },
 
   // Customer self-service — only shown to customer role
   { icon: UserCircle, label: "My Profile", href: "/profile", roles: ["customer"] },

@@ -40,6 +40,10 @@ import BroadcastPage from "@/pages/broadcast";
 import CustomerPortalPage from "@/pages/customer-portal";
 import AgentPortalPage from "@/pages/agent-portal";
 import AdminKycManagementPage from "@/pages/admin-kyc";
+import SalesLedgerPage from "@/pages/ledgers/sales";
+import PurchaseLedgerPage from "@/pages/ledgers/purchase";
+import CashbookPage from "@/pages/ledgers/cashbook";
+import CalendarPage from "@/pages/calendar";
 import NotFound from "@/pages/not-found";
 
 
@@ -270,6 +274,24 @@ function AppRoutes() {
                 <AdminKycManagementPage />
               </RoleGate>
             </Route>
+
+            {/* NEW PHASE 2 MODULES */}
+            <Route path="/ledgers/sales">
+              <RoleGate roles={FINANCE}>
+                <SalesLedgerPage />
+              </RoleGate>
+            </Route>
+            <Route path="/ledgers/purchase">
+              <RoleGate roles={FINANCE}>
+                <PurchaseLedgerPage />
+              </RoleGate>
+            </Route>
+            <Route path="/ledgers/cashbook">
+              <RoleGate roles={FINANCE}>
+                <CashbookPage />
+              </RoleGate>
+            </Route>
+            <Route path="/calendar" component={CalendarPage} />
 
 
 

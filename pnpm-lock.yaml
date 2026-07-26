@@ -176,7 +176,7 @@ importers:
         specifier: ^9.0.10
         version: 9.0.10
       '@types/multer':
-        specifier: ^1.4.11
+        specifier: ^1.4.13
         version: 1.4.13
       '@types/node':
         specifier: 'catalog:'
@@ -801,6 +801,7 @@ packages:
   '@esbuild/win32-x64@0.27.7':
     resolution: {integrity: sha512-56hiAJPhwQ1R4i+21FVF7V8kSD5zZTdHcVuRFMW0hn753vVfQN8xlx4uOPT4xoGH0Z/oVATuR82AiqSTDIpaHg==}
     engines: {node: '>=18'}
+    cpu: [x64]
     os: [win32]
 
   '@firebase/ai@2.13.1':
@@ -1927,6 +1928,7 @@ packages:
 
   '@rollup/rollup-win32-x64-msvc@4.62.2':
     resolution: {integrity: sha512-BfzEnDJOt9T8M989/lA37EcJgat01wLRnoi5dQf3QzOH7jzpqTAzdDbVfRljVr5r+jzKqpbHeyOfAaXxAd0PAA==}
+    cpu: [x64]
     os: [win32]
 
   '@scalar/helpers@0.9.0':
@@ -2057,6 +2059,7 @@ packages:
   '@tailwindcss/oxide-win32-x64-msvc@4.3.1':
     resolution: {integrity: sha512-xDEyu1rg290472FEGaKHnzyDyh5QH+AlWvsU5hMoMtPpzmKlRI0jaYKCgSHDYtaQWZOYbMaduSyCwFwY4n1HmA==}
     engines: {node: '>= 20'}
+    cpu: [x64]
     os: [win32]
 
   '@tailwindcss/oxide@4.3.1':
@@ -3103,6 +3106,7 @@ packages:
   lightningcss-win32-x64-msvc@1.32.0:
     resolution: {integrity: sha512-Amq9B/SoZYdDi1kFrojnoqPLxYhQ4Wo5XiL8EVJrVsB8ARoC1PWW6VGtT0WKCemjy8aC+louJnjS7U18x3b06Q==}
     engines: {node: '>= 12.0.0'}
+    cpu: [x64]
     os: [win32]
 
   lightningcss@1.32.0:

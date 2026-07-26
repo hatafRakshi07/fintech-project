@@ -72,4 +72,4 @@ router.get("/summary", async (req, res) => {
   }
 });
 
-export default router;
+export { router as dashboardV2Router };
