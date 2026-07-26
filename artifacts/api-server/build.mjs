@@ -9,7 +9,10 @@ const artifactDir = path.dirname(fileURLToPath(import.meta.url));
 const pkg = JSON.parse(readFileSync(path.resolve(artifactDir, "package.json"), "utf8"));
 const deps = Object.keys(pkg.dependencies || {});
 const devDeps = Object.keys(pkg.devDependencies || {});
-const externalDeps = [...deps, ...devDeps].filter(name => !name.startsWith("@workspace/"));
+// These pure-JS packages must be bundled (not left external) so they're
+// available at runtime on Render without a separate node_modules install.
+const FORCE_BUNDLE = new Set(["multer", "xlsx"]);
+const externalDeps = [...deps, ...devDeps].filter(name => !name.startsWith("@workspace/") && !name.startsWith("@types/") && !FORCE_BUNDLE.has(name));
 
 async function buildAll() {
   const distDir = path.resolve(artifactDir, "dist");
