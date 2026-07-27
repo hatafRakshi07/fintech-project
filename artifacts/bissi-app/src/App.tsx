@@ -26,7 +26,6 @@ import LoansPage from "@/pages/loans";
 import LoanDetailPage from "@/pages/loans/[id]";
 import CollectionsPage from "@/pages/collections";
 import LotteriesPage from "@/pages/lotteries";
-import ReportsPage from "@/pages/reports";
 import GiftsPage from "@/pages/gifts";
 import InterestsPage from "@/pages/interests";
 import RecoveryPage from "@/pages/recovery";
@@ -184,13 +183,6 @@ function AppRoutes() {
             <Route path="/lotteries">
               <RoleGate roles={MANAGERS}>
                 <LotteriesPage />
-              </RoleGate>
-            </Route>
-
-            {/* Reports — finance roles */}
-            <Route path="/reports">
-              <RoleGate roles={FINANCE}>
-                <ReportsPage />
               </RoleGate>
             </Route>
 

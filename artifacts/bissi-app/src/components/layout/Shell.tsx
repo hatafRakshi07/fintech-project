@@ -91,7 +91,6 @@ const ALL_NAV_ITEMS: NavItem[] = [
   { icon: FileText, label: "Invoices", href: "/invoices", roles: ["super_admin","owner","branch_manager","accountant"] },
   { icon: FileText, label: "Accounting (Tally)", href: "/accounting", roles: ["super_admin","owner","branch_manager","accountant"] },
   { icon: Megaphone, label: "Message Broadcast", href: "/broadcast", roles: ["super_admin","owner","branch_manager"] },
-  { icon: BarChart3, label: "Reports", href: "/reports", roles: ["super_admin","owner","branch_manager","accountant"] },
   { icon: ShieldAlert, label: "KYC Verification", href: "/admin/kyc", roles: ["super_admin","owner","branch_manager"] },
 
   // NEW PHASE 2 NAVIGATION

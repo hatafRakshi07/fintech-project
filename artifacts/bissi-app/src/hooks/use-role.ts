@@ -14,11 +14,11 @@ export type UserRole =
  * Routes not listed for a role are forbidden (redirect to /).
  */
 export const ROLE_ALLOWED_ROUTES: Record<UserRole, string[]> = {
-  super_admin: ["/", "/customers", "/branches", "/collectors", "/committees", "/tokens", "/loans", "/collections", "/lotteries", "/reports", "/admin/kyc", "/agents"],
-  owner:        ["/", "/customers", "/branches", "/collectors", "/committees", "/tokens", "/loans", "/collections", "/lotteries", "/reports", "/admin/kyc", "/agents"],
-  branch_manager: ["/", "/customers", "/collectors", "/committees", "/tokens", "/loans", "/collections", "/lotteries", "/reports", "/admin/kyc", "/agents"],
+  super_admin: ["/", "/customers", "/branches", "/collectors", "/committees", "/tokens", "/loans", "/collections", "/lotteries", "/admin/kyc", "/agents"],
+  owner:        ["/", "/customers", "/branches", "/collectors", "/committees", "/tokens", "/loans", "/collections", "/lotteries", "/admin/kyc", "/agents"],
+  branch_manager: ["/", "/customers", "/collectors", "/committees", "/tokens", "/loans", "/collections", "/lotteries", "/admin/kyc", "/agents"],
   collector:    ["/", "/customers", "/collections"],
-  accountant:   ["/", "/loans", "/collections", "/reports"],
+  accountant:   ["/", "/loans", "/collections"],
   customer:     ["/", "/tokens", "/loans", "/collections", "/customer-portal"],
   agent:        ["/", "/agent-portal", "/collections"],
 };
