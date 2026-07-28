@@ -11,8 +11,7 @@ import { SplashScreen } from "@/components/SplashScreen";
 setAuthTokenGetter(() => localStorage.getItem("auth_token"));
 
 // Pages
-import LoginPage from "@/pages/login";
-import DashboardPage from "@/pages/dashboard-v2";
+import DashboardPage from "@/pages/dashboard";
 import CustomersPage from "@/pages/customers";
 import CustomerDetailPage from "@/pages/customers/[id]";
 import BranchesPage from "@/pages/branches";
@@ -45,7 +44,6 @@ import CashbookPage from "@/pages/ledgers/cashbook";
 import CalendarPage from "@/pages/calendar";
 import NotFound from "@/pages/not-found";
 
-
 import { Shell } from "@/components/layout/Shell";
 
 /**
@@ -70,8 +68,6 @@ const ADMINS: UserRole[]          = ["super_admin", "owner"];
 const MANAGERS: UserRole[]        = ["super_admin", "owner", "branch_manager"];
 const FINANCE: UserRole[]         = ["super_admin", "owner", "branch_manager", "accountant"];
 const COLLECTOR_UP: UserRole[]    = ["super_admin", "owner", "branch_manager", "collector"];
-const CUSTOMER_SELF: UserRole[]   = ["super_admin", "owner", "branch_manager", "accountant", "customer"];
-const ALL_EXCEPT_CUSTOMER: UserRole[] = ["super_admin", "owner", "branch_manager", "collector", "accountant"];
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -86,7 +82,7 @@ const queryClient = new QueryClient({
 });
 
 function AppRoutes() {
-  const [location, setLocation] = useLocation();
+  const [location] = useLocation();
 
   if (location === "/customer-portal") {
     return <CustomerPortalPage />;
@@ -101,191 +97,188 @@ function AppRoutes() {
       <Switch>
         <Route path="/" component={DashboardPage} />
 
-            {/* Customers — all except pure customer role */}
-            <Route path="/customers">
-              <RoleGate roles={COLLECTOR_UP}>
-                <CustomersPage />
-              </RoleGate>
-            </Route>
-            <Route path="/customers/:id">
-              {() => (
-                <RoleGate roles={COLLECTOR_UP}>
-                  <CustomerDetailPage />
-                </RoleGate>
-              )}
-            </Route>
+        {/* Customers — all except pure customer role */}
+        <Route path="/customers">
+          <RoleGate roles={COLLECTOR_UP}>
+            <CustomersPage />
+          </RoleGate>
+        </Route>
+        <Route path="/customers/:id">
+          {() => (
+            <RoleGate roles={COLLECTOR_UP}>
+              <CustomerDetailPage />
+            </RoleGate>
+          )}
+        </Route>
 
-            {/* Branches — admins only */}
-            <Route path="/branches">
-              <RoleGate roles={ADMINS}>
-                <BranchesPage />
-              </RoleGate>
-            </Route>
-            <Route path="/branches/:id">
-              {() => (
-                <RoleGate roles={ADMINS}>
-                  <BranchDetailPage />
-                </RoleGate>
-              )}
-            </Route>
+        {/* Branches — admins only */}
+        <Route path="/branches">
+          <RoleGate roles={ADMINS}>
+            <BranchesPage />
+          </RoleGate>
+        </Route>
+        <Route path="/branches/:id">
+          {() => (
+            <RoleGate roles={ADMINS}>
+              <BranchDetailPage />
+            </RoleGate>
+          )}
+        </Route>
 
-            {/* Collectors — managers and above */}
-            <Route path="/collectors">
-              <RoleGate roles={MANAGERS}>
-                <CollectorsPage />
-              </RoleGate>
-            </Route>
-            <Route path="/collectors/:id">
-              {() => (
-                <RoleGate roles={MANAGERS}>
-                  <CollectorDetailPage />
-                </RoleGate>
-              )}
-            </Route>
+        {/* Collectors — managers and above */}
+        <Route path="/collectors">
+          <RoleGate roles={MANAGERS}>
+            <CollectorsPage />
+          </RoleGate>
+        </Route>
+        <Route path="/collectors/:id">
+          {() => (
+            <RoleGate roles={MANAGERS}>
+              <CollectorDetailPage />
+            </RoleGate>
+          )}
+        </Route>
 
-            {/* Committees & tokens — managers and above */}
-            <Route path="/committees">
-              <RoleGate roles={MANAGERS}>
-                <CommitteesPage />
-              </RoleGate>
-            </Route>
-            <Route path="/committees/:id">
-              {() => (
-                <RoleGate roles={MANAGERS}>
-                  <CommitteeDetailPage />
-                </RoleGate>
-              )}
-            </Route>
-            <Route path="/tokens">
-              <RoleGate roles={[...MANAGERS, "customer"]}>
-                <TokensPage />
-              </RoleGate>
-            </Route>
+        {/* Committees & tokens — managers and above */}
+        <Route path="/committees">
+          <RoleGate roles={MANAGERS}>
+            <CommitteesPage />
+          </RoleGate>
+        </Route>
+        <Route path="/committees/:id">
+          {() => (
+            <RoleGate roles={MANAGERS}>
+              <CommitteeDetailPage />
+            </RoleGate>
+          )}
+        </Route>
+        <Route path="/tokens">
+          <RoleGate roles={[...MANAGERS, "customer"]}>
+            <TokensPage />
+          </RoleGate>
+        </Route>
 
-            {/* Loans — finance roles + customers (own data) */}
-            <Route path="/loans">
-              <RoleGate roles={[...FINANCE, "customer"]}>
-                <LoansPage />
-              </RoleGate>
-            </Route>
-            <Route path="/loans/:id">
-              {() => (
-                <RoleGate roles={[...FINANCE, "customer"]}>
-                  <LoanDetailPage />
-                </RoleGate>
-              )}
-            </Route>
+        {/* Loans — finance roles + customers (own data) */}
+        <Route path="/loans">
+          <RoleGate roles={[...FINANCE, "customer"]}>
+            <LoansPage />
+          </RoleGate>
+        </Route>
+        <Route path="/loans/:id">
+          {() => (
+            <RoleGate roles={[...FINANCE, "customer"]}>
+              <LoanDetailPage />
+            </RoleGate>
+          )}
+        </Route>
 
-            {/* Collections — everyone authenticated */}
-            <Route path="/collections" component={CollectionsPage} />
+        {/* Collections — everyone authenticated */}
+        <Route path="/collections" component={CollectionsPage} />
 
-            {/* Lotteries — managers and above */}
-            <Route path="/lotteries">
-              <RoleGate roles={MANAGERS}>
-                <LotteriesPage />
-              </RoleGate>
-            </Route>
+        {/* Lotteries — managers and above */}
+        <Route path="/lotteries">
+          <RoleGate roles={MANAGERS}>
+            <LotteriesPage />
+          </RoleGate>
+        </Route>
 
-            {/* Gifts — finance roles */}
-            <Route path="/gifts">
-              <RoleGate roles={FINANCE}>
-                <GiftsPage />
-              </RoleGate>
-            </Route>
+        {/* Gifts — finance roles */}
+        <Route path="/gifts">
+          <RoleGate roles={FINANCE}>
+            <GiftsPage />
+          </RoleGate>
+        </Route>
 
-            {/* Interests — finance roles */}
-            <Route path="/interests">
-              <RoleGate roles={FINANCE}>
-                <InterestsPage />
-              </RoleGate>
-            </Route>
+        {/* Interests — finance roles */}
+        <Route path="/interests">
+          <RoleGate roles={FINANCE}>
+            <InterestsPage />
+          </RoleGate>
+        </Route>
 
-            {/* Recovery — collectors and above */}
-            <Route path="/recovery">
-              <RoleGate roles={[...FINANCE, "collector"]}>
-                <RecoveryPage />
-              </RoleGate>
-            </Route>
+        {/* Recovery — collectors and above */}
+        <Route path="/recovery">
+          <RoleGate roles={[...FINANCE, "collector"]}>
+            <RecoveryPage />
+          </RoleGate>
+        </Route>
 
-            {/* Office & Accounts — managers and above */}
-            <Route path="/office">
-              <RoleGate roles={FINANCE}>
-                <OfficePage />
-              </RoleGate>
-            </Route>
-            <Route path="/office/accounts">
-              <RoleGate roles={FINANCE}>
-                <BankAccountsPage />
-              </RoleGate>
-            </Route>
+        {/* Office & Accounts — managers and above */}
+        <Route path="/office">
+          <RoleGate roles={FINANCE}>
+            <OfficePage />
+          </RoleGate>
+        </Route>
+        <Route path="/office/accounts">
+          <RoleGate roles={FINANCE}>
+            <BankAccountsPage />
+          </RoleGate>
+        </Route>
 
-            {/* Import — managers only */}
-            <Route path="/import">
-              <RoleGate roles={MANAGERS}>
-                <ImportPage />
-              </RoleGate>
-            </Route>
+        {/* Import — managers only */}
+        <Route path="/import">
+          <RoleGate roles={MANAGERS}>
+            <ImportPage />
+          </RoleGate>
+        </Route>
 
-            {/* Invoices — finance roles */}
-            <Route path="/invoices">
-              <RoleGate roles={FINANCE}>
-                <InvoicesPage />
-              </RoleGate>
-            </Route>
+        {/* Invoices — finance roles */}
+        <Route path="/invoices">
+          <RoleGate roles={FINANCE}>
+            <InvoicesPage />
+          </RoleGate>
+        </Route>
 
-            {/* Accounting / Tally — finance roles */}
-            <Route path="/accounting">
-              <RoleGate roles={FINANCE}>
-                <AccountingPage />
-              </RoleGate>
-            </Route>
+        {/* Accounting / Tally — finance roles */}
+        <Route path="/accounting">
+          <RoleGate roles={FINANCE}>
+            <AccountingPage />
+          </RoleGate>
+        </Route>
 
-            {/* Profile — customer self-service (all roles can view their own profile) */}
-            <Route path="/profile" component={ProfilePage} />
+        {/* Profile — customer self-service */}
+        <Route path="/profile" component={ProfilePage} />
 
-            {/* Broadcast — managers and above */}
-            <Route path="/broadcast">
-              <RoleGate roles={MANAGERS}>
-                <BroadcastPage />
-              </RoleGate>
-            </Route>
+        {/* Broadcast — managers and above */}
+        <Route path="/broadcast">
+          <RoleGate roles={MANAGERS}>
+            <BroadcastPage />
+          </RoleGate>
+        </Route>
 
-            {/* Read-Only Customer Portal */}
-            <Route path="/customer-portal" component={CustomerPortalPage} />
+        {/* Read-Only Customer Portal */}
+        <Route path="/customer-portal" component={CustomerPortalPage} />
 
-            {/* Agent Portal */}
-            <Route path="/agent-portal">
-              <RoleGate roles={["super_admin", "owner", "branch_manager", "agent"]}>
-                <AgentPortalPage />
-              </RoleGate>
-            </Route>
+        {/* Agent Portal */}
+        <Route path="/agent-portal">
+          <RoleGate roles={["super_admin", "owner", "branch_manager", "agent"]}>
+            <AgentPortalPage />
+          </RoleGate>
+        </Route>
 
-            {/* Admin KYC Management */}
-            <Route path="/admin/kyc">
-              <RoleGate roles={MANAGERS}>
-                <AdminKycManagementPage />
-              </RoleGate>
-            </Route>
+        {/* Admin KYC Management */}
+        <Route path="/admin/kyc">
+          <RoleGate roles={MANAGERS}>
+            <AdminKycManagementPage />
+          </RoleGate>
+        </Route>
 
-            {/* NEW PHASE 2 MODULES */}
-            <Route path="/ledgers/sales">
-              <RoleGate roles={FINANCE}>
-                <SalesLedgerPage />
-              </RoleGate>
-            </Route>
-            <Route path="/ledgers/purchase">
-              <RoleGate roles={FINANCE}>
-                <PurchaseLedgerPage />
-              </RoleGate>
-            </Route>
-            <Route path="/ledgers/cashbook">
-              <RoleGate roles={FINANCE}>
-                <CashbookPage />
-              </RoleGate>
-            </Route>
-            <Route path="/calendar" component={CalendarPage} />
-
-
+        <Route path="/ledgers/sales">
+          <RoleGate roles={FINANCE}>
+            <SalesLedgerPage />
+          </RoleGate>
+        </Route>
+        <Route path="/ledgers/purchase">
+          <RoleGate roles={FINANCE}>
+            <PurchaseLedgerPage />
+          </RoleGate>
+        </Route>
+        <Route path="/ledgers/cashbook">
+          <RoleGate roles={FINANCE}>
+            <CashbookPage />
+          </RoleGate>
+        </Route>
+        <Route path="/calendar" component={CalendarPage} />
 
         <Route component={NotFound} />
       </Switch>
@@ -294,7 +287,6 @@ function AppRoutes() {
 }
 
 function App() {
-  // Show splash only once per session
   const [showSplash, setShowSplash] = useState(
     () => !sessionStorage.getItem("ska_splash_done")
   );
