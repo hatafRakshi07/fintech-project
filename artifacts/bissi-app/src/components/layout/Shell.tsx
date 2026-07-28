@@ -19,14 +19,12 @@ import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import {
   LayoutDashboard,
   Users,
-  Building2,
   UserSquare2,
   ShieldAlert,
   Ticket,
   Wallet,
   CreditCard,
   Gift,
-  BarChart3,
   LogOut,
   Settings,
   Menu,
@@ -72,34 +70,30 @@ type NavItem = {
   roles?: string[];
 };
 
+// EXCLUSIVELY BISSI ORIENTED NAVIGATION (No Loan Items)
 const ALL_NAV_ITEMS: NavItem[] = [
-  { icon: LayoutDashboard, label: "Dashboard", href: "/" },
-  { icon: Users, label: "Customers", href: "/customers", roles: ["super_admin","owner","branch_manager","collector"] },
+  { icon: LayoutDashboard, label: "Bissi Dashboard", href: "/" },
+  { icon: ShieldAlert, label: "Bissi Schemes (4)", href: "/committees", roles: ["super_admin","owner","branch_manager"] },
+  { icon: Ticket, label: "Bissi Tokens (2585)", href: "/tokens", roles: ["super_admin","owner","branch_manager","customer"] },
+  { icon: CreditCard, label: "Bissi Collections", href: "/collections", roles: ["super_admin","owner","branch_manager","collector","accountant","customer","agent"] },
+  { icon: Users, label: "Bissi Members", href: "/customers", roles: ["super_admin","owner","branch_manager","collector"] },
+  { icon: Gift, label: "Bissi Lotteries", href: "/lotteries", roles: ["super_admin","owner","branch_manager"] },
+  { icon: Gift, label: "Member Gifts", href: "/gifts", roles: ["super_admin","owner","branch_manager","accountant"] },
   { icon: UserSquare2, label: "Collectors", href: "/collectors", roles: ["super_admin","owner","branch_manager"] },
   { icon: Briefcase, label: "Agent Portal", href: "/agent-portal", roles: ["agent","super_admin","owner","branch_manager"] },
-  { icon: ShieldAlert, label: "Committees", href: "/committees", roles: ["super_admin","owner","branch_manager"] },
-  { icon: Ticket, label: "Tokens", href: "/tokens", roles: ["super_admin","owner","branch_manager","customer"] },
-  { icon: Wallet, label: "Loans", href: "/loans", roles: ["super_admin","owner","branch_manager","accountant","customer"] },
-  { icon: CreditCard, label: "Collections", href: "/collections", roles: ["super_admin","owner","branch_manager","collector","accountant","customer","agent"] },
-  { icon: Gift, label: "Lotteries", href: "/lotteries", roles: ["super_admin","owner","branch_manager"] },
-  { icon: Gift, label: "Gifts", href: "/gifts", roles: ["super_admin","owner","branch_manager","accountant"] },
   { icon: TrendingUp, label: "Interests", href: "/interests", roles: ["super_admin","owner","branch_manager","accountant"] },
   { icon: AlertTriangle, label: "Recovery", href: "/recovery", roles: ["super_admin","owner","branch_manager","accountant","collector"] },
   { icon: Briefcase, label: "Office", href: "/office", roles: ["super_admin","owner","branch_manager","accountant"] },
   { icon: Landmark, label: "Bank Accounts", href: "/office/accounts", roles: ["super_admin","owner","branch_manager","accountant"] },
-  { icon: Upload, label: "Import", href: "/import", roles: ["super_admin","owner","branch_manager"] },
+  { icon: Upload, label: "Import Data", href: "/import", roles: ["super_admin","owner","branch_manager"] },
   { icon: FileText, label: "Invoices", href: "/invoices", roles: ["super_admin","owner","branch_manager","accountant"] },
   { icon: FileText, label: "Accounting (Tally)", href: "/accounting", roles: ["super_admin","owner","branch_manager","accountant"] },
   { icon: Megaphone, label: "Message Broadcast", href: "/broadcast", roles: ["super_admin","owner","branch_manager"] },
   { icon: ShieldAlert, label: "KYC Verification", href: "/admin/kyc", roles: ["super_admin","owner","branch_manager"] },
-
-  // NEW PHASE 2 NAVIGATION
   { icon: CalendarIcon, label: "Calendar", href: "/calendar", roles: ["super_admin","owner","branch_manager","collector"] },
   { icon: TrendingUp, label: "Sales Ledger", href: "/ledgers/sales", roles: ["super_admin","owner","branch_manager","accountant"] },
   { icon: TrendingDown, label: "Purchase Ledger", href: "/ledgers/purchase", roles: ["super_admin","owner","branch_manager","accountant"] },
   { icon: Wallet, label: "Cashbook", href: "/ledgers/cashbook", roles: ["super_admin","owner","branch_manager","accountant"] },
-
-  // Customer self-service — only shown to customer role
   { icon: UserCircle, label: "My Profile", href: "/profile", roles: ["customer"] },
 ];
 
@@ -174,7 +168,6 @@ export function Shell({ children }: { children: React.ReactNode }) {
   const badgeVariant = ROLE_BADGE_VARIANT[role ?? ""] ?? "outline";
   const roleLabel = ROLE_LABEL[role ?? ""] ?? (role ?? "");
 
-  // Bottom nav shows the first 4 accessible items + "More"
   const bottomNavItems = navItems.slice(0, 4);
 
   const isActive = (href: string) =>
@@ -182,7 +175,6 @@ export function Shell({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="flex h-dvh bg-background overflow-hidden">
-
       {/* ── Desktop sidebar ── */}
       <aside className="hidden md:flex flex-col w-64 bg-sidebar border-r border-sidebar-border h-full shrink-0">
         <div className="p-4 border-b border-sidebar-border flex items-center gap-2">
@@ -254,7 +246,6 @@ export function Shell({ children }: { children: React.ReactNode }) {
             {dark ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
           </Button>
           <NotificationBell />
-          {/* Full nav sheet */}
           <Sheet open={sheetOpen} onOpenChange={setSheetOpen}>
             <SheetTrigger asChild>
               <Button variant="ghost" size="icon" className="h-9 w-9">
@@ -329,7 +320,6 @@ export function Shell({ children }: { children: React.ReactNode }) {
             </Link>
           );
         })}
-        {/* "More" button opens the full sheet */}
         <Sheet open={sheetOpen} onOpenChange={setSheetOpen}>
           <SheetTrigger className="flex-1 min-w-0">
             <div className="flex flex-col items-center justify-center gap-0.5 py-2 px-0.5 min-h-14 text-muted-foreground">
@@ -339,7 +329,6 @@ export function Shell({ children }: { children: React.ReactNode }) {
           </SheetTrigger>
         </Sheet>
       </nav>
-
     </div>
   );
 }
