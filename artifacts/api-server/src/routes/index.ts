@@ -80,8 +80,9 @@ router.get("/customers", async (req, res) => {
     }));
 
     res.json({ success: true, customers: formattedRows, data: formattedRows, total, page, limit });
-  } catch (err) {
-    res.status(500).json({ success: false, error: "Failed to fetch customers", data: [] });
+  } catch (err: any) {
+    console.error("Error fetching customers:", err);
+    res.status(500).json({ success: false, error: "Failed to fetch customers", details: err?.message, data: [] });
   }
 });
 
@@ -117,8 +118,9 @@ router.get("/committees", async (req, res) => {
       totalMembers: r.member_limit || 100,
     }));
     res.json({ success: true, committees: formatted, data: formatted });
-  } catch (err) {
-    res.status(500).json({ success: false, error: "Failed to fetch committees", data: [] });
+  } catch (err: any) {
+    console.error("Error fetching committees:", err);
+    res.status(500).json({ success: false, error: "Failed to fetch committees", details: err?.message, data: [] });
   }
 });
 
@@ -137,8 +139,9 @@ router.get("/committees/:id", async (req, res) => {
       memberLimit: r.member_limit,
     };
     res.json({ success: true, committee, data: committee });
-  } catch (err) {
-    res.status(500).json({ success: false, error: "Failed to fetch committee" });
+  } catch (err: any) {
+    console.error("Error fetching committee by id:", err);
+    res.status(500).json({ success: false, error: "Failed to fetch committee", details: err?.message });
   }
 });
 
@@ -164,8 +167,9 @@ router.get("/tokens", async (req, res) => {
       createdAt: r.created_at || new Date().toISOString()
     }));
     res.json({ success: true, tokens: formatted, data: formatted });
-  } catch (err) {
-    res.status(500).json({ success: false, error: "Failed to fetch tokens", data: [] });
+  } catch (err: any) {
+    console.error("Error fetching tokens:", err);
+    res.status(500).json({ success: false, error: "Failed to fetch tokens", details: err?.message, data: [] });
   }
 });
 
