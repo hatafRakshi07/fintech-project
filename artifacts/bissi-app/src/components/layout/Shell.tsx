@@ -70,15 +70,14 @@ type NavItem = {
   roles?: string[];
 };
 
-// EXCLUSIVELY BISSI ORIENTED NAVIGATION (No Loan Items)
 const ALL_NAV_ITEMS: NavItem[] = [
-  { icon: LayoutDashboard, label: "Bissi Dashboard", href: "/" },
-  { icon: ShieldAlert, label: "Bissi Schemes (4)", href: "/committees", roles: ["super_admin","owner","branch_manager"] },
-  { icon: Ticket, label: "Bissi Tokens (2585)", href: "/tokens", roles: ["super_admin","owner","branch_manager","customer"] },
-  { icon: CreditCard, label: "Bissi Collections", href: "/collections", roles: ["super_admin","owner","branch_manager","collector","accountant","customer","agent"] },
-  { icon: Users, label: "Bissi Members", href: "/customers", roles: ["super_admin","owner","branch_manager","collector"] },
-  { icon: Gift, label: "Bissi Lotteries", href: "/lotteries", roles: ["super_admin","owner","branch_manager"] },
-  { icon: Gift, label: "Member Gifts", href: "/gifts", roles: ["super_admin","owner","branch_manager","accountant"] },
+  { icon: LayoutDashboard, label: "Dashboard", href: "/" },
+  { icon: ShieldAlert, label: "Committees", href: "/committees", roles: ["super_admin","owner","branch_manager"] },
+  { icon: Ticket, label: "Tokens", href: "/tokens", roles: ["super_admin","owner","branch_manager","customer"] },
+  { icon: CreditCard, label: "Collections", href: "/collections", roles: ["super_admin","owner","branch_manager","collector","accountant","customer","agent"] },
+  { icon: Users, label: "Customers", href: "/customers", roles: ["super_admin","owner","branch_manager","collector"] },
+  { icon: Gift, label: "Lotteries", href: "/lotteries", roles: ["super_admin","owner","branch_manager"] },
+  { icon: Gift, label: "Gifts", href: "/gifts", roles: ["super_admin","owner","branch_manager","accountant"] },
   { icon: UserSquare2, label: "Collectors", href: "/collectors", roles: ["super_admin","owner","branch_manager"] },
   { icon: Briefcase, label: "Agent Portal", href: "/agent-portal", roles: ["agent","super_admin","owner","branch_manager"] },
   { icon: TrendingUp, label: "Interests", href: "/interests", roles: ["super_admin","owner","branch_manager","accountant"] },

@@ -54,7 +54,7 @@ router.get("/collectors", async (req, res) => {
 router.get("/customers", async (req, res) => {
   try {
     const page = parseInt((req.query.page as string) || "1", 10);
-    const limit = parseInt((req.query.limit as string) || "10", 10);
+    const limit = parseInt((req.query.limit as string) || "50", 10);
     const offset = (page - 1) * limit;
     const search = ((req.query.search as string) || "").trim();
 
@@ -144,9 +144,9 @@ router.get("/committees/:id", async (req, res) => {
 
 router.get("/tokens", async (req, res) => {
   try {
-    const limit = parseInt((req.query.limit as string) || "100", 10);
+    const limit = parseInt((req.query.limit as string) || "5000", 10);
     const result = await pool.query(`
-      SELECT t.id, t.token_number, t.customer_id, t.committee_id, t.status,
+      SELECT t.id, t.token_number, t.customer_id, t.committee_id, t.status, t.created_at,
              c.name as customer_name, cm.name as committee_name
       FROM tokens t
       LEFT JOIN customers c ON c.id = t.customer_id
@@ -160,7 +160,8 @@ router.get("/tokens", async (req, res) => {
       customerId: r.customer_id,
       committeeId: r.committee_id,
       customerName: r.customer_name,
-      committeeName: r.committee_name
+      committeeName: r.committee_name,
+      createdAt: r.created_at || new Date().toISOString()
     }));
     res.json({ success: true, tokens: formatted, data: formatted });
   } catch (err) {
@@ -170,7 +171,7 @@ router.get("/tokens", async (req, res) => {
 
 router.get("/collections", async (req, res) => {
   try {
-    const limit = parseInt((req.query.limit as string) || "50", 10);
+    const limit = parseInt((req.query.limit as string) || "100", 10);
     const result = await pool.query(`
       SELECT col.id, col.amount, col.payment_mode, col.payment_date, col.receipt_number, col.status,
              cust.name as customer_name, cust.mobile as customer_mobile
