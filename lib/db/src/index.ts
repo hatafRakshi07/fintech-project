@@ -1,4 +1,8 @@
 import dns from "node:dns";
+try {
+  dns.setDefaultResultOrder("ipv4first");
+} catch (e) {}
+
 import { drizzle } from "drizzle-orm/node-postgres";
 import pg from "pg";
 import * as schema from "./schema/index";

@@ -1,3 +1,8 @@
+import dns from "node:dns";
+try {
+  dns.setDefaultResultOrder("ipv4first");
+} catch (e) {}
+
 import app from "./app";
 import { logger } from "./lib/logger";
 import { closePool } from "@workspace/db";
