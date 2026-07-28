@@ -59,12 +59,12 @@ router.get("/customers", async (req, res) => {
     const search = ((req.query.search as string) || "").trim();
 
     let countQuery = "SELECT COUNT(*) FROM customers";
-    let dataQuery = "SELECT id, name, mobile, reference_number, address, city, aadhaar, status, branch_id FROM customers LIMIT $1 OFFSET $2";
+    let dataQuery = "SELECT id, name, mobile, reference_number, address, status, branch_id FROM customers LIMIT $1 OFFSET $2";
     let params: any[] = [limit, offset];
 
     if (search) {
       countQuery = "SELECT COUNT(*) FROM customers WHERE name ILIKE $1 OR mobile ILIKE $1 OR reference_number ILIKE $1";
-      dataQuery = "SELECT id, name, mobile, reference_number, address, city, aadhaar, status, branch_id FROM customers WHERE name ILIKE $1 OR mobile ILIKE $1 OR reference_number ILIKE $1 LIMIT $2 OFFSET $3";
+      dataQuery = "SELECT id, name, mobile, reference_number, address, status, branch_id FROM customers WHERE name ILIKE $1 OR mobile ILIKE $1 OR reference_number ILIKE $1 LIMIT $2 OFFSET $3";
       params = [`%${search}%`, limit, offset];
     }
 
