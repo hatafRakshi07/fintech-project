@@ -195,7 +195,7 @@ router.get("/collections", async (req, res) => {
 });
 
 // EXPLICIT REQUIREMENT: No Loan Data to be served
-router.get("/loans", (req, res) => {
+router.get("/loans", (_req, res) => {
   res.json({ success: true, loans: [], data: [] });
 });
 
@@ -254,14 +254,15 @@ router.get("/dashboard/recent-activity", async (req, res) => {
     `);
     const formatted = result.rows.map(r => ({
       id: r.id,
-      title: `Bissi Collection from ${r.customer_name || 'Member'}`,
+      description: `Bissi Collection from ${r.customer_name || 'Member'}`,
       amount: Number(r.amount),
-      date: r.payment_date,
-      type: "collection"
+      createdAt: r.payment_date || new Date().toISOString(),
+      type: "collection",
+      customerName: r.customer_name || 'Member'
     }));
-    res.json({ success: true, activity: formatted, data: formatted });
+    res.json(formatted);
   } catch (err) {
-    res.json({ success: true, activity: [], data: [] });
+    res.json([]);
   }
 });
 
@@ -339,16 +340,16 @@ router.get("/interests/transactions", async (req, res) => {
   }
 });
 
-// Accounting & Office Fallbacks
-router.get("/accounting/*", (req, res) => {
+// Accounting, Office & Recovery Fallbacks (Express v5 path-to-regexp v8 safe)
+router.use("/accounting", (_req, res) => {
   res.json({ success: true, data: [] });
 });
 
-router.get("/office/*", (req, res) => {
+router.use("/office", (_req, res) => {
   res.json({ success: true, data: [] });
 });
 
-router.get("/recovery/*", (req, res) => {
+router.use("/recovery", (_req, res) => {
   res.json({ success: true, data: [] });
 });
 
