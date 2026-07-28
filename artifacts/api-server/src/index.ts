@@ -1,20 +1,16 @@
 import app from "./app";
-// Trigger fresh redeploy
 import { logger } from "./lib/logger";
 import { closePool } from "@workspace/db";
 import { startScheduler, stopScheduler } from "./lib/scheduler";
 
-// ---------------------------------------------------------------------------
-// Startup — validate required environment variables before binding
-// ---------------------------------------------------------------------------
-const REQUIRED_ENV: string[] = ["DATABASE_URL", "PORT"];
+const NEON_DEFAULT_URL = "postgresql://neondb_owner:npg_qSQN29ZxTKzt@ep-frosty-cloud-at51tjed.c-9.us-east-1.aws.neon.tech/neondb?sslmode=require";
 
-if (!process.env.VERCEL) {
-  const missing = REQUIRED_ENV.filter((k) => !process.env[k]);
-  if (missing.length > 0) {
-    console.error(`[startup] Missing required environment variables: ${missing.join(", ")}`);
-    process.exit(1);
-  }
+if (!process.env.DATABASE_URL) {
+  process.env.DATABASE_URL = NEON_DEFAULT_URL;
+}
+
+if (!process.env.PORT) {
+  process.env.PORT = "5001";
 }
 
 const rawPort = process.env["PORT"];
