@@ -16,6 +16,9 @@ let dbInstance: any = null;
 
 function getPool() {
   let url = process.env.DATABASE_URL || NEON_DEFAULT_URL;
+  if (url.includes("supabase.co:5432")) {
+    url = NEON_DEFAULT_URL;
+  }
 
   if (!poolInstance) {
     poolInstance = new Pool({
