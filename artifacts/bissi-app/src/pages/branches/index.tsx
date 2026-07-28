@@ -38,12 +38,14 @@ const branchSchema = z.object({
   phone: z.string().optional(),
 });
 
+import { safeArray } from "@/lib/utils";
+
 export default function BranchesPage() {
   const [search, setSearch] = useState("");
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   
   const { data: rawBranches, isLoading } = useListBranches({ search });
-  const branches = Array.isArray(rawBranches) ? rawBranches : [];
+  const branches = safeArray<any>(rawBranches);
   const createBranch = useCreateBranch();
   const queryClient = useQueryClient();
   const { toast } = useToast();

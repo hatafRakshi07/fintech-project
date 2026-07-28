@@ -173,19 +173,19 @@ router.get("/collections", async (req, res) => {
   try {
     const limit = parseInt((req.query.limit as string) || "100", 10);
     const result = await pool.query(`
-      SELECT col.id, col.amount, col.payment_mode, col.payment_date, col.receipt_number, col.status,
+      SELECT col.id, col.amount, col.payment_mode, col.notes, col.created_at,
              cust.name as customer_name, cust.mobile as customer_mobile
       FROM collections col
       LEFT JOIN customers cust ON cust.id = col.customer_id
-      ORDER BY col.payment_date DESC, col.id DESC
+      ORDER BY col.id DESC
       LIMIT $1
     `, [limit]);
     const formatted = result.rows.map(r => ({
       ...r,
       amount: Number(r.amount),
       paymentMode: r.payment_mode,
-      paymentDate: r.payment_date,
-      receiptNumber: r.receipt_number,
+      paymentDate: r.created_at,
+      receiptNumber: `REC-${r.id}`,
       customerName: r.customer_name,
       collectorName: "Admin Collector"
     }));

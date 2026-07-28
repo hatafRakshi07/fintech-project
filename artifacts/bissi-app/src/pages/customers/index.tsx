@@ -39,16 +39,18 @@ const customerSchema = z.object({
   city: z.string().optional(),
 });
 
+import { safeArray } from "@/lib/utils";
+
 export default function CustomersPage() {
   const [, setLocation] = useLocation();
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   
-  const { data, isLoading } = useListCustomers({ search, page, limit: 10 });
+  const { data, isLoading } = useListCustomers({ search, page, limit: 50 });
   const { data: branches } = useListBranches();
   
-  const customersList = Array.isArray(data?.data) ? data.data : [];
+  const customersList = safeArray<any>(data);
   
   const createCustomer = useCreateCustomer();
   const queryClient = useQueryClient();

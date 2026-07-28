@@ -4,10 +4,10 @@ import { pool } from "@workspace/db";
 const router = Router();
 
 const DEFAULT_BISSI_SCHEMES = [
-  { id: 4, name: "Shree Krishna Bissi", member_limit: 1111, installment_amount: 500 },
-  { id: 1, name: "Sawariya Seth Bissi", member_limit: 500, installment_amount: 500 },
-  { id: 2, name: "Pyare Mohan Bissi", member_limit: 500, installment_amount: 500 },
-  { id: 3, name: "Hare Ka Sahara Bissi", member_limit: 500, installment_amount: 500 },
+  { id: 4, name: "Shree Krishna Bissi", member_limit: 1111, installment_amount: 3000 },
+  { id: 1, name: "Sawariya Seth Bissi", member_limit: 500, installment_amount: 3000 },
+  { id: 2, name: "Pyare Mohan Bissi", member_limit: 500, installment_amount: 3000 },
+  { id: 3, name: "Hare Ka Sahara Bissi", member_limit: 500, installment_amount: 3000 },
 ];
 
 /**
