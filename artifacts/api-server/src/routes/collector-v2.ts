@@ -18,10 +18,10 @@ router.get("/schemes", async (req, res) => {
   }
 });
 
-// 2. Search customers by name, phone, or token number
+// 2. Search customers by name, phone, or token number (filtered by selected schemeId if provided)
 router.get("/customers/search", async (req, res) => {
   try {
-    const { query } = req.query;
+    const { query, schemeId } = req.query;
     if (!query || String(query).length < 1) {
       res.json([]);
       return;
@@ -30,22 +30,39 @@ router.get("/customers/search", async (req, res) => {
     const searchStr = `%${query}%`;
     const exactStr = String(query).trim();
 
-    // Select distinct customers matching name, phone, or token number
-    const result = await pool.query(
-      `SELECT DISTINCT c.id::text, c.name, c.mobile as "phone"
-       FROM customers c
-       LEFT JOIN tokens t ON c.id = t.customer_id
-       LEFT JOIN committee_members cm ON c.id = cm.customer_id
-       WHERE c.name ILIKE $1 
-          OR c.mobile ILIKE $1 
-          OR t.token_number ILIKE $1
-          OR cm.token_number ILIKE $1
-          OR t.token_number = $2
-          OR cm.token_number = $2
-       LIMIT 30`,
-      [searchStr, exactStr]
-    );
+    let sql = `
+      SELECT DISTINCT 
+        c.id::text, 
+        c.name, 
+        c.mobile as "phone",
+        cm.token_number as "tokenNumber",
+        comm.name as "schemeName"
+      FROM customers c
+      INNER JOIN committee_members cm ON c.id = cm.customer_id
+      LEFT JOIN committees comm ON comm.id = cm.committee_id
+      LEFT JOIN tokens t ON (c.id = t.customer_id AND cm.committee_id = t.committee_id)
+      WHERE (
+        c.name ILIKE $1 
+        OR c.mobile ILIKE $1 
+        OR cm.token_number ILIKE $1
+        OR cm.token_number = $2
+        OR t.token_number ILIKE $1
+      )
+    `;
 
+    const params: any[] = [searchStr, exactStr];
+
+    if (schemeId && schemeId !== "all") {
+      const parsedSchemeId = parseInt(schemeId as string, 10);
+      if (!isNaN(parsedSchemeId)) {
+        params.push(parsedSchemeId);
+        sql += ` AND cm.committee_id = $${params.length}`;
+      }
+    }
+
+    sql += ` ORDER BY c.name ASC LIMIT 30`;
+
+    const result = await pool.query(sql, params);
     res.json(result.rows);
   } catch (err: any) {
     console.error("Error searching customers:", err);
@@ -73,16 +90,16 @@ router.get("/tokens", async (req, res) => {
         cm.id::text as "membershipId",
         cm.committee_id::text as "schemeId",
         cm.customer_id::text as "customerId",
-        t.id::text as "tokenId",
-        t.token_number::text as "tokenNumber",
-        cm.status::text as "status"
+        COALESCE(t.id, cm.id)::text as "tokenId",
+        COALESCE(cm.token_number, t.token_number, cm.id::text)::text as "tokenNumber",
+        COALESCE(cm.status, 'active')::text as "status"
       FROM committee_members cm
-      LEFT JOIN tokens t ON cm.customer_id = t.customer_id AND cm.committee_id = t.committee_id AND cm.token_number = t.token_number
+      LEFT JOIN tokens t ON cm.customer_id = t.customer_id AND cm.committee_id = t.committee_id
       WHERE cm.customer_id = $1
     `;
     const params: any[] = [custId];
 
-    if (schemeId) {
+    if (schemeId && schemeId !== "all") {
       const commId = parseInt(schemeId as string, 10);
       if (!isNaN(commId)) {
         query += ` AND cm.committee_id = $2`;

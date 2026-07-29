@@ -47,10 +47,10 @@ export default function CollectionsV2Page() {
   const fetchedSchemes = safeArray(schemesRaw) as Scheme[];
   const schemes = fetchedSchemes.length > 0 ? fetchedSchemes : DEFAULT_SCHEMES;
 
-  // Search Customers (Name, Phone, or Token number)
+  // Search Customers (Name, Phone, or Token number) - filtered by selected scheme if chosen
   const { data: searchResultsRaw } = useQuery<Customer[]>({
-    queryKey: ["v2-customer-search", customerSearch],
-    queryFn: () => api.get(`/v2/collector/customers/search?query=${encodeURIComponent(customerSearch)}`),
+    queryKey: ["v2-customer-search", customerSearch, selectedScheme?.id],
+    queryFn: () => api.get(`/v2/collector/customers/search?query=${encodeURIComponent(customerSearch)}${selectedScheme?.id ? `&schemeId=${selectedScheme.id}` : ''}`),
     enabled: customerSearch.length >= 1,
   });
   const searchResults = safeArray(searchResultsRaw) as Customer[];
@@ -100,39 +100,45 @@ export default function CollectionsV2Page() {
         const selectedCount = tokenSplits.filter(t => t.selected).length;
         if (selectedCount > 0) {
           const perToken = Math.floor((sum / selectedCount) * 100) / 100;
-          let remaining = sum;
+          
           const lastSelectedIndex = tokenSplits.map(p => p.selected).lastIndexOf(true);
           
           setTokenSplits(prev => prev.map((t, i) => {
             if (!t.selected) return { ...t, amount: "" };
-            
-            // Last selected token gets the remainder to avoid rounding errors
-            const isLastSelected = i === lastSelectedIndex;
-            const amt = isLastSelected ? Math.max(0, Math.round(remaining * 100) / 100) : perToken;
-            remaining -= amt;
-            
-            return { ...t, amount: String(amt) };
+            if (i === lastSelectedIndex) {
+              return { ...t, amount: String(Math.round((sum - (perToken * (selectedCount - 1))) * 100) / 100) };
+            }
+            return { ...t, amount: String(perToken) };
           }));
         }
       }
     }
-  }, [lumpSum, splitMode]); // deliberate omission of tokenSplits to avoid infinite loop
+  }, [lumpSum, splitMode]);
+
+  const handleManualAmountChange = (tokenId: string, amount: string) => {
+    setTokenSplits(prev => prev.map(t => t.tokenId === tokenId ? { ...t, amount } : t));
+  };
+
+  const handleToggleSelect = (tokenId: string) => {
+    setTokenSplits(prev => prev.map(t => t.tokenId === tokenId ? { ...t, selected: !t.selected } : t));
+  };
 
   const submitMutation = useMutation({
     mutationFn: (data: any) => api.post("/v2/collector/payments", data),
     onSuccess: () => {
-      setSuccessMsg("Payment recorded successfully!");
-      setLumpSum("");
+      qc.invalidateQueries({ queryKey: ["v2-tokens"] });
       setSelectedCustomer(null);
-      setCustomerSearch("");
+      setLumpSum("");
       setTokenSplits([]);
-      setTimeout(() => setSuccessMsg(null), 3000);
-    }
+      setScreenshotUrl("");
+      setSuccessMsg("Payment recorded successfully!");
+      setTimeout(() => setSuccessMsg(null), 3500);
+    },
   });
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!selectedCustomer) return alert("Select a customer");
+    if (!selectedCustomer) return alert("Please select a customer.");
     if (!selectedScheme) return alert("Select a scheme");
     
     const allocations = tokenSplits
@@ -173,9 +179,14 @@ export default function CollectionsV2Page() {
           <select 
             className="w-full p-3 border rounded-lg bg-gray-50 focus:ring-2 focus:ring-blue-500 outline-none"
             value={selectedScheme?.id || ""}
-            onChange={(e) => setSelectedScheme(schemes.find(s => s.id === e.target.value) || null)}
+            onChange={(e) => {
+              const newScheme = schemes.find(s => s.id === e.target.value) || null;
+              setSelectedScheme(newScheme);
+              setSelectedCustomer(null);
+              setCustomerSearch("");
+            }}
           >
-            <option value="">-- Choose Scheme --</option>
+            <option value="">-- All Bissi Schemes --</option>
             {schemes.map(s => (
               <option key={s.id} value={s.id}>{s.name} (₹{s.installmentAmount}/mo)</option>
             ))}
@@ -186,31 +197,43 @@ export default function CollectionsV2Page() {
         <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100">
           <h2 className="text-sm font-semibold text-gray-700 mb-3 flex items-center gap-2">
             <Users className="w-4 h-4 text-blue-500" />
-            2. Select Customer
+            2. Select Customer {selectedScheme ? `(Filtering for ${selectedScheme.name})` : ""}
           </h2>
           {!selectedCustomer ? (
             <div className="relative">
               <Search className="w-5 h-5 absolute left-3 top-3 text-gray-400" />
               <input
                 type="text"
-                placeholder="Search by token number, name or phone..."
+                placeholder={selectedScheme ? `Search ${selectedScheme.name} tokens, name, or phone...` : "Search by token number, name or phone..."}
                 className="w-full pl-10 p-3 border rounded-lg bg-gray-50 focus:ring-2 focus:ring-blue-500 outline-none"
                 value={customerSearch}
                 onChange={e => setCustomerSearch(e.target.value)}
               />
               {searchResults.length > 0 && customerSearch.length >= 1 && (
-                <div className="absolute top-full left-0 right-0 mt-1 bg-white border rounded-lg shadow-lg z-10 max-h-48 overflow-y-auto">
+                <div className="absolute top-full left-0 right-0 mt-1 bg-white border rounded-lg shadow-lg z-10 max-h-56 overflow-y-auto divide-y divide-gray-100">
                   {searchResults.map(c => (
                     <div 
                       key={c.id} 
-                      className="p-3 border-b hover:bg-gray-50 cursor-pointer flex items-center justify-between"
-                      onClick={() => setSelectedCustomer(c)}
+                      className="p-3 hover:bg-blue-50/50 cursor-pointer flex items-center justify-between transition-colors"
+                      onClick={() => {
+                        setSelectedCustomer(c);
+                        setCustomerSearch("");
+                      }}
                     >
                       <div>
-                        <div className="font-medium text-gray-800">{c.name}</div>
-                        <div className="text-xs text-gray-500">{c.phone}</div>
+                        <div className="font-semibold text-gray-900 flex items-center gap-2">
+                          <span>{c.name}</span>
+                          {(c as any).tokenNumber && (
+                            <span className="text-[11px] font-mono font-bold bg-amber-100 text-amber-800 px-2 py-0.5 rounded-full border border-amber-200">
+                              TOKEN #{(c as any).tokenNumber}
+                            </span>
+                          )}
+                        </div>
+                        <div className="text-xs text-gray-500 mt-0.5">
+                          📱 {c.phone} {(c as any).schemeName ? `• ${(c as any).schemeName}` : ""}
+                        </div>
                       </div>
-                      <span className="text-xs font-semibold bg-blue-50 text-blue-600 px-2 py-1 rounded">Select</span>
+                      <span className="text-xs font-bold bg-blue-600 text-white px-2.5 py-1 rounded-lg shadow-xs">Select →</span>
                     </div>
                   ))}
                 </div>
