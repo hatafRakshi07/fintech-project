@@ -99,8 +99,12 @@ router.get("/customers/:id/history", async (req, res): Promise<void> => {
       "SELECT COALESCE(SUM(amount), 0)::float as total_paid, COUNT(*)::int as total_collections FROM collections WHERE customer_id = $1",
       [customerId]
     );
-    const totalPaid = collectionsRes.rows[0].total_paid;
-    const totalCollections = collectionsRes.rows[0].total_collections;
+    const installmentsRes = await pool.query(
+      "SELECT COALESCE(SUM(amount), 0)::float as total_paid, COUNT(*)::int as total_installments FROM installments WHERE customer_id = $1",
+      [customerId]
+    );
+    const totalPaid = collectionsRes.rows[0].total_paid + installmentsRes.rows[0].total_paid;
+    const totalCollections = collectionsRes.rows[0].total_collections + installmentsRes.rows[0].total_installments;
 
     const membershipsCountRes = await pool.query(
       "SELECT COUNT(*)::int as count FROM committee_members WHERE customer_id = $1",
@@ -168,7 +172,16 @@ router.get("/customers/:id/history", async (req, res): Promise<void> => {
         notes 
       FROM collections 
       WHERE customer_id = $1 
-      ORDER BY collected_at DESC`,
+      UNION ALL
+      SELECT
+        id,
+        amount::float,
+        payment_date as "date",
+        payment_mode::text as "paymentMode",
+        remarks as "notes"
+      FROM installments
+      WHERE customer_id = $1
+      ORDER BY date DESC`,
       [customerId]
     );
     const collections = collectionsQueryRes.rows;
