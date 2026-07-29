@@ -238,7 +238,23 @@ router.get("/customers/:id", async (req, res) => {
 // The 4 Bissi Schemes (Committees)
 router.get("/committees", async (req, res) => {
   try {
-    const result = await pool.query("SELECT id, name, type, installment_amount, member_limit, status FROM committees ORDER BY id ASC");
+    const result = await pool.query(`
+      SELECT 
+        c.id,
+        c.name,
+        c.type::text as type,
+        c.installment_amount,
+        c.member_limit,
+        c.status::text as status,
+        COALESCE(sub.member_count, 0)::int as "currentMembers"
+      FROM committees c
+      LEFT JOIN (
+        SELECT committee_id, COUNT(*)::int as member_count 
+        FROM committee_members 
+        GROUP BY committee_id
+      ) sub ON c.id = sub.committee_id
+      ORDER BY c.id ASC
+    `);
     const formatted = result.rows.map(r => ({
       ...r,
       installmentAmount: Number(r.installment_amount),
@@ -255,21 +271,86 @@ router.get("/committees", async (req, res) => {
 router.get("/committees/:id", async (req, res) => {
   try {
     const { id } = req.params;
-    const result = await pool.query("SELECT * FROM committees WHERE id = $1", [id]);
+    const committeeId = parseInt(id, 10);
+    if (isNaN(committeeId)) {
+      res.status(400).json({ success: false, error: "Invalid committee ID" });
+      return;
+    }
+    const result = await pool.query(`
+      SELECT 
+        c.id,
+        c.name,
+        c.type::text as type,
+        c.installment_amount,
+        c.member_limit,
+        c.draw_date as "drawDate",
+        c.status::text as status,
+        b.name as "branchName"
+      FROM committees c
+      LEFT JOIN branches b ON c.branch_id = b.id
+      WHERE c.id = $1
+    `, [committeeId]);
+
     if (result.rows.length === 0) {
       res.status(404).json({ success: false, error: "Committee not found" });
       return;
     }
+
     const r = result.rows[0];
+    const membersCountResult = await pool.query("SELECT COUNT(*)::int as count FROM committee_members WHERE committee_id = $1", [committeeId]);
+    const currentMembers = membersCountResult.rows[0].count;
+
     const committee = {
       ...r,
       installmentAmount: Number(r.installment_amount),
       memberLimit: r.member_limit,
+      currentMembers: currentMembers,
+      branchName: r.branchName || "Shree Krishna Associate"
     };
     res.json({ success: true, committee, data: committee });
   } catch (err: any) {
     console.error("Error fetching committee by id:", err);
     res.status(500).json({ success: false, error: "Failed to fetch committee", details: err?.message });
+  }
+});
+
+router.get("/committees/:id/members", async (req, res): Promise<void> => {
+  try {
+    const committeeId = parseInt(req.params.id, 10);
+    if (isNaN(committeeId)) {
+      res.status(400).json({ success: false, error: "Invalid committee ID" });
+      return;
+    }
+
+    const membersRes = await pool.query(`
+      SELECT 
+        cm.id,
+        cm.customer_id as "customerId",
+        cm.status::text as "status",
+        c.name as "customerName",
+        c.reference_number as "customerReferenceNumber",
+        c.mobile as "customerMobile"
+      FROM committee_members cm
+      LEFT JOIN customers c ON cm.customer_id = c.id
+      WHERE cm.committee_id = $1
+    `, [committeeId]);
+
+    const members = [];
+    for (const row of membersRes.rows) {
+      const tokensRes = await pool.query(
+        "SELECT token_number FROM tokens WHERE customer_id = $1 AND committee_id = $2",
+        [row.customerId, committeeId]
+      );
+      members.push({
+        ...row,
+        tokens: tokensRes.rows.map(r => r.token_number)
+      });
+    }
+
+    res.json(members);
+  } catch (err: any) {
+    console.error("Error fetching committee members:", err);
+    res.status(500).json({ success: false, error: "Failed to fetch committee members: " + err.message });
   }
 });
 
@@ -304,14 +385,24 @@ router.get("/tokens", async (req, res) => {
 router.get("/collections", async (req, res) => {
   try {
     const limit = parseInt((req.query.limit as string) || "100", 10);
-    const result = await pool.query(`
-      SELECT col.id, col.amount, col.payment_mode, col.notes, col.created_at,
+    const committeeIdQuery = req.query.committeeId;
+    let query = `
+      SELECT col.id, col.amount, col.payment_mode, col.notes, col.collected_at as "created_at",
              cust.name as customer_name, cust.mobile as customer_mobile
       FROM collections col
       LEFT JOIN customers cust ON cust.id = col.customer_id
-      ORDER BY col.id DESC
-      LIMIT $1
-    `, [limit]);
+    `;
+    const params: any[] = [limit];
+    if (committeeIdQuery) {
+      const parsedCommId = parseInt(committeeIdQuery as string, 10);
+      if (!isNaN(parsedCommId)) {
+        query += ` WHERE col.committee_id = $2`;
+        params.push(parsedCommId);
+      }
+    }
+    query += ` ORDER BY col.id DESC LIMIT $1`;
+
+    const result = await pool.query(query, params);
     const formatted = result.rows.map(r => ({
       ...r,
       amount: Number(r.amount),
@@ -323,6 +414,7 @@ router.get("/collections", async (req, res) => {
     }));
     res.json({ success: true, collections: formatted, data: formatted });
   } catch (err) {
+    console.error("Error fetching collections:", err);
     res.json({ success: true, collections: [], data: [] });
   }
 });
