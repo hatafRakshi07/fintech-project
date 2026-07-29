@@ -40,25 +40,29 @@ export default function CollectionsV2Page() {
   });
   const schemes = safeArray(schemesRaw) as Scheme[];
 
-  // Search Customers
+  // Search Customers (Name, Phone, or Token number)
   const { data: searchResultsRaw } = useQuery<Customer[]>({
     queryKey: ["v2-customer-search", customerSearch],
     queryFn: () => api.get(`/v2/collector/customers/search?query=${encodeURIComponent(customerSearch)}`),
-    enabled: customerSearch.length >= 2,
+    enabled: customerSearch.length >= 1,
   });
   const searchResults = safeArray(searchResultsRaw) as Customer[];
 
-  // Fetch Tokens when Scheme & Customer selected
+  // Fetch Tokens when Customer selected
   const { data: tokensRaw, isLoading: loadingTokens } = useQuery<Token[]>({
     queryKey: ["v2-tokens", selectedCustomer?.id, selectedScheme?.id],
-    queryFn: () => api.get(`/v2/collector/tokens?customerId=${selectedCustomer?.id}&schemeId=${selectedScheme?.id}`),
-    enabled: !!selectedCustomer && !!selectedScheme,
+    queryFn: () => api.get(`/v2/collector/tokens?customerId=${selectedCustomer?.id}${selectedScheme?.id ? `&schemeId=${selectedScheme.id}` : ''}`),
+    enabled: !!selectedCustomer,
   });
   const tokens = safeArray(tokensRaw) as Token[];
 
-  // Initialize splits when tokens load
+  // Initialize splits when tokens load and auto-select scheme if not set
   useEffect(() => {
     if (tokens.length > 0) {
+      if (!selectedScheme && schemes.length > 0) {
+        const matchedScheme = schemes.find(s => s.id === tokens[0].schemeId);
+        if (matchedScheme) setSelectedScheme(matchedScheme);
+      }
       setTokenSplits(
         tokens.map(t => ({
           tokenId: t.tokenId,
@@ -70,7 +74,7 @@ export default function CollectionsV2Page() {
     } else {
       setTokenSplits([]);
     }
-  }, [tokens]);
+  }, [tokens, schemes, selectedScheme]);
 
   // Handle Auto Split
   useEffect(() => {
@@ -173,21 +177,24 @@ export default function CollectionsV2Page() {
               <Search className="w-5 h-5 absolute left-3 top-3 text-gray-400" />
               <input
                 type="text"
-                placeholder="Search by name or phone..."
+                placeholder="Search by token number, name or phone..."
                 className="w-full pl-10 p-3 border rounded-lg bg-gray-50 focus:ring-2 focus:ring-blue-500 outline-none"
                 value={customerSearch}
                 onChange={e => setCustomerSearch(e.target.value)}
               />
-              {searchResults.length > 0 && customerSearch.length >= 2 && (
+              {searchResults.length > 0 && customerSearch.length >= 1 && (
                 <div className="absolute top-full left-0 right-0 mt-1 bg-white border rounded-lg shadow-lg z-10 max-h-48 overflow-y-auto">
                   {searchResults.map(c => (
                     <div 
                       key={c.id} 
-                      className="p-3 border-b hover:bg-gray-50 cursor-pointer"
+                      className="p-3 border-b hover:bg-gray-50 cursor-pointer flex items-center justify-between"
                       onClick={() => setSelectedCustomer(c)}
                     >
-                      <div className="font-medium text-gray-800">{c.name}</div>
-                      <div className="text-xs text-gray-500">{c.phone}</div>
+                      <div>
+                        <div className="font-medium text-gray-800">{c.name}</div>
+                        <div className="text-xs text-gray-500">{c.phone}</div>
+                      </div>
+                      <span className="text-xs font-semibold bg-blue-50 text-blue-600 px-2 py-1 rounded">Select</span>
                     </div>
                   ))}
                 </div>
@@ -210,7 +217,7 @@ export default function CollectionsV2Page() {
         </div>
 
         {/* 3. Token Splitting */}
-        {selectedCustomer && selectedScheme && (
+        {selectedCustomer && (
           <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100">
             <h2 className="text-sm font-semibold text-gray-700 mb-3 flex items-center gap-2">
               <Landmark className="w-4 h-4 text-blue-500" />

@@ -428,15 +428,21 @@ router.get("/collections", async (req, res) => {
     query += ` ORDER BY col.id DESC LIMIT $1`;
 
     const result = await pool.query(query, params);
-    const formatted = result.rows.map(r => ({
-      ...r,
-      amount: Number(r.amount),
-      paymentMode: r.payment_mode,
-      paymentDate: r.created_at,
-      receiptNumber: `REC-${r.id}`,
-      customerName: r.customer_name,
-      collectorName: "Admin Collector"
-    }));
+    const formatted = result.rows.map((r: any) => {
+      const dt = r.created_at || new Date().toISOString();
+      return {
+        ...r,
+        amount: Number(r.amount),
+        paymentMode: r.payment_mode,
+        collectedAt: dt,
+        paymentDate: dt,
+        date: dt,
+        created_at: dt,
+        receiptNumber: `REC-${r.id}`,
+        customerName: r.customer_name,
+        collectorName: "Admin Collector"
+      };
+    });
     res.json({ success: true, collections: formatted, data: formatted });
   } catch (err) {
     console.error("Error fetching collections:", err);

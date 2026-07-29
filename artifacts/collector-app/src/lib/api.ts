@@ -90,12 +90,16 @@ export const fmt = {
       maximumFractionDigits: 0,
     }).format(typeof n === "string" ? parseFloat(n) : n),
 
-  date: (s: string | Date) =>
-    new Date(s).toLocaleDateString("en-IN", {
+  date: (s?: string | Date | null) => {
+    if (!s) return "—";
+    const d = new Date(s);
+    if (isNaN(d.getTime())) return "—";
+    return d.toLocaleDateString("en-IN", {
       day: "2-digit",
       month: "short",
       year: "numeric",
-    }),
+    });
+  },
 
   shortDate: (s: string | Date) =>
     new Date(s).toLocaleDateString("en-IN", {

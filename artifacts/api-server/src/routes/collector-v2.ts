@@ -49,25 +49,23 @@ router.get("/customers/search", async (req, res) => {
   }
 });
 
-// 3. Get customer tokens/memberships for a specific scheme
+// 3. Get customer tokens/memberships for a specific scheme (or all schemes if schemeId omitted)
 router.get("/tokens", async (req, res) => {
   try {
     const { customerId, schemeId } = req.query;
-    if (!customerId || !schemeId) {
-      res.status(400).json({ error: "customerId and schemeId required" });
+    if (!customerId) {
+      res.status(400).json({ error: "customerId is required" });
       return;
     }
 
     const custId = parseInt(customerId as string, 10);
-    const commId = parseInt(schemeId as string, 10);
-
-    if (isNaN(custId) || isNaN(commId)) {
-      res.status(400).json({ error: "Invalid customerId or schemeId" });
+    if (isNaN(custId)) {
+      res.status(400).json({ error: "Invalid customerId" });
       return;
     }
 
-    const result = await pool.query(
-      `SELECT 
+    let query = `
+      SELECT 
         cm.id::text as "membershipId",
         cm.committee_id::text as "schemeId",
         cm.customer_id::text as "customerId",
@@ -76,10 +74,19 @@ router.get("/tokens", async (req, res) => {
         cm.status::text as "status"
       FROM committee_members cm
       LEFT JOIN tokens t ON cm.customer_id = t.customer_id AND cm.committee_id = t.committee_id AND cm.token_number = t.token_number
-      WHERE cm.customer_id = $1 AND cm.committee_id = $2`,
-      [custId, commId]
-    );
+      WHERE cm.customer_id = $1
+    `;
+    const params: any[] = [custId];
 
+    if (schemeId) {
+      const commId = parseInt(schemeId as string, 10);
+      if (!isNaN(commId)) {
+        query += ` AND cm.committee_id = $2`;
+        params.push(commId);
+      }
+    }
+
+    const result = await pool.query(query, params);
     res.json(result.rows);
   } catch (err: any) {
     console.error("Error fetching tokens:", err);
