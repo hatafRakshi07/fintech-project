@@ -15,6 +15,12 @@ export function safeArray<T>(data: unknown): T[] {
   if (!data) return [];
   if (Array.isArray(data)) return data as T[];
   if (Array.isArray((data as any)?.data)) return (data as any).data as T[];
+  if (Array.isArray((data as any)?.tokens)) return (data as any).tokens as T[];
+  if (Array.isArray((data as any)?.committees)) return (data as any).committees as T[];
+  if (Array.isArray((data as any)?.customers)) return (data as any).customers as T[];
+  if (Array.isArray((data as any)?.collections)) return (data as any).collections as T[];
+  if (Array.isArray((data as any)?.branches)) return (data as any).branches as T[];
+  if (Array.isArray((data as any)?.collectors)) return (data as any).collectors as T[];
   if (Array.isArray((data as any)?.items)) return (data as any).items as T[];
   if (Array.isArray((data as any)?.rows)) return (data as any).rows as T[];
   return [];

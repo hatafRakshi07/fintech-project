@@ -38,6 +38,8 @@ const committeeSchema = z.object({
   branchId: z.coerce.number().min(1, "Branch is required"),
 });
 
+import { safeArray } from "@/lib/utils";
+
 export default function CommitteesPage() {
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [typeFilter, setTypeFilter] = useState<string>("all");
@@ -45,8 +47,8 @@ export default function CommitteesPage() {
   const { data: rawCommittees, isLoading } = useListCommittees({ type: typeFilter !== "all" ? typeFilter : undefined });
   const { data: rawBranches } = useListBranches();
   
-  const committees = Array.isArray(rawCommittees) ? rawCommittees : [];
-  const branches = Array.isArray(rawBranches) ? rawBranches : [];
+  const committees = safeArray<any>(rawCommittees);
+  const branches = safeArray<any>(rawBranches);
   
   const createCommittee = useCreateCommittee();
   const queryClient = useQueryClient();

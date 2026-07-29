@@ -64,6 +64,8 @@ const verificationBadge = (status: string) => {
 const formatCurrency = (n: number) =>
   new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 0 }).format(n);
 
+import { safeArray } from "@/lib/utils";
+
 export default function CollectionsPage() {
   const [page, setPage] = useState(1);
   const [dateFilter, setDateFilter] = useState("");
@@ -77,7 +79,7 @@ export default function CollectionsPage() {
 
   const { data: collections, isLoading } = useListCollections({
     page,
-    limit: 20,
+    limit: 50,
     date: dateFilter || undefined,
     customerId: isCustomer ? user?.customerId ?? undefined : undefined,
   } as any);
@@ -87,7 +89,10 @@ export default function CollectionsPage() {
   const { data: collectors } = useListCollectors();
   const { data: committees } = useListCommittees();
 
-  const collectionsList = Array.isArray(collections?.data) ? collections.data : (Array.isArray(collections) ? collections : []);
+  const collectionsList = safeArray<any>(collections);
+  const customersList = safeArray<any>(customers);
+  const collectorsList = safeArray<any>(collectors);
+  const committeesList = safeArray<any>(committees);
 
   // Pending verifications (managers only)
   const { data: pendingCollections, isLoading: pendingLoading } = useQuery<any[]>({
