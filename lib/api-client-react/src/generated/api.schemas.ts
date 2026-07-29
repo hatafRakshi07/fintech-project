@@ -394,6 +394,7 @@ export interface Committee {
   branchId: number;
   /** @nullable */
   branchName?: string | null;
+  rules?: string | null;
   totalCollected?: number;
   createdAt: string;
 }
@@ -426,6 +427,7 @@ export interface CommitteeInput {
   drawDate?: string;
   branchId: number;
   status?: CommitteeInputStatus;
+  rules?: string;
 }
 
 export type CommitteeUpdateStatus = typeof CommitteeUpdateStatus[keyof typeof CommitteeUpdateStatus];
@@ -443,6 +445,7 @@ export interface CommitteeUpdate {
   memberLimit?: number;
   drawDate?: string;
   status?: CommitteeUpdateStatus;
+  rules?: string;
 }
 
 export interface CommitteeMember {

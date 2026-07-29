@@ -29,6 +29,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 
 const committeeSchema = z.object({
@@ -37,6 +38,7 @@ const committeeSchema = z.object({
   installmentAmount: z.coerce.number().min(1, "Amount must be greater than 0"),
   memberLimit: z.coerce.number().min(2, "Must have at least 2 members"),
   branchId: z.coerce.number().min(1, "Branch is required"),
+  rules: z.string().optional(),
 });
 
 import { safeArray } from "@/lib/utils";
@@ -98,6 +100,7 @@ export default function CommitteesPage() {
       installmentAmount: Number(comm.installmentAmount || comm.installment_amount || 0),
       memberLimit: Number(comm.memberLimit || comm.member_limit || 100),
       branchId: Number(comm.branch_id || comm.branchId || 1),
+      rules: comm.rules || "",
     });
   };
 
@@ -220,6 +223,28 @@ export default function CommitteesPage() {
                     )}
                   />
                 </div>
+
+                <FormField
+                  control={form.control}
+                  name="rules"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel className="flex items-center justify-between">
+                        <span>Bissi Rules & Terms (नियम व शर्तें)</span>
+                        <span className="text-xs text-muted-foreground font-normal">Optional</span>
+                      </FormLabel>
+                      <FormControl>
+                        <Textarea
+                          rows={3}
+                          placeholder="1. Monthly installment due date is 10th of every month.&#10;2. Late fee ₹50/day applicable after grace period.&#10;3. Winner token will continue paying remaining monthly installments."
+                          {...field}
+                          value={field.value ?? ""}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
 
                 <div className="flex justify-end pt-4">
                   <Button type="submit" disabled={createCommittee.isPending}>
@@ -391,6 +416,28 @@ export default function CommitteesPage() {
                   )}
                 />
               </div>
+
+              <FormField
+                control={editForm.control}
+                name="rules"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel className="flex items-center justify-between">
+                      <span>Bissi Rules & Terms (नियम व शर्तें)</span>
+                      <span className="text-xs text-muted-foreground font-normal">Optional</span>
+                    </FormLabel>
+                    <FormControl>
+                      <Textarea
+                        rows={3}
+                        placeholder="Enter Bissi rules..."
+                        {...field}
+                        value={field.value ?? ""}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
 
               <Button type="submit" className="w-full">Save Changes</Button>
             </form>

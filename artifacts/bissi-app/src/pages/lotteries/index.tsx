@@ -378,15 +378,18 @@ export default function LotteriesPage() {
                     </TableCell>
                     <TableCell className="text-xs">
                       {d.rewardType === "cash" ? (
-                        <span className="inline-flex items-center gap-1 text-emerald-600 font-semibold">
+                        <span className="inline-flex items-center gap-1 text-emerald-600 font-bold bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-300">
                           <Banknote className="h-3.5 w-3.5" />
-                          {d.cashTaken ? formatCurrency(d.cashTaken) : "Cash"}
+                          {d.cashTaken ? formatCurrency(d.cashTaken) : "Cash ₹"}
                         </span>
-                      ) : d.rewardType === "gift" ? (
-                        <span className="inline-flex items-center gap-1 text-purple-600 font-semibold">
-                          <Gift className="h-3.5 w-3.5" /> Gift Item
+                      ) : (
+                        <span className="inline-flex items-center gap-1 text-purple-600 font-bold bg-purple-500/10 px-2 py-0.5 rounded border border-purple-300">
+                          <Gift className="h-3.5 w-3.5 text-purple-600" />
+                          {d.notes?.includes("Winner Reward:")
+                            ? d.notes.replace("Winner Reward:", "").trim()
+                            : d.giftName || d.notes || "Gift Item"}
                         </span>
-                      ) : "—"}
+                      )}
                     </TableCell>
                     <TableCell className="text-center">
                       <Badge variant={statusBadge[d.status] ?? "secondary"} className="text-[10px]">{d.status}</Badge>
@@ -495,13 +498,13 @@ export default function LotteriesPage() {
                         <span className="text-sm font-bold text-foreground">{latestCompleted.winnerName || "Winner Declared"}</span>
                         <span className="font-mono text-xs font-bold text-emerald-600 dark:text-emerald-400">Token: {latestCompleted.winnerToken ?? "—"}</span>
                       </div>
-                      {latestCompleted.prizeAmount && (
-                        <div className="text-xs text-muted-foreground flex items-center gap-2 pt-0.5">
-                          <span>Prize: {formatCurrency(latestCompleted.prizeAmount)}</span>
-                          {latestCompleted.rewardType === "cash" && <Badge variant="outline" className="text-[10px] text-emerald-600">Cash ₹</Badge>}
-                          {latestCompleted.rewardType === "gift" && <Badge variant="outline" className="text-[10px] text-purple-600">Gift Item</Badge>}
-                        </div>
-                      )}
+                      <div className="text-xs text-muted-foreground flex items-center justify-between pt-0.5">
+                        <span className="font-semibold text-purple-600 dark:text-purple-400">
+                          {latestCompleted.rewardType === "cash"
+                            ? `Cash: ${formatCurrency(latestCompleted.cashTaken || latestCompleted.prizeAmount || 0)}`
+                            : `🎁 ${latestCompleted.notes?.includes("Winner Reward:") ? latestCompleted.notes.replace("Winner Reward:", "").trim() : latestCompleted.notes || "Gift Item"}`}
+                        </span>
+                      </div>
                     </div>
                   )}
                 </CardContent>

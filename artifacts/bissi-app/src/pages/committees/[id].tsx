@@ -284,6 +284,22 @@ export default function CommitteeDetailPage() {
         </Card>
       </div>
 
+      {/* Rules & Regulations Card */}
+      {(committee as any).rules && (
+        <Card className="border shadow-sm bg-gradient-to-r from-amber-500/5 via-card to-card border-amber-500/20">
+          <CardHeader className="p-4 pb-1">
+            <CardTitle className="text-xs font-bold uppercase tracking-wider text-amber-700 dark:text-amber-400 flex items-center gap-2">
+              <ShieldCheck className="h-4 w-4 text-amber-500" /> Bissi Rules & Terms (नियम व शर्तें)
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="p-4 pt-1">
+            <p className="text-xs text-foreground/90 whitespace-pre-line leading-relaxed font-medium">
+              {(committee as any).rules}
+            </p>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Tabs & Controls */}
       <Tabs defaultValue="members" className="w-full">
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 pb-2">

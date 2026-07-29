@@ -277,6 +277,50 @@ router.get("/committees", async (req, res) => {
   }
 });
 
+router.post("/committees", async (req, res): Promise<void> => {
+  try {
+    const { name, type, installmentAmount, installment_amount, memberLimit, member_limit, drawDate, draw_date, duration, status, rules } = req.body;
+    const finalAmount = installmentAmount !== undefined ? installmentAmount : installment_amount;
+    const finalMemberLimit = memberLimit !== undefined ? memberLimit : member_limit;
+    const finalDrawDate = drawDate !== undefined ? drawDate : draw_date;
+
+    if (!name || !finalAmount || !finalMemberLimit) {
+      res.status(400).json({ success: false, error: "Name, installment amount, and member limit are required" });
+      return;
+    }
+
+    const result = await pool.query(`
+      INSERT INTO committees (name, type, installment_amount, member_limit, draw_date, duration, status, rules, branch_id, created_at, updated_at)
+      VALUES ($1, $2::committee_type, $3, $4, $5, $6, $7::committee_status, $8, 1, NOW(), NOW())
+      RETURNING *
+    `, [
+      name,
+      type || "monthly",
+      finalAmount,
+      finalMemberLimit,
+      finalDrawDate || null,
+      duration || 20,
+      status || "active",
+      rules || null
+    ]);
+
+    const created = result.rows[0];
+    res.json({
+      success: true,
+      message: "Committee created successfully",
+      committee: {
+        ...created,
+        installmentAmount: Number(created.installment_amount),
+        memberLimit: created.member_limit,
+      },
+      data: created
+    });
+  } catch (err: any) {
+    console.error("Error creating committee:", err);
+    res.status(500).json({ success: false, error: "Failed to create committee: " + err.message });
+  }
+});
+
 router.get("/committees/:id", async (req, res) => {
   try {
     const { id } = req.params;
@@ -294,6 +338,7 @@ router.get("/committees/:id", async (req, res) => {
         c.member_limit,
         c.draw_date as "drawDate",
         c.status::text as status,
+        c.rules,
         b.name as "branchName"
       FROM committees c
       LEFT JOIN branches b ON c.branch_id = b.id
@@ -331,7 +376,7 @@ router.put("/committees/:id", async (req, res): Promise<void> => {
       return;
     }
 
-    const { name, installmentAmount, installment_amount, memberLimit, member_limit, type, status, duration } = req.body;
+    const { name, installmentAmount, installment_amount, memberLimit, member_limit, type, status, duration, rules } = req.body;
     const finalAmount = installmentAmount !== undefined ? installmentAmount : installment_amount;
     const finalMemberLimit = memberLimit !== undefined ? memberLimit : member_limit;
 
@@ -362,6 +407,10 @@ router.put("/committees/:id", async (req, res): Promise<void> => {
     if (duration !== undefined) {
       updates.push(`duration = $${paramIdx++}`);
       params.push(duration);
+    }
+    if (rules !== undefined) {
+      updates.push(`rules = $${paramIdx++}`);
+      params.push(rules);
     }
 
     updates.push(`updated_at = NOW()`);
