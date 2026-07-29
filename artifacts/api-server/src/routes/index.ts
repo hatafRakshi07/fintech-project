@@ -323,6 +323,91 @@ router.get("/committees/:id", async (req, res) => {
   }
 });
 
+router.put("/committees/:id", async (req, res): Promise<void> => {
+  try {
+    const committeeId = parseInt(req.params.id, 10);
+    if (isNaN(committeeId)) {
+      res.status(400).json({ success: false, error: "Invalid committee ID" });
+      return;
+    }
+
+    const { name, installmentAmount, installment_amount, memberLimit, member_limit, type, status, duration } = req.body;
+    const finalAmount = installmentAmount !== undefined ? installmentAmount : installment_amount;
+    const finalMemberLimit = memberLimit !== undefined ? memberLimit : member_limit;
+
+    const updates: string[] = [];
+    const params: any[] = [];
+    let paramIdx = 1;
+
+    if (name !== undefined) {
+      updates.push(`name = $${paramIdx++}`);
+      params.push(name);
+    }
+    if (finalAmount !== undefined) {
+      updates.push(`installment_amount = $${paramIdx++}`);
+      params.push(finalAmount);
+    }
+    if (finalMemberLimit !== undefined) {
+      updates.push(`member_limit = $${paramIdx++}`);
+      params.push(finalMemberLimit);
+    }
+    if (type !== undefined) {
+      updates.push(`type = $${paramIdx++}::committee_type`);
+      params.push(type);
+    }
+    if (status !== undefined) {
+      updates.push(`status = $${paramIdx++}::committee_status`);
+      params.push(status);
+    }
+    if (duration !== undefined) {
+      updates.push(`duration = $${paramIdx++}`);
+      params.push(duration);
+    }
+
+    updates.push(`updated_at = NOW()`);
+
+    if (params.length === 0) {
+      res.status(400).json({ success: false, error: "No fields provided to update" });
+      return;
+    }
+
+    params.push(committeeId);
+    const query = `UPDATE committees SET ${updates.join(", ")} WHERE id = $${paramIdx} RETURNING *`;
+    const result = await pool.query(query, params);
+
+    if (result.rows.length === 0) {
+      res.status(404).json({ success: false, error: "Committee not found" });
+      return;
+    }
+
+    const updated = result.rows[0];
+    res.json({
+      success: true,
+      message: "Committee updated successfully",
+      committee: {
+        ...updated,
+        installmentAmount: Number(updated.installment_amount),
+        memberLimit: updated.member_limit,
+      },
+      data: updated
+    });
+  } catch (err: any) {
+    console.error("Error updating committee:", err);
+    res.status(500).json({ success: false, error: "Failed to update committee", details: err?.message });
+  }
+});
+
+router.patch("/committees/:id", async (req, res) => {
+  // Delegate to PUT handler
+  req.url = `/committees/${req.params.id}`;
+  const putHandler = (router as any).stack.find((layer: any) => layer.route && layer.route.path === "/committees/:id" && layer.route.methods.put);
+  if (putHandler) {
+    putHandler.handle(req, res);
+  } else {
+    res.status(500).json({ success: false, error: "Update route not found" });
+  }
+});
+
 router.get("/committees/:id/members", async (req, res): Promise<void> => {
   try {
     const committeeId = parseInt(req.params.id, 10);

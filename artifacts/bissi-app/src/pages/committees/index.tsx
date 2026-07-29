@@ -20,7 +20,8 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import { Plus } from "lucide-react";
+import { Plus, Pencil } from "lucide-react";
+import { api } from "@/lib/api";
 import { useQueryClient } from "@tanstack/react-query";
 import { getListCommitteesQueryKey } from "@workspace/api-client-react";
 import { useForm } from "react-hook-form";
@@ -65,6 +66,8 @@ export default function CommitteesPage() {
     },
   });
 
+  const [editingCommittee, setEditingCommittee] = useState<any | null>(null);
+
   const onSubmit = (values: z.infer<typeof committeeSchema>) => {
     createCommittee.mutate({ data: { ...values, status: 'active' } as any }, {
       onSuccess: () => {
@@ -74,6 +77,40 @@ export default function CommitteesPage() {
         queryClient.invalidateQueries({ queryKey: getListCommitteesQueryKey() });
       }
     });
+  };
+
+  const editForm = useForm<z.infer<typeof committeeSchema>>({
+    resolver: zodResolver(committeeSchema),
+    defaultValues: {
+      name: "",
+      type: "monthly",
+      installmentAmount: 1000,
+      memberLimit: 20,
+      branchId: 1,
+    },
+  });
+
+  const handleStartEdit = (comm: any) => {
+    setEditingCommittee(comm);
+    editForm.reset({
+      name: comm.name || "",
+      type: comm.type || "monthly",
+      installmentAmount: Number(comm.installmentAmount || comm.installment_amount || 0),
+      memberLimit: Number(comm.memberLimit || comm.member_limit || 100),
+      branchId: Number(comm.branch_id || comm.branchId || 1),
+    });
+  };
+
+  const onEditSubmit = async (values: z.infer<typeof committeeSchema>) => {
+    if (!editingCommittee) return;
+    try {
+      await api.put(`/committees/${editingCommittee.id}`, values);
+      toast({ title: "Committee updated successfully!" });
+      setEditingCommittee(null);
+      queryClient.invalidateQueries({ queryKey: getListCommitteesQueryKey() });
+    } catch (err: any) {
+      toast({ title: "Failed to update committee", description: err?.message, variant: "destructive" });
+    }
   };
 
   const formatCurrency = (amount: number) => {
@@ -221,16 +258,17 @@ export default function CommitteesPage() {
                 <TableHead className="text-center">Members</TableHead>
                 <TableHead className="text-right">Total Pool</TableHead>
                 <TableHead className="text-center pr-4">Status</TableHead>
+                <TableHead className="text-right pr-4">Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {isLoading ? (
                 <TableRow>
-                  <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">Loading committees...</TableCell>
+                  <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">Loading committees...</TableCell>
                 </TableRow>
               ) : committees?.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">No committees found</TableCell>
+                  <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">No committees found</TableCell>
                 </TableRow>
               ) : (
                 committees?.map((comm) => (
@@ -248,10 +286,15 @@ export default function CommitteesPage() {
                     <TableCell className="text-right font-bold text-primary">
                       {formatCurrency(comm.installmentAmount * comm.memberLimit)}
                     </TableCell>
-                    <TableCell className="text-center pr-4">
+                    <TableCell className="text-center">
                       <Badge variant={comm.status === 'active' ? 'default' : comm.status === 'completed' ? 'secondary' : 'destructive'}>
                         {comm.status}
                       </Badge>
+                    </TableCell>
+                    <TableCell className="text-right pr-4">
+                      <Button variant="ghost" size="sm" onClick={() => handleStartEdit(comm)}>
+                        <Pencil className="h-4 w-4 mr-1" /> Edit
+                      </Button>
                     </TableCell>
                   </TableRow>
                 ))
@@ -260,6 +303,100 @@ export default function CommitteesPage() {
           </Table>
         </CardContent>
       </Card>
+
+      {/* Edit Committee Dialog */}
+      <Dialog open={!!editingCommittee} onOpenChange={(open) => !open && setEditingCommittee(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Edit Committee Details</DialogTitle>
+          </DialogHeader>
+          <Form {...editForm}>
+            <form onSubmit={editForm.handleSubmit(onEditSubmit)} className="space-y-4">
+              <FormField
+                control={editForm.control}
+                name="name"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Committee Name</FormLabel>
+                    <FormControl><Input {...field} /></FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <FormField
+                  control={editForm.control}
+                  name="type"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Type</FormLabel>
+                      <Select onValueChange={field.onChange} value={field.value}>
+                        <FormControl><SelectTrigger><SelectValue /></SelectTrigger></FormControl>
+                        <SelectContent>
+                          <SelectItem value="daily">Daily</SelectItem>
+                          <SelectItem value="weekly">Weekly</SelectItem>
+                          <SelectItem value="monthly">Monthly</SelectItem>
+                          <SelectItem value="festival">Festival</SelectItem>
+                          <SelectItem value="special">Special</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={editForm.control}
+                  name="branchId"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Branch</FormLabel>
+                      <Select onValueChange={(v) => field.onChange(Number(v))} value={String(field.value)}>
+                        <FormControl><SelectTrigger><SelectValue /></SelectTrigger></FormControl>
+                        <SelectContent>
+                          {branches.map((b) => (
+                            <SelectItem key={b.id} value={String(b.id)}>{b.name}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <FormField
+                  control={editForm.control}
+                  name="installmentAmount"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Installment Amount (₹)</FormLabel>
+                      <FormControl><Input type="number" {...field} /></FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={editForm.control}
+                  name="memberLimit"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Member Limit</FormLabel>
+                      <FormControl><Input type="number" {...field} /></FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
+
+              <Button type="submit" className="w-full">Save Changes</Button>
+            </form>
+          </Form>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
