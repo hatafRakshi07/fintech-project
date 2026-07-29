@@ -72,6 +72,129 @@ router.get("/customers", async (req, res) => {
   }
 });
 
+router.get("/customers/:id/history", async (req, res): Promise<void> => {
+  try {
+    const customerId = parseInt(req.params.id, 10);
+    if (isNaN(customerId)) {
+      res.status(400).json({ success: false, error: "Invalid customer ID" });
+      return;
+    }
+
+    // 1. Get summary counts (excluding loan/interest counts per user request)
+    const collectionsRes = await pool.query(
+      "SELECT COALESCE(SUM(amount), 0)::float as total_paid, COUNT(*)::int as total_collections FROM collections WHERE customer_id = $1",
+      [customerId]
+    );
+    const totalPaid = collectionsRes.rows[0].total_paid;
+    const totalCollections = collectionsRes.rows[0].total_collections;
+
+    const membershipsCountRes = await pool.query(
+      "SELECT COUNT(*)::int as count FROM committee_members WHERE customer_id = $1",
+      [customerId]
+    );
+    const committeesJoined = membershipsCountRes.rows[0].count;
+
+    const tokensCountRes = await pool.query(
+      "SELECT COUNT(*)::int as count FROM tokens WHERE customer_id = $1",
+      [customerId]
+    );
+    const totalTokens = tokensCountRes.rows[0].count;
+
+    const giftsCountRes = await pool.query(
+      "SELECT COUNT(*)::int as count FROM gift_distributions WHERE customer_id = $1",
+      [customerId]
+    );
+    const totalGifts = giftsCountRes.rows[0].count;
+
+    const summary = {
+      totalPaid,
+      totalCollections,
+      committeesJoined,
+      totalTokens,
+      totalGifts,
+      totalLoans: 0,
+      totalLoanAmount: 0
+    };
+
+    // 2. Get memberships and their tokens
+    const membershipsRes = await pool.query(
+      `SELECT 
+        cm.committee_id as "committeeId", 
+        c.name as "committeeName", 
+        c.type::text as "type", 
+        c.installment_amount::float as "installment"
+      FROM committee_members cm
+      JOIN committees c ON cm.committee_id = c.id
+      WHERE cm.customer_id = $1`,
+      [customerId]
+    );
+    
+    const memberships = [];
+    for (const row of membershipsRes.rows) {
+      const tokensRes = await pool.query(
+        "SELECT token_number FROM tokens WHERE customer_id = $1 AND committee_id = $2",
+        [customerId, row.committeeId]
+      );
+      memberships.push({
+        ...row,
+        tokens: tokensRes.rows.map(r => r.token_number)
+      });
+    }
+
+    // 3. Get tokens
+    const tokensRes = await pool.query(
+      "SELECT id, token_number as \"tokenNumber\", status::text FROM tokens WHERE customer_id = $1",
+      [customerId]
+    );
+    const tokens = tokensRes.rows;
+
+    // 4. Get collections
+    const collectionsQueryRes = await pool.query(
+      `SELECT 
+        id, 
+        amount::float, 
+        collected_at as "date", 
+        payment_mode::text as "paymentMode", 
+        notes 
+      FROM collections 
+      WHERE customer_id = $1 
+      ORDER BY collected_at DESC`,
+      [customerId]
+    );
+    const collections = collectionsQueryRes.rows;
+
+    // 5. Get gifts
+    const giftsRes = await pool.query(
+      `SELECT 
+        gd.id, 
+        gi.name as "giftName", 
+        gd.quantity, 
+        gd.distribution_date as "date", 
+        gd.status::text 
+      FROM gift_distributions gd
+      LEFT JOIN gift_inventory gi ON gd.gift_id = gi.id
+      WHERE gd.customer_id = $1`,
+      [customerId]
+    );
+    const gifts = giftsRes.rows;
+
+    res.json({
+      success: true,
+      summary,
+      memberships,
+      tokens,
+      collections,
+      loans: [],
+      gifts,
+      interestAccounts: [],
+      recoveryTasks: []
+    });
+  } catch (err: any) {
+    console.error("Failed to fetch customer history:", err);
+    res.status(500).json({ success: false, error: "Failed to fetch customer history: " + err.message });
+  }
+});
+
 router.get("/committees", async (req, res) => {
   try {
     const result = await pool.query("SELECT id, name, installment_amount, member_limit, status FROM committees");

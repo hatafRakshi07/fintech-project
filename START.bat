@@ -6,8 +6,13 @@ echo.
 
 REM Step 1: Check & Start Docker / PostgreSQL
 echo [1/4] Checking PostgreSQL Database Service...
+set DOCKER_RUNNING=0
 docker ps >nul 2>&1
 if %errorlevel%==0 (
+    set DOCKER_RUNNING=1
+)
+
+if "%DOCKER_RUNNING%"=="1" (
     echo   [OK] Docker Daemon is running!
     docker start bissi-postgres >nul 2>&1
     if %errorlevel% neq 0 (
@@ -20,13 +25,17 @@ if %errorlevel%==0 (
     )
     echo   [OK] PostgreSQL Database ready on port 5432!
 ) else (
-    echo   [NOTICE] Docker Desktop is not running. API Server will use PGLite / local DB fallback.
+    echo   [NOTICE] Docker Desktop is not running. API Server will use the cloud DB configured in its .env file.
 )
 
 REM Step 2: Start API Server (Port 5001)
 echo.
 echo [2/4] Starting API Server on Port 5001...
-set DATABASE_URL=postgres://postgres:postgres123@localhost:5432/bissi_db
+if "%DOCKER_RUNNING%"=="1" (
+    set DATABASE_URL=postgres://postgres:postgres123@localhost:5432/bissi_db
+) else (
+    set DATABASE_URL=
+)
 set PORT=5001
 start "Fintech API Server (Port 5001)" cmd /k "cd /d "%~dp0artifacts\api-server" && pnpm run dev"
 
