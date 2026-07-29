@@ -63,11 +63,11 @@ function isUrl(input: RequestInfo | URL): input is URL {
 function applyBaseUrl(input: RequestInfo | URL): RequestInfo | URL {
   if (!_baseUrl) return input;
   const url = resolveUrl(input);
-  // Only prepend to relative paths (starting with /)
-  if (!url.startsWith("/")) return input;
+  if (/^https?:\/\//i.test(url)) return input;
   if (url.startsWith(_baseUrl)) return input;
 
-  const absolute = `${_baseUrl}${url}`;
+  const normalizedPath = url.startsWith("/") ? url : `/${url}`;
+  const absolute = `${_baseUrl}${normalizedPath}`;
   if (typeof input === "string") return absolute;
   if (isUrl(input)) return new URL(absolute);
   return new Request(absolute, input as Request);

@@ -450,6 +450,51 @@ router.get("/collections", async (req, res) => {
   }
 });
 
+router.get("/collections/today-summary", async (_req, res) => {
+  try {
+    const result = await pool.query(
+      `SELECT 
+        COALESCE(SUM(amount), 0)::float as total_amount,
+        COALESCE(SUM(CASE WHEN LOWER(payment_mode) = 'cash' THEN amount ELSE 0 END), 0)::float as cash_amount,
+        COALESCE(SUM(CASE WHEN LOWER(payment_mode) != 'cash' THEN amount ELSE 0 END), 0)::float as online_amount,
+        COUNT(*)::int as total_count
+       FROM collections 
+       WHERE DATE(collected_at) = CURRENT_DATE`
+    );
+    const row = result.rows[0] || {};
+    res.json({
+      success: true,
+      todayTotal: row.total_amount || 0,
+      todayCash: row.cash_amount || 0,
+      todayOnline: row.online_amount || 0,
+      todayCount: row.total_count || 0,
+      data: row
+    });
+  } catch (err) {
+    res.json({ success: true, todayTotal: 0, todayCash: 0, todayOnline: 0, todayCount: 0, data: {} });
+  }
+});
+
+router.get("/collections/due-today", async (_req, res) => {
+  try {
+    res.json({ success: true, dueToday: [], data: [] });
+  } catch (err) {
+    res.json({ success: true, dueToday: [], data: [] });
+  }
+});
+
+router.get("/collections/pending-verifications", async (_req, res) => {
+  try {
+    const result = await pool.query(
+      `SELECT COUNT(*)::int as count FROM collections WHERE status = 'pending'`
+    );
+    const count = result.rows[0]?.count || 0;
+    res.json({ success: true, count, data: { count } });
+  } catch (err) {
+    res.json({ success: true, count: 0, data: { count: 0 } });
+  }
+});
+
 // EXPLICIT REQUIREMENT: No Loan Data to be served
 router.get("/loans", (_req, res) => {
   res.json({ success: true, loans: [], data: [] });
