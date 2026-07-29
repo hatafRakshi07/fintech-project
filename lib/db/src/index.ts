@@ -29,9 +29,13 @@ function getPool() {
       max: parseInt(process.env.DB_POOL_MAX ?? "10", 10),
       min: parseInt(process.env.DB_POOL_MIN ?? "1", 10),
       idleTimeoutMillis: 30_000,           // release idle clients after 30s
-      connectionTimeoutMillis: 10_000,     // fail fast if DB is unreachable
+      connectionTimeoutMillis: 15_000,     // fail fast if DB is unreachable
       keepAlive: true,
       keepAliveInitialDelayMillis: 10_000,
+      // Force IPv4 lookup to prevent Render IPv6 connection timeouts
+      lookup: (hostname: string, options: any, callback: any) => {
+        dns.lookup(hostname, { ...options, family: 4 }, callback);
+      },
       // SSL for cloud DBs (CockroachDB, Neon, Supabase, Render, Vercel, etc.)
       ...(process.env.DATABASE_SSL === "false" || url.includes("ssl=false") || url.includes("localhost") || url.includes("127.0.0.1")
         ? {}

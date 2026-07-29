@@ -212,7 +212,12 @@ router.get("/customers/:id/history", async (req, res): Promise<void> => {
 router.get("/customers/:id", async (req, res) => {
   try {
     const { id } = req.params;
-    const result = await pool.query("SELECT * FROM customers WHERE id = $1", [id]);
+    const customerId = parseInt(id, 10);
+    if (isNaN(customerId)) {
+      res.status(400).json({ success: false, error: "Invalid customer ID" });
+      return;
+    }
+    const result = await pool.query("SELECT * FROM customers WHERE id = $1", [customerId]);
     if (result.rows.length === 0) {
       res.status(404).json({ success: false, error: "Customer not found" });
       return;
@@ -329,9 +334,32 @@ router.get("/loans", (_req, res) => {
 
 router.get("/lotteries", async (req, res) => {
   try {
-    const result = await pool.query("SELECT * FROM lotteries ORDER BY id DESC LIMIT 50");
+    const result = await pool.query(`
+      SELECT 
+        l.id,
+        l.committee_id as "committeeId",
+        l.draw_date as "drawDate",
+        l.winner_id as "winnerId",
+        l.prize_amount as "prizeAmount",
+        l.status::text as "status",
+        l.notes,
+        l.reward_type as "rewardType",
+        l.cash_taken as "cashTaken",
+        l.created_at as "createdAt",
+        l.updated_at as "updatedAt",
+        c.name as "committeeName",
+        cust.name as "winnerName",
+        t.token_number as "winnerToken"
+      FROM lotteries l
+      LEFT JOIN committees c ON l.committee_id = c.id
+      LEFT JOIN customers cust ON l.winner_id = cust.id
+      LEFT JOIN tokens t ON l.winner_id = t.customer_id AND l.committee_id = t.committee_id
+      ORDER BY l.id DESC
+      LIMIT 100
+    `);
     res.json({ success: true, lotteries: result.rows, data: result.rows });
   } catch (err) {
+    console.error("Error fetching lotteries:", err);
     res.json({ success: true, lotteries: [], data: [] });
   }
 });
@@ -401,22 +429,42 @@ router.get("/dashboard/branch-summary", async (req, res) => {
 // Gifts & Interests
 router.get("/gifts/summary", async (req, res) => {
   try {
-    const [inv, dist] = await Promise.all([
-      pool.query("SELECT COUNT(*) FROM gift_inventory"),
-      pool.query("SELECT COUNT(*) FROM gift_distributions")
+    const [inv, dist, pending, cat] = await Promise.all([
+      pool.query("SELECT COUNT(*)::int as count FROM gift_inventory"),
+      pool.query("SELECT COUNT(*)::int as count FROM gift_distributions WHERE status = 'given'"),
+      pool.query("SELECT COUNT(*)::int as count FROM gift_distributions WHERE status = 'pending'"),
+      pool.query("SELECT COUNT(*)::int as count FROM gift_categories")
     ]);
     res.json({
-      totalInventoryItems: parseInt(inv.rows[0].count, 10),
-      totalDistributions: parseInt(dist.rows[0].count, 10)
+      totalItems: inv.rows[0].count,
+      totalDistributed: dist.rows[0].count,
+      pendingDistribution: pending.rows[0].count,
+      totalCategories: cat.rows[0].count
     });
   } catch (err) {
-    res.json({ totalInventoryItems: 1055, totalDistributions: 2608 });
+    res.json({ totalItems: 0, totalDistributed: 0, pendingDistribution: 0, totalCategories: 0 });
   }
 });
 
 router.get("/gifts/inventory", async (req, res) => {
   try {
-    const result = await pool.query("SELECT * FROM gift_inventory LIMIT 100");
+    const result = await pool.query(`
+      SELECT 
+        gi.id,
+        gi.category_id as "categoryId",
+        gi.name,
+        gi.description,
+        gi.estimated_value as "estimatedValue",
+        gi.quantity_total as "quantityTotal",
+        gi.quantity_available as "quantityAvailable",
+        gi.quantity_distributed as "quantityDistributed",
+        gi.status::text as "status",
+        gc.name as "categoryName"
+      FROM gift_inventory gi
+      LEFT JOIN gift_categories gc ON gi.category_id = gc.id
+      ORDER BY gi.id DESC
+      LIMIT 100
+    `);
     res.json(result.rows);
   } catch (err) {
     res.json([]);
@@ -425,7 +473,26 @@ router.get("/gifts/inventory", async (req, res) => {
 
 router.get("/gifts/distributions", async (req, res) => {
   try {
-    const result = await pool.query("SELECT * FROM gift_distributions LIMIT 100");
+    const result = await pool.query(`
+      SELECT 
+        gd.id,
+        gd.gift_id as "giftId",
+        gd.customer_id as "customerId",
+        gd.quantity,
+        gd.distribution_date as "distributionDate",
+        gd.status::text as "status",
+        gd.notes,
+        gd.is_returned as "isReturned",
+        gd.return_date as "returnDate",
+        gd.return_notes as "returnNotes",
+        gi.name as "giftName",
+        c.name as "customerName"
+      FROM gift_distributions gd
+      LEFT JOIN gift_inventory gi ON gd.gift_id = gi.id
+      LEFT JOIN customers c ON gd.customer_id = c.id
+      ORDER BY gd.id DESC
+      LIMIT 100
+    `);
     res.json(result.rows);
   } catch (err) {
     res.json([]);
@@ -434,7 +501,7 @@ router.get("/gifts/distributions", async (req, res) => {
 
 router.get("/gifts/categories", async (req, res) => {
   try {
-    const result = await pool.query("SELECT * FROM gift_categories");
+    const result = await pool.query("SELECT id, name, description, branch_id as \"branchId\" FROM gift_categories ORDER BY id DESC");
     res.json(result.rows);
   } catch (err) {
     res.json([]);
