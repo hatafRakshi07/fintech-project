@@ -32,10 +32,6 @@ function getPool() {
       connectionTimeoutMillis: 15_000,     // fail fast if DB is unreachable
       keepAlive: true,
       keepAliveInitialDelayMillis: 10_000,
-      // Force IPv4 lookup to prevent Render IPv6 connection timeouts
-      lookup: (hostname: string, options: any, callback: any) => {
-        dns.lookup(hostname, { ...options, family: 4 }, callback);
-      },
       // SSL for cloud DBs (CockroachDB, Neon, Supabase, Render, Vercel, etc.)
       ...(process.env.DATABASE_SSL === "false" || url.includes("ssl=false") || url.includes("localhost") || url.includes("127.0.0.1")
         ? {}

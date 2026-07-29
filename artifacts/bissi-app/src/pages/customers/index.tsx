@@ -239,9 +239,7 @@ export default function CustomersPage() {
           </Table>
           
           <div className="p-4 border-t flex items-center justify-between">
-            <div className="text-sm text-muted-foreground">
-              Showing {(data?.page || 1) * (data?.limit || 10) - (data?.limit || 10) + 1} to Math.min((data?.page || 1) * (data?.limit || 10), data?.total || 0) of {data?.total || 0} entries
-            </div>
+              Showing {customersList.length > 0 ? (data?.page || 1) * (data?.limit || 10) - (data?.limit || 10) + 1 : 0} to {Math.min((data?.page || 1) * (data?.limit || 10), data?.total || 0)} of {data?.total || 0} entries
             <div className="flex gap-2">
               <Button 
                 variant="outline" 
