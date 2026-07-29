@@ -48,21 +48,17 @@ export default function CollectionsV2Page() {
   });
   const searchResults = safeArray(searchResultsRaw) as Customer[];
 
-  // Fetch Tokens when Customer selected
+  // Fetch Tokens strictly for Selected Customer and Selected Scheme
   const { data: tokensRaw, isLoading: loadingTokens } = useQuery<Token[]>({
     queryKey: ["v2-tokens", selectedCustomer?.id, selectedScheme?.id],
-    queryFn: () => api.get(`/v2/collector/tokens?customerId=${selectedCustomer?.id}${selectedScheme?.id ? `&schemeId=${selectedScheme.id}` : ''}`),
-    enabled: !!selectedCustomer,
+    queryFn: () => api.get(`/v2/collector/tokens?customerId=${selectedCustomer?.id}&schemeId=${selectedScheme?.id}`),
+    enabled: !!selectedCustomer && !!selectedScheme,
   });
   const tokens = safeArray(tokensRaw) as Token[];
 
-  // Initialize splits when tokens load and auto-select scheme if not set
+  // Initialize splits when tokens load
   useEffect(() => {
     if (tokens.length > 0) {
-      if (!selectedScheme && schemes.length > 0) {
-        const matchedScheme = schemes.find(s => s.id === tokens[0].schemeId);
-        if (matchedScheme) setSelectedScheme(matchedScheme);
-      }
       setTokenSplits(
         tokens.map(t => ({
           tokenId: t.tokenId,
@@ -74,7 +70,7 @@ export default function CollectionsV2Page() {
     } else {
       setTokenSplits([]);
     }
-  }, [tokens, schemes, selectedScheme]);
+  }, [tokens]);
 
   // Handle Auto Split
   useEffect(() => {
@@ -217,7 +213,7 @@ export default function CollectionsV2Page() {
         </div>
 
         {/* 3. Token Splitting */}
-        {selectedCustomer && (
+        {selectedCustomer && selectedScheme && (
           <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100">
             <h2 className="text-sm font-semibold text-gray-700 mb-3 flex items-center gap-2">
               <Landmark className="w-4 h-4 text-blue-500" />
