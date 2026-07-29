@@ -391,6 +391,8 @@ router.get("/collections", async (req, res) => {
   try {
     const limit = parseInt((req.query.limit as string) || "100", 10);
     const committeeIdQuery = req.query.committeeId;
+    const collectorIdQuery = req.query.collectorId;
+    
     let query = `
       SELECT col.id, col.amount, col.payment_mode, col.notes, col.collected_at as "created_at",
              cust.name as customer_name, cust.mobile as customer_mobile
@@ -398,13 +400,31 @@ router.get("/collections", async (req, res) => {
       LEFT JOIN customers cust ON cust.id = col.customer_id
     `;
     const params: any[] = [limit];
+    let paramCount = 1;
+    const conditions = [];
+
     if (committeeIdQuery) {
       const parsedCommId = parseInt(committeeIdQuery as string, 10);
       if (!isNaN(parsedCommId)) {
-        query += ` WHERE col.committee_id = $2`;
+        paramCount++;
+        conditions.push(`col.committee_id = $${paramCount}`);
         params.push(parsedCommId);
       }
     }
+
+    if (collectorIdQuery) {
+      const parsedCollId = parseInt(collectorIdQuery as string, 10);
+      if (!isNaN(parsedCollId)) {
+        paramCount++;
+        conditions.push(`col.collector_id = $${paramCount}`);
+        params.push(parsedCollId);
+      }
+    }
+
+    if (conditions.length > 0) {
+      query += ` WHERE ` + conditions.join(" AND ");
+    }
+
     query += ` ORDER BY col.id DESC LIMIT $1`;
 
     const result = await pool.query(query, params);

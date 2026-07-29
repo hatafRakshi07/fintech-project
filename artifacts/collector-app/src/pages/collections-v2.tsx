@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { api, fmt } from "@/lib/api";
+import { api, fmt, getStoredUser } from "@/lib/api";
 import { safeArray } from "@/lib/utils";
 import Header from "@/components/Header";
 import { Plus, CheckCircle2, Search, Target, Users, Landmark, FileImage } from "lucide-react";
@@ -18,6 +18,7 @@ type TokenSplit = {
 
 export default function CollectionsV2Page() {
   const qc = useQueryClient();
+  const user = getStoredUser();
   
   const [selectedScheme, setSelectedScheme] = useState<Scheme | null>(null);
   const [customerSearch, setCustomerSearch] = useState("");
@@ -124,7 +125,8 @@ export default function CollectionsV2Page() {
       customerId: selectedCustomer.id,
       paymentMode,
       screenshotUrl: paymentMode === "upi" ? screenshotUrl : undefined,
-      allocations
+      allocations,
+      collectorId: user?.id
     });
   };
 
