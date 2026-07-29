@@ -35,10 +35,14 @@ router.get("/customers/search", async (req, res) => {
       `SELECT DISTINCT c.id::text, c.name, c.mobile as "phone"
        FROM customers c
        LEFT JOIN tokens t ON c.id = t.customer_id
+       LEFT JOIN committee_members cm ON c.id = cm.customer_id
        WHERE c.name ILIKE $1 
           OR c.mobile ILIKE $1 
+          OR t.token_number ILIKE $1
+          OR cm.token_number ILIKE $1
           OR t.token_number = $2
-       LIMIT 20`,
+          OR cm.token_number = $2
+       LIMIT 30`,
       [searchStr, exactStr]
     );
 
