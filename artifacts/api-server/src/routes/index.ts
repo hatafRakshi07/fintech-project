@@ -863,6 +863,210 @@ router.use("/recovery", (_req, res) => {
   res.json({ success: true, data: [] });
 });
 
+// ==========================================
+// REAL AADHAAR KYC & NOTIFICATION SYSTEM
+// ==========================================
+
+// 1. Submit Aadhaar KYC (for Customers, Collectors, or Admins on behalf of a customer)
+router.post("/kyc/submit", async (req, res) => {
+  try {
+    const { customerId, userMobile, userName, userRole, aadhaarNumber, aadhaarFrontUrl, aadhaarBackUrl } = req.body;
+
+    let query = "";
+    let params: any[] = [];
+
+    if (customerId) {
+      const existing = await pool.query("SELECT id FROM kyc_verifications WHERE customer_id = $1 ORDER BY id DESC LIMIT 1", [customerId]);
+      if (existing.rows.length > 0) {
+        query = `
+          UPDATE kyc_verifications 
+          SET aadhaar_number = $1, aadhaar_front_url = $2, aadhaar_back_url = $3, status = 'pending', submitted_at = NOW()
+          WHERE id = $4 RETURNING *
+        `;
+        params = [aadhaarNumber, aadhaarFrontUrl, aadhaarBackUrl, existing.rows[0].id];
+      }
+    }
+
+    if (!query) {
+      query = `
+        INSERT INTO kyc_verifications (customer_id, user_role, user_name, user_mobile, aadhaar_number, aadhaar_front_url, aadhaar_back_url, status, submitted_at)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, 'pending', NOW())
+        RETURNING *
+      `;
+      params = [customerId || null, userRole || 'customer', userName || 'Customer', userMobile || '', aadhaarNumber, aadhaarFrontUrl, aadhaarBackUrl];
+    }
+
+    const result = await pool.query(query, params);
+    const kyc = result.rows[0];
+
+    // Create a real Notification for Admins
+    await pool.query(
+      `INSERT INTO notifications (user_id, title, message, type, entity_id, entity_type, is_read, created_at)
+       VALUES (1, 'New Aadhaar KYC Submission', $1, 'kyc', $2, 'kyc', false, NOW())`,
+      [`${userName || 'Customer'} (${userMobile || 'Aadhaar: ' + aadhaarNumber}) submitted Aadhaar card photo for KYC verification.`, kyc.id]
+    );
+
+    res.json({ success: true, message: "Aadhaar KYC submitted successfully for verification!", kyc, status: kyc.status });
+  } catch (err: any) {
+    console.error("Error submitting KYC:", err);
+    res.status(500).json({ success: false, error: "Failed to submit Aadhaar KYC: " + err.message });
+  }
+});
+
+// 2. Fetch Pending KYC submissions for Admin Review
+router.get("/kyc/pending", async (_req, res) => {
+  try {
+    const result = await pool.query(`
+      SELECT 
+        k.id,
+        k.user_id as "userId",
+        k.customer_id as "customerId",
+        k.user_role as "userRole",
+        k.user_name as "userName",
+        k.user_mobile as "userMobile",
+        k.aadhaar_number as "aadhaarNumber",
+        k.aadhaar_front_url as "aadhaarFrontUrl",
+        k.aadhaar_back_url as "aadhaarBackUrl",
+        k.status::text as "status",
+        k.rejection_reason as "rejectionReason",
+        k.submitted_at as "submittedAt"
+      FROM kyc_verifications k
+      ORDER BY k.id DESC
+    `);
+    
+    const mapped = result.rows.map(row => ({
+      userName: row.userName || `User #${row.userId || row.customerId}`,
+      kyc: row
+    }));
+
+    res.json({ success: true, data: mapped, pendingCount: mapped.filter(m => m.kyc.status === 'pending').length });
+  } catch (err: any) {
+    res.json({ success: true, data: [], pendingCount: 0 });
+  }
+});
+
+// 3. Admin Review (Approve/Reject) KYC
+router.post("/kyc/:id/review", async (req, res) => {
+  try {
+    const kycId = parseInt(req.params.id, 10);
+    const { action, reason } = req.body;
+    const status = action === "approve" ? "approved" : "rejected";
+
+    const result = await pool.query(`
+      UPDATE kyc_verifications 
+      SET status = $1, rejection_reason = $2, reviewed_at = NOW()
+      WHERE id = $3 RETURNING *
+    `, [status, reason || null, kycId]);
+
+    if (result.rows.length === 0) {
+      res.status(404).json({ success: false, error: "KYC submission record not found" });
+      return;
+    }
+
+    const updated = result.rows[0];
+
+    // Create Notification
+    await pool.query(
+      `INSERT INTO notifications (user_id, title, message, type, entity_id, entity_type, is_read, created_at)
+       VALUES ($1, $2, $3, 'kyc', $4, 'kyc', false, NOW())`,
+      [
+        updated.customer_id || updated.user_id || 1,
+        status === "approved" ? "Aadhaar KYC Approved 🎉" : "Aadhaar KYC Verification Rejected",
+        status === "approved" 
+          ? "Your Aadhaar Card KYC has been verified successfully!"
+          : `Your Aadhaar Card KYC was rejected. Reason: ${reason || "Invalid document"}`,
+        updated.id
+      ]
+    );
+
+    res.json({ success: true, message: `KYC ${status} successfully!`, kyc: updated });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: "Failed to review KYC: " + err.message });
+  }
+});
+
+// 4. KYC Status Lookup for Customer / Collector
+router.get("/kyc/me", async (req, res) => {
+  try {
+    const mobile = req.query.mobile as string;
+    const customerId = req.query.customerId as string;
+
+    let query = "SELECT * FROM kyc_verifications ORDER BY id DESC LIMIT 1";
+    let params: any[] = [];
+
+    if (customerId) {
+      query = "SELECT * FROM kyc_verifications WHERE customer_id = $1 ORDER BY id DESC LIMIT 1";
+      params = [parseInt(customerId, 10)];
+    } else if (mobile) {
+      query = "SELECT * FROM kyc_verifications WHERE user_mobile = $1 ORDER BY id DESC LIMIT 1";
+      params = [mobile];
+    }
+
+    const result = await pool.query(query, params);
+    if (result.rows.length === 0) {
+      res.json({ success: true, status: "not_submitted", kyc: null });
+      return;
+    }
+
+    const r = result.rows[0];
+    res.json({
+      success: true,
+      status: r.status,
+      kyc: {
+        id: r.id,
+        aadhaarNumber: r.aadhaar_number,
+        aadhaarFrontUrl: r.aadhaar_front_url,
+        aadhaarBackUrl: r.aadhaar_back_url,
+        status: r.status,
+        rejectionReason: r.rejection_reason,
+        submittedAt: r.submitted_at
+      }
+    });
+  } catch (err) {
+    res.json({ success: true, status: "not_submitted", kyc: null });
+  }
+});
+
+// 5. Notifications API (Used across all panels)
+router.get("/notifications", async (req, res) => {
+  try {
+    const result = await pool.query(`
+      SELECT 
+        id,
+        user_id as "userId",
+        title,
+        message,
+        type,
+        is_read as "isRead",
+        created_at as "createdAt"
+      FROM notifications
+      ORDER BY id DESC
+      LIMIT 50
+    `);
+    res.json({ success: true, notifications: result.rows, data: result.rows });
+  } catch (err) {
+    res.json({ success: true, notifications: [], data: [] });
+  }
+});
+
+router.get("/notifications/unread-count", async (req, res) => {
+  try {
+    const result = await pool.query("SELECT COUNT(*)::int as count FROM notifications WHERE is_read = false");
+    res.json({ success: true, count: result.rows[0]?.count || 0 });
+  } catch (err) {
+    res.json({ success: true, count: 0 });
+  }
+});
+
+router.post("/notifications/mark-read", async (req, res) => {
+  try {
+    await pool.query("UPDATE notifications SET is_read = true WHERE is_read = false");
+    res.json({ success: true, message: "All notifications marked as read" });
+  } catch (err) {
+    res.json({ success: true });
+  }
+});
+
 // ---------------------------------------------------------------------------
 // Authenticated Session Endpoints
 // ---------------------------------------------------------------------------

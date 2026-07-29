@@ -8,6 +8,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Separator } from "@/components/ui/separator";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import { KycSubmissionForm } from "@/components/kyc/KycSubmissionForm";
 import {
   Table,
   TableBody,
@@ -327,21 +328,24 @@ export default function CustomerPortalPage() {
 
           {/* Main Financial Tabs */}
           <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-            <TabsList className="grid w-full grid-cols-2 md:grid-cols-5 h-12 bg-muted/60 p-1">
-              <TabsTrigger value="overview" className="text-xs sm:text-sm font-semibold gap-1.5">
-                <Ticket className="h-4 w-4" /> My Bissi Schemes
+            <TabsList className="grid w-full grid-cols-3 sm:grid-cols-6 h-12 bg-muted/60 p-1">
+              <TabsTrigger value="overview" className="text-xs sm:text-sm font-semibold gap-1">
+                <Ticket className="h-4 w-4" /> Schemes
               </TabsTrigger>
-              <TabsTrigger value="passbook" className="text-xs sm:text-sm font-semibold gap-1.5">
-                <FileSpreadsheet className="h-4 w-4" /> Payment Receipts
+              <TabsTrigger value="passbook" className="text-xs sm:text-sm font-semibold gap-1">
+                <FileSpreadsheet className="h-4 w-4" /> Receipts
               </TabsTrigger>
-              <TabsTrigger value="loans" className="text-xs sm:text-sm font-semibold gap-1.5">
-                <Wallet className="h-4 w-4" /> Loan Details
+              <TabsTrigger value="kyc" className="text-xs sm:text-sm font-semibold gap-1">
+                <ShieldCheck className="h-4 w-4 text-amber-500" /> Aadhaar KYC
               </TabsTrigger>
-              <TabsTrigger value="gifts" className="text-xs sm:text-sm font-semibold gap-1.5">
-                <Gift className="h-4 w-4" /> Gifts & Rewards
+              <TabsTrigger value="loans" className="text-xs sm:text-sm font-semibold gap-1">
+                <Wallet className="h-4 w-4" /> Loans
               </TabsTrigger>
-              <TabsTrigger value="profile" className="text-xs sm:text-sm font-semibold gap-1.5">
-                <User className="h-4 w-4" /> Profile Info
+              <TabsTrigger value="gifts" className="text-xs sm:text-sm font-semibold gap-1">
+                <Gift className="h-4 w-4" /> Gifts
+              </TabsTrigger>
+              <TabsTrigger value="profile" className="text-xs sm:text-sm font-semibold gap-1">
+                <User className="h-4 w-4" /> Profile
               </TabsTrigger>
             </TabsList>
 
@@ -503,6 +507,15 @@ export default function CustomerPortalPage() {
                   )}
                 </CardContent>
               </Card>
+            </TabsContent>
+
+            {/* 3. Aadhaar KYC Verification */}
+            <TabsContent value="kyc" className="mt-6">
+              <KycSubmissionForm
+                customerId={customer.id}
+                userName={customer.name || authCustomer.name}
+                userMobile={customer.mobile || authCustomer.mobile}
+              />
             </TabsContent>
 
             {/* 4. Gifts */}

@@ -181,6 +181,11 @@ function CustomerDetail({ customer, onBack }: { customer: Customer; onBack: () =
               <InfoRow icon={<MapPin size={15} />} value={customer.address + (customer.city ? `, ${customer.city}` : "")} />
             )}
           </div>
+
+          {/* Collector Action: Submit Customer Aadhaar KYC */}
+          <div className="pt-2">
+            <CustomerKycModal customer={customer} />
+          </div>
         </div>
 
         {/* Recent collections */}
@@ -234,5 +239,151 @@ function InfoRow({ icon, value }: { icon: React.ReactNode; value: string }) {
       <span className="text-amber-500 dark:text-amber-400 mt-0.5 shrink-0">{icon}</span>
       <span>{value}</span>
     </div>
+  );
+}
+
+function CustomerKycModal({ customer }: { customer: Customer }) {
+  const [open, setOpen] = useState(false);
+  const [aadhaarNumber, setAadhaarNumber] = useState("");
+  const [aadhaarFrontUrl, setAadhaarFrontUrl] = useState("");
+  const [aadhaarBackUrl, setAadhaarBackUrl] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [msg, setMsg] = useState("");
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>, side: "front" | "back") => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const base64 = event.target?.result as string;
+      if (side === "front") setAadhaarFrontUrl(base64);
+      else setAadhaarBackUrl(base64);
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleSubmit = async () => {
+    if (!aadhaarNumber || aadhaarNumber.replace(/\D/g, "").length < 12) {
+      setMsg("Please enter a valid 12-digit Aadhaar Card number");
+      return;
+    }
+    if (!aadhaarFrontUrl || !aadhaarBackUrl) {
+      setMsg("Please upload both Aadhaar Front & Back photos");
+      return;
+    }
+
+    setLoading(true);
+    setMsg("");
+    try {
+      const res = await fetch("/api/kyc/submit", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          customerId: customer.id,
+          userName: customer.name,
+          userMobile: customer.mobile,
+          userRole: "customer",
+          aadhaarNumber,
+          aadhaarFrontUrl,
+          aadhaarBackUrl,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "KYC submission failed");
+      setMsg("Customer Aadhaar KYC submitted successfully for approval!");
+      setTimeout(() => { setOpen(false); setMsg(""); }, 1800);
+    } catch (err: any) {
+      setMsg(`Error: ${err.message}`);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <>
+      <button
+        onClick={() => setOpen(true)}
+        className="w-full py-2.5 px-4 bg-amber-500/10 hover:bg-amber-500/20 text-amber-600 dark:text-amber-400 border border-amber-500/30 rounded-xl text-xs font-bold flex items-center justify-center gap-2 transition-all"
+      >
+        🆔 Upload Customer Aadhaar KYC Photo
+      </button>
+
+      {open && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-card border border-border rounded-2xl p-5 w-full max-w-md space-y-4 shadow-2xl animate-in fade-in zoom-in-95">
+            <div className="flex items-center justify-between border-b pb-3">
+              <h3 className="font-bold text-foreground text-sm">Customer Aadhaar KYC ({customer.name})</h3>
+              <button onClick={() => setOpen(false)} className="text-slate-400 hover:text-foreground">
+                <X size={18} />
+              </button>
+            </div>
+
+            {msg && (
+              <div className="p-3 bg-amber-500/10 border border-amber-500/30 text-amber-600 dark:text-amber-400 rounded-xl text-xs font-medium">
+                {msg}
+              </div>
+            )}
+
+            <div>
+              <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">
+                Aadhaar Card Number (12 digits)
+              </label>
+              <input
+                className="w-full px-3 h-10 bg-slate-100 dark:bg-slate-800 border border-border rounded-lg text-sm font-mono focus:outline-none focus:border-amber-500"
+                placeholder="1234 5678 9012"
+                maxLength={14}
+                value={aadhaarNumber}
+                onChange={(e) => setAadhaarNumber(e.target.value)}
+              />
+            </div>
+
+            <div className="space-y-2">
+              <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
+                Aadhaar Photos (Front & Back)
+              </label>
+
+              <div className="grid grid-cols-2 gap-3">
+                <label className="cursor-pointer border border-dashed border-amber-500/30 rounded-xl p-3 flex flex-col items-center justify-center text-center bg-slate-100 dark:bg-slate-800/40 hover:border-amber-500">
+                  {aadhaarFrontUrl ? (
+                    <img src={aadhaarFrontUrl} alt="Front" className="max-h-20 object-contain rounded" />
+                  ) : (
+                    <>
+                      <span className="text-xs font-bold text-amber-500">Front Photo</span>
+                      <span className="text-[9px] text-slate-400">Take/Upload</span>
+                    </>
+                  )}
+                  <input type="file" accept="image/*" capture="environment" className="hidden" onChange={(e) => handleFileChange(e, "front")} />
+                </label>
+
+                <label className="cursor-pointer border border-dashed border-amber-500/30 rounded-xl p-3 flex flex-col items-center justify-center text-center bg-slate-100 dark:bg-slate-800/40 hover:border-amber-500">
+                  {aadhaarBackUrl ? (
+                    <img src={aadhaarBackUrl} alt="Back" className="max-h-20 object-contain rounded" />
+                  ) : (
+                    <>
+                      <span className="text-xs font-bold text-amber-500">Back Photo</span>
+                      <span className="text-[9px] text-slate-400">Take/Upload</span>
+                    </>
+                  )}
+                  <input type="file" accept="image/*" capture="environment" className="hidden" onChange={(e) => handleFileChange(e, "back")} />
+                </label>
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-2 pt-2 border-t">
+              <button onClick={() => setOpen(false)} className="px-4 py-2 text-xs font-semibold text-slate-400 hover:text-foreground">
+                Cancel
+              </button>
+              <button
+                onClick={handleSubmit}
+                disabled={loading}
+                className="px-4 py-2 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold rounded-xl text-xs"
+              >
+                {loading ? "Submitting..." : "Submit Customer KYC"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
   );
 }

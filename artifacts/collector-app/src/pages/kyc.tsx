@@ -1,14 +1,14 @@
 import React, { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { getStoredToken } from "@/lib/api";
-import { ShieldCheck, CreditCard, Building2, CheckCircle2, Clock } from "lucide-react";
+import { ShieldCheck, CheckCircle2, Clock, Camera, Upload, Image as ImageIcon } from "lucide-react";
 import Header from "@/components/Header";
 
 export default function CollectorKycPage() {
   const queryClient = useQueryClient();
   const token = getStoredToken();
 
-  const { data, isLoading } = useQuery({
+  const { data } = useQuery({
     queryKey: ["collector-kyc"],
     queryFn: async () => {
       const res = await fetch("/api/kyc/me", {
@@ -23,19 +23,39 @@ export default function CollectorKycPage() {
   const status = data?.status || "not_submitted";
 
   const [aadhaarNumber, setAadhaarNumber] = useState(kyc?.aadhaarNumber || "");
-  const [panNumber, setPanNumber] = useState(kyc?.panNumber || "");
-  const [bankAccountNo, setBankAccountNo] = useState(kyc?.bankAccountNo || "");
-  const [bankIfsc, setBankIfsc] = useState(kyc?.bankIfsc || "");
-  const [bankName, setBankName] = useState(kyc?.bankName || "");
-  const [aadhaarFrontUrl] = useState(kyc?.aadhaarFrontUrl || "");
-  const [aadhaarBackUrl] = useState(kyc?.aadhaarBackUrl || "");
-  const [panCardUrl] = useState(kyc?.panCardUrl || "");
-  const [selfieUrl] = useState(kyc?.selfieUrl || "");
-
+  const [aadhaarFrontUrl, setAadhaarFrontUrl] = useState(kyc?.aadhaarFrontUrl || "");
+  const [aadhaarBackUrl, setAadhaarBackUrl] = useState(kyc?.aadhaarBackUrl || "");
   const [message, setMessage] = useState("");
+
+  React.useEffect(() => {
+    if (kyc) {
+      setAadhaarNumber(kyc.aadhaarNumber || "");
+      setAadhaarFrontUrl(kyc.aadhaarFrontUrl || "");
+      setAadhaarBackUrl(kyc.aadhaarBackUrl || "");
+    }
+  }, [kyc]);
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>, side: "front" | "back") => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const base64 = event.target?.result as string;
+      if (side === "front") setAadhaarFrontUrl(base64);
+      else setAadhaarBackUrl(base64);
+    };
+    reader.readAsDataURL(file);
+  };
 
   const submitMutation = useMutation({
     mutationFn: async () => {
+      if (!aadhaarNumber || aadhaarNumber.replace(/\D/g, "").length < 12) {
+        throw new Error("Enter valid 12-digit Aadhaar Card Number");
+      }
+      if (!aadhaarFrontUrl || !aadhaarBackUrl) {
+        throw new Error("Please upload both Aadhaar Front & Back photos");
+      }
+
       const res = await fetch("/api/kyc/submit", {
         method: "POST",
         headers: {
@@ -43,15 +63,11 @@ export default function CollectorKycPage() {
           ...(token ? { Authorization: `Bearer ${token}` } : {}),
         },
         body: JSON.stringify({
+          userRole: "collector",
+          userName: "Collector Staff",
           aadhaarNumber,
-          panNumber,
-          bankAccountNo,
-          bankIfsc,
-          bankName,
           aadhaarFrontUrl,
           aadhaarBackUrl,
-          panCardUrl,
-          selfieUrl,
         }),
       });
       if (!res.ok) {
@@ -61,7 +77,7 @@ export default function CollectorKycPage() {
       return res.json();
     },
     onSuccess: () => {
-      setMessage("KYC details submitted successfully! Pending admin approval.");
+      setMessage("Aadhaar KYC submitted successfully! Pending admin approval.");
       queryClient.invalidateQueries({ queryKey: ["collector-kyc"] });
     },
     onError: (err: any) => {
@@ -87,8 +103,8 @@ export default function CollectorKycPage() {
               <ShieldCheck className="w-6 h-6 text-amber-500 dark:text-amber-400" />
             </div>
             <div>
-              <h2 className="text-lg font-extrabold text-foreground dark:text-white">Collector KYC Verification</h2>
-              <p className="text-xs text-slate-500 dark:text-slate-400">Submit your identity & bank verification</p>
+              <h2 className="text-lg font-extrabold text-foreground dark:text-white">Collector Aadhaar KYC</h2>
+              <p className="text-xs text-slate-500 dark:text-slate-400">Upload Aadhaar card front & back photos</p>
             </div>
           </div>
         </div>
@@ -96,14 +112,14 @@ export default function CollectorKycPage() {
         {status === "approved" && (
           <div className="p-4 bg-emerald-500/10 text-emerald-400 rounded-xl border border-emerald-500/20 flex items-center gap-2.5 text-xs font-semibold">
             <CheckCircle2 className="w-5 h-5 text-emerald-400 shrink-0" />
-            Your Collector KYC is verified and active.
+            Collector Aadhaar KYC is verified and active.
           </div>
         )}
 
         {status === "pending" && (
           <div className="p-4 bg-amber-500/10 text-amber-400 rounded-xl border border-amber-500/20 flex items-center gap-2.5 text-xs font-semibold">
             <Clock className="w-5 h-5 text-amber-400 animate-pulse shrink-0" />
-            KYC application under review by office admins.
+            Aadhaar KYC application under review by office admins.
           </div>
         )}
 
@@ -115,7 +131,7 @@ export default function CollectorKycPage() {
 
         <div className="glass-card rounded-2xl p-5 space-y-4 bg-card">
           <h3 className="text-xs font-extrabold text-foreground dark:text-white flex items-center gap-2 border-b border-border dark:border-slate-700/40 pb-2.5 uppercase tracking-wider">
-            <CreditCard className="w-4 h-4 text-amber-500 dark:text-amber-400" /> Identity Details
+            <Camera className="w-4 h-4 text-amber-500 dark:text-amber-400" /> Aadhaar Verification
           </h3>
           
           <div>
@@ -123,72 +139,72 @@ export default function CollectorKycPage() {
               Aadhaar Number (12 digits)
             </label>
             <input
-              className="w-full px-3 h-10 bg-slate-100 dark:bg-slate-800/40 border border-border dark:border-slate-700/50 text-foreground dark:text-white rounded-lg text-sm focus:outline-none focus:border-amber-500/50 focus:ring-1 focus:ring-amber-500/30"
+              className="w-full px-3 h-10 bg-slate-100 dark:bg-slate-800/40 border border-border dark:border-slate-700/50 text-foreground dark:text-white rounded-lg text-sm font-mono focus:outline-none focus:border-amber-500/50 focus:ring-1 focus:ring-amber-500/30"
               placeholder="1234 5678 9012"
+              maxLength={14}
               value={aadhaarNumber}
+              disabled={status === "approved"}
               onChange={(e) => setAadhaarNumber(e.target.value)}
             />
           </div>
-          
-          <div>
-            <label className="text-[10px] font-bold text-slate-500 dark:text-slate-400 block mb-1.5 uppercase tracking-wider">
-              PAN Card Number
-            </label>
-            <input
-              className="w-full px-3 h-10 bg-slate-100 dark:bg-slate-800/40 border border-border dark:border-slate-700/50 text-foreground dark:text-white rounded-lg text-sm focus:outline-none focus:border-amber-500/50 focus:ring-1 focus:ring-amber-500/30"
-              placeholder="ABCDE1234F"
-              value={panNumber}
-              onChange={(e) => setPanNumber(e.target.value.toUpperCase())}
-            />
-          </div>
 
-          <h3 className="text-xs font-extrabold text-foreground dark:text-white flex items-center gap-2 border-b border-border dark:border-slate-700/40 pb-2.5 pt-2 uppercase tracking-wider">
-            <Building2 className="w-4 h-4 text-amber-500 dark:text-amber-400" /> Bank Details
-          </h3>
-          
-          <div>
-            <label className="text-[10px] font-bold text-slate-500 dark:text-slate-400 block mb-1.5 uppercase tracking-wider">
-              Bank Name
+          {/* Photo Pickers */}
+          <div className="space-y-3 pt-2">
+            <label className="text-[10px] font-bold text-slate-500 dark:text-slate-400 block uppercase tracking-wider">
+              Aadhaar Card Photos (Front & Back)
             </label>
-            <input
-              className="w-full px-3 h-10 bg-slate-100 dark:bg-slate-800/40 border border-border dark:border-slate-700/50 text-foreground dark:text-white rounded-lg text-sm focus:outline-none focus:border-amber-500/50 focus:ring-1 focus:ring-amber-500/30"
-              placeholder="State Bank of India"
-              value={bankName}
-              onChange={(e) => setBankName(e.target.value)}
-            />
-          </div>
-          
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="text-[10px] font-bold text-slate-500 dark:text-slate-400 block mb-1.5 uppercase tracking-wider">
-                Account No.
+            
+            <div className="grid grid-cols-2 gap-3">
+              {/* Front */}
+              <label className="cursor-pointer border border-dashed border-amber-500/30 rounded-xl p-3 flex flex-col items-center justify-center text-center bg-slate-100 dark:bg-slate-800/30 hover:border-amber-500/60 transition-all">
+                {aadhaarFrontUrl ? (
+                  <img src={aadhaarFrontUrl} alt="Front" className="max-h-24 object-contain rounded" />
+                ) : (
+                  <>
+                    <ImageIcon className="w-6 h-6 text-amber-500 mb-1" />
+                    <span className="text-[11px] font-bold text-foreground">Front Photo</span>
+                    <span className="text-[9px] text-slate-400">Tap to Take/Upload</span>
+                  </>
+                )}
+                <input
+                  type="file"
+                  accept="image/*"
+                  capture="environment"
+                  className="hidden"
+                  disabled={status === "approved"}
+                  onChange={(e) => handleFileChange(e, "front")}
+                />
               </label>
-              <input
-                className="w-full px-3 h-10 bg-slate-100 dark:bg-slate-800/40 border border-border dark:border-slate-700/50 text-foreground dark:text-white rounded-lg text-sm focus:outline-none focus:border-amber-500/50 focus:ring-1 focus:ring-amber-500/30"
-                placeholder="Account No."
-                value={bankAccountNo}
-                onChange={(e) => setBankAccountNo(e.target.value)}
-              />
-            </div>
-            <div>
-              <label className="text-[10px] font-bold text-slate-500 dark:text-slate-400 block mb-1.5 uppercase tracking-wider">
-                IFSC Code
+
+              {/* Back */}
+              <label className="cursor-pointer border border-dashed border-amber-500/30 rounded-xl p-3 flex flex-col items-center justify-center text-center bg-slate-100 dark:bg-slate-800/30 hover:border-amber-500/60 transition-all">
+                {aadhaarBackUrl ? (
+                  <img src={aadhaarBackUrl} alt="Back" className="max-h-24 object-contain rounded" />
+                ) : (
+                  <>
+                    <ImageIcon className="w-6 h-6 text-amber-500 mb-1" />
+                    <span className="text-[11px] font-bold text-foreground">Back Photo</span>
+                    <span className="text-[9px] text-slate-400">Tap to Take/Upload</span>
+                  </>
+                )}
+                <input
+                  type="file"
+                  accept="image/*"
+                  capture="environment"
+                  className="hidden"
+                  disabled={status === "approved"}
+                  onChange={(e) => handleFileChange(e, "back")}
+                />
               </label>
-              <input
-                className="w-full px-3 h-10 bg-slate-100 dark:bg-slate-800/40 border border-border dark:border-slate-700/50 text-foreground dark:text-white rounded-lg text-sm focus:outline-none focus:border-amber-500/50 focus:ring-1 focus:ring-amber-500/30"
-                placeholder="SBIN0001234"
-                value={bankIfsc}
-                onChange={(e) => setBankIfsc(e.target.value.toUpperCase())}
-              />
             </div>
           </div>
 
           <button
             onClick={() => submitMutation.mutate()}
-            disabled={submitMutation.isPending}
-            className="w-full bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-550 text-slate-950 font-extrabold py-3 rounded-xl shadow-lg shadow-amber-500/20 text-xs transition-all active:scale-[0.98] mt-4"
+            disabled={submitMutation.isPending || status === "approved"}
+            className="w-full h-11 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-bold rounded-xl text-sm flex items-center justify-center gap-2 shadow-lg shadow-amber-500/20 active:scale-[0.98] transition-all disabled:opacity-50 mt-4"
           >
-            {submitMutation.isPending ? "Submitting..." : "Submit KYC Request"}
+            {submitMutation.isPending ? "Submitting..." : status === "approved" ? "Verified ✓" : "Submit Aadhaar KYC"}
           </button>
         </div>
       </div>
