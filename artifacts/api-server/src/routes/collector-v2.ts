@@ -22,7 +22,7 @@ router.get("/schemes", async (req, res) => {
 router.get("/customers/search", async (req, res) => {
   try {
     const { query } = req.query;
-    if (!query || String(query).length < 2) {
+    if (!query || String(query).length < 1) {
       res.json([]);
       return;
     }
