@@ -336,71 +336,13 @@ export default function LotteriesPage() {
         </Card>
       </div>
 
-      {/* Draw History Modal */}
-      <Dialog open={historyGroup !== null} onOpenChange={(o) => !o && setHistoryGroup(null)}>
-        <DialogContent className="max-w-3xl">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <Trophy className="h-5 w-5 text-amber-500" />
-              Draw History — {historyGroup?.commName}
-            </DialogTitle>
-          </DialogHeader>
-          <div className="max-h-[60vh] overflow-y-auto">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Date &amp; Time</TableHead>
-                  <TableHead>Winner</TableHead>
-                  <TableHead>Token #</TableHead>
-                  <TableHead className="text-right">Prize Amount</TableHead>
-                  <TableHead>Reward</TableHead>
-                  <TableHead className="text-center">Status</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {historyGroup?.draws.map((d: any) => (
-                  <TableRow key={d.id}>
-                    <TableCell className="font-medium text-xs">
-                      {new Date(d.drawDate).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })}
-                    </TableCell>
-                    <TableCell>
-                      {d.winnerName ? (
-                        <span className="flex items-center gap-1 text-emerald-600 font-bold text-xs">
-                          <Trophy className="h-3.5 w-3.5 text-amber-500" /> {d.winnerName}
-                        </span>
-                      ) : (
-                        <span className="text-muted-foreground italic text-xs">Pending Draw</span>
-                      )}
-                    </TableCell>
-                    <TableCell className="font-mono text-xs font-semibold">{d.winnerToken ?? "—"}</TableCell>
-                    <TableCell className="text-right text-xs font-medium">
-                      {d.prizeAmount ? formatCurrency(d.prizeAmount) : "—"}
-                    </TableCell>
-                    <TableCell className="text-xs">
-                      {d.rewardType === "cash" ? (
-                        <span className="inline-flex items-center gap-1 text-emerald-600 font-bold bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-300">
-                          <Banknote className="h-3.5 w-3.5" />
-                          {d.cashTaken ? formatCurrency(d.cashTaken) : "Cash ₹"}
-                        </span>
-                      ) : (
-                        <span className="inline-flex items-center gap-1 text-purple-600 font-bold bg-purple-500/10 px-2 py-0.5 rounded border border-purple-300">
-                          <Gift className="h-3.5 w-3.5 text-purple-600" />
-                          {d.notes?.includes("Winner Reward:")
-                            ? d.notes.replace("Winner Reward:", "").trim()
-                            : d.giftName || d.notes || "Gift Item"}
-                        </span>
-                      )}
-                    </TableCell>
-                    <TableCell className="text-center">
-                      <Badge variant={statusBadge[d.status] ?? "secondary"} className="text-[10px]">{d.status}</Badge>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </div>
-        </DialogContent>
-      </Dialog>
+      {/* Draw History Modal with Search, Sort & Filter */}
+      {historyGroup && (
+        <DrawHistoryModal
+          historyGroup={historyGroup}
+          onClose={() => setHistoryGroup(null)}
+        />
+      )}
 
       {/* Filter bar */}
       <div className="flex flex-row gap-4 flex-wrap items-center bg-card p-3 rounded-lg border border-border">
@@ -514,18 +456,10 @@ export default function LotteriesPage() {
                   <Button
                     size="sm"
                     variant="outline"
-                    className="h-8 text-xs font-semibold"
+                    className="h-8 text-xs font-semibold w-full"
                     onClick={() => setHistoryGroup({ commName, draws: commLotteries })}
                   >
                     📜 View Draw History ({commLotteries.length})
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    className="h-8 text-xs text-muted-foreground"
-                    onClick={() => firstLotteryId && setMembersLotteryId(firstLotteryId)}
-                  >
-                    <Users className="h-3.5 w-3.5 mr-1" /> Members
                   </Button>
                 </div>
               </Card>
@@ -534,6 +468,142 @@ export default function LotteriesPage() {
         </div>
       )}
     </div>
+  );
+}
+
+function DrawHistoryModal({ historyGroup, onClose }: { historyGroup: { commName: string; draws: any[] }; onClose: () => void }) {
+  const [search, setSearch] = useState("");
+  const [sortOrder, setSortOrder] = useState<"desc" | "asc">("desc");
+  const [statusFilter, setStatusFilter] = useState("all");
+
+  const filteredDraws = historyGroup.draws
+    .filter((d: any) => {
+      const matchSearch =
+        !search ||
+        (d.winnerName && d.winnerName.toLowerCase().includes(search.toLowerCase())) ||
+        (d.winnerToken && String(d.winnerToken).includes(search)) ||
+        (d.notes && d.notes.toLowerCase().includes(search.toLowerCase()));
+
+      const matchStatus = statusFilter === "all" || d.status === statusFilter;
+      return matchSearch && matchStatus;
+    })
+    .sort((a: any, b: any) => {
+      const timeA = new Date(a.drawDate).getTime();
+      const timeB = new Date(b.drawDate).getTime();
+      return sortOrder === "desc" ? timeB - timeA : timeA - timeB;
+    });
+
+  return (
+    <Dialog open={true} onOpenChange={(o) => !o && onClose()}>
+      <DialogContent className="max-w-4xl max-h-[90vh] flex flex-col">
+        <DialogHeader className="pb-2 border-b">
+          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 pr-6">
+            <DialogTitle className="flex items-center gap-2 text-lg font-bold">
+              <Trophy className="h-5 w-5 text-amber-500" />
+              Draw History — {historyGroup.commName}
+            </DialogTitle>
+            <Badge variant="outline" className="text-xs bg-amber-500/10 text-amber-600 border-amber-500/30">
+              {filteredDraws.length} / {historyGroup.draws.length} Draws Listed
+            </Badge>
+          </div>
+
+          {/* Interactive Search, Sort & Filter Toolbar */}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 pt-3">
+            <Input
+              placeholder="Search Winner Name, Token # or Gift..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="h-9 text-xs"
+            />
+
+            <select
+              value={sortOrder}
+              onChange={(e) => setSortOrder(e.target.value as "desc" | "asc")}
+              className="h-9 border border-input bg-background rounded-md px-2 text-xs font-semibold focus:outline-none"
+            >
+              <option value="desc">📅 Sort: Newest Date First</option>
+              <option value="asc">📅 Sort: Oldest Date First</option>
+            </select>
+
+            <select
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value)}
+              className="h-9 border border-input bg-background rounded-md px-2 text-xs font-semibold focus:outline-none"
+            >
+              <option value="all">🔍 Filter: All Statuses</option>
+              <option value="completed">🏆 Completed Winner Draws</option>
+              <option value="scheduled">⏳ Scheduled Draws</option>
+            </select>
+          </div>
+        </DialogHeader>
+
+        <div className="flex-1 overflow-y-auto min-h-[300px]">
+          {filteredDraws.length === 0 ? (
+            <div className="text-center py-12 text-sm text-muted-foreground">
+              No draw history records found matching your filters.
+            </div>
+          ) : (
+            <Table>
+              <TableHeader className="bg-muted/50 sticky top-0">
+                <TableRow>
+                  <TableHead>Date &amp; Time</TableHead>
+                  <TableHead>Winner</TableHead>
+                  <TableHead>Token #</TableHead>
+                  <TableHead className="text-right">Prize Amount</TableHead>
+                  <TableHead>Reward</TableHead>
+                  <TableHead className="text-center">Status</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {filteredDraws.map((d: any) => (
+                  <TableRow key={d.id} className="hover:bg-muted/30">
+                    <TableCell className="font-medium text-xs whitespace-nowrap">
+                      {new Date(d.drawDate).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })}
+                    </TableCell>
+                    <TableCell>
+                      {d.winnerName ? (
+                        <span className="flex items-center gap-1.5 text-emerald-600 font-bold text-xs">
+                          <Trophy className="h-3.5 w-3.5 text-amber-500 shrink-0" />
+                          {d.winnerName}
+                        </span>
+                      ) : (
+                        <span className="text-muted-foreground italic text-xs">Pending Draw</span>
+                      )}
+                    </TableCell>
+                    <TableCell className="font-mono text-xs font-bold text-primary">
+                      {d.winnerToken ? `#${d.winnerToken}` : "—"}
+                    </TableCell>
+                    <TableCell className="text-right text-xs font-mono font-bold text-emerald-600">
+                      {d.prizeAmount ? formatCurrency(d.prizeAmount) : "—"}
+                    </TableCell>
+                    <TableCell className="text-xs">
+                      {d.rewardType === "cash" ? (
+                        <span className="inline-flex items-center gap-1 text-emerald-600 font-bold bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-300">
+                          <Banknote className="h-3.5 w-3.5" />
+                          {d.cashTaken ? formatCurrency(d.cashTaken) : "Cash ₹3,000"}
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center gap-1 text-purple-600 font-bold bg-purple-500/10 px-2 py-0.5 rounded border border-purple-300">
+                          <Gift className="h-3.5 w-3.5 text-purple-600" />
+                          {d.notes?.includes("Winner Reward:")
+                            ? d.notes.replace("Winner Reward:", "").trim()
+                            : d.giftName || d.notes || "Gift Item"}
+                        </span>
+                      )}
+                    </TableCell>
+                    <TableCell className="text-center">
+                      <Badge variant={statusBadge[d.status] ?? "secondary"} className="text-[10px] uppercase">
+                        {d.status}
+                      </Badge>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          )}
+        </div>
+      </DialogContent>
+    </Dialog>
   );
 }
 
