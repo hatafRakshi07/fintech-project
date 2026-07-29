@@ -136,24 +136,20 @@ router.get("/customers/:id/history", async (req, res): Promise<void> => {
         cm.committee_id as "committeeId", 
         c.name as "committeeName", 
         c.type::text as "type", 
-        c.installment_amount::float as "installment"
+        c.installment_amount::float as "installment",
+        ARRAY_REMOVE(ARRAY_AGG(t.token_number), NULL) as "tokens"
       FROM committee_members cm
       JOIN committees c ON cm.committee_id = c.id
-      WHERE cm.customer_id = $1`,
+      LEFT JOIN tokens t ON cm.customer_id = t.customer_id AND cm.committee_id = t.committee_id
+      WHERE cm.customer_id = $1
+      GROUP BY cm.committee_id, c.name, c.type, c.installment_amount`,
       [customerId]
     );
     
-    const memberships = [];
-    for (const row of membershipsRes.rows) {
-      const tokensRes = await pool.query(
-        "SELECT token_number FROM tokens WHERE customer_id = $1 AND committee_id = $2",
-        [customerId, row.committeeId]
-      );
-      memberships.push({
-        ...row,
-        tokens: tokensRes.rows.map(r => r.token_number)
-      });
-    }
+    const memberships = membershipsRes.rows.map(r => ({
+      ...r,
+      tokens: r.tokens || []
+    }));
 
     // 3. Get tokens
     const tokensRes = await pool.query(
@@ -322,30 +318,26 @@ router.get("/committees/:id/members", async (req, res): Promise<void> => {
       return;
     }
 
-    const membersRes = await pool.query(`
+    const result = await pool.query(`
       SELECT 
         cm.id,
         cm.customer_id as "customerId",
         cm.status::text as "status",
         c.name as "customerName",
         c.reference_number as "customerReferenceNumber",
-        c.mobile as "customerMobile"
+        c.mobile as "customerMobile",
+        ARRAY_REMOVE(ARRAY_AGG(t.token_number), NULL) as "tokens"
       FROM committee_members cm
       LEFT JOIN customers c ON cm.customer_id = c.id
+      LEFT JOIN tokens t ON cm.customer_id = t.customer_id AND cm.committee_id = t.committee_id
       WHERE cm.committee_id = $1
+      GROUP BY cm.id, cm.customer_id, cm.status, c.name, c.reference_number, c.mobile
     `, [committeeId]);
 
-    const members = [];
-    for (const row of membersRes.rows) {
-      const tokensRes = await pool.query(
-        "SELECT token_number FROM tokens WHERE customer_id = $1 AND committee_id = $2",
-        [row.customerId, committeeId]
-      );
-      members.push({
-        ...row,
-        tokens: tokensRes.rows.map(r => r.token_number)
-      });
-    }
+    const members = result.rows.map(r => ({
+      ...r,
+      tokens: r.tokens || []
+    }));
 
     res.json(members);
   } catch (err: any) {
