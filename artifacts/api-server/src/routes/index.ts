@@ -225,7 +225,7 @@ router.get("/customers/:id", async (req, res) => {
       branchId: r.branch_id,
       branchName: "Shree Krishna Associate"
     };
-    res.json({ success: true, customer, data: customer });
+    res.json(customer);
   } catch (err) {
     res.status(500).json({ success: false, error: "Failed to fetch customer" });
   }
@@ -303,7 +303,7 @@ router.get("/committees/:id", async (req, res) => {
       currentMembers: currentMembers,
       branchName: r.branchName || "Shree Krishna Associate"
     };
-    res.json({ success: true, committee, data: committee });
+    res.json(committee);
   } catch (err: any) {
     console.error("Error fetching committee by id:", err);
     res.status(500).json({ success: false, error: "Failed to fetch committee", details: err?.message });
