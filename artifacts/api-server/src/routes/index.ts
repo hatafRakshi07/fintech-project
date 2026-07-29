@@ -419,25 +419,22 @@ router.get("/committees/:id/members", async (req, res): Promise<void> => {
     const result = await pool.query(`
       SELECT 
         cm.id,
+        cm.committee_id as "committeeId",
         cm.customer_id as "customerId",
+        cm.token_number as "tokenNumber",
         cm.status::text as "status",
         c.name as "customerName",
         c.reference_number as "customerReferenceNumber",
-        c.mobile as "customerMobile",
-        ARRAY_REMOVE(ARRAY_AGG(t.token_number), NULL) as "tokens"
+        c.mobile as "customerMobile"
       FROM committee_members cm
       LEFT JOIN customers c ON cm.customer_id = c.id
-      LEFT JOIN tokens t ON cm.customer_id = t.customer_id AND cm.committee_id = t.committee_id
       WHERE cm.committee_id = $1
-      GROUP BY cm.id, cm.customer_id, cm.status, c.name, c.reference_number, c.mobile
+      ORDER BY 
+        CASE WHEN cm.token_number ~ '^[0-9]+' THEN substring(cm.token_number from '^[0-9]+')::int ELSE 99999 END ASC,
+        cm.token_number ASC
     `, [committeeId]);
 
-    const members = result.rows.map(r => ({
-      ...r,
-      tokens: r.tokens || []
-    }));
-
-    res.json(members);
+    res.json(result.rows);
   } catch (err: any) {
     console.error("Error fetching committee members:", err);
     res.status(500).json({ success: false, error: "Failed to fetch committee members: " + err.message });
