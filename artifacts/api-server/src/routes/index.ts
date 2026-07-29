@@ -633,6 +633,22 @@ router.get("/loans", (_req, res) => {
 
 router.get("/lotteries", async (req, res) => {
   try {
+    const { committeeId, status } = req.query;
+    const whereClauses: string[] = [];
+    const params: any[] = [];
+    let paramIdx = 1;
+
+    if (committeeId && committeeId !== "all") {
+      whereClauses.push(`l.committee_id = $${paramIdx++}`);
+      params.push(parseInt(committeeId as string, 10));
+    }
+    if (status && status !== "all") {
+      whereClauses.push(`l.status::text = $${paramIdx++}`);
+      params.push(status);
+    }
+
+    const whereStr = whereClauses.length > 0 ? `WHERE ${whereClauses.join(" AND ")}` : "";
+
     const result = await pool.query(`
       SELECT 
         l.id,
@@ -653,9 +669,9 @@ router.get("/lotteries", async (req, res) => {
       LEFT JOIN committees c ON l.committee_id = c.id
       LEFT JOIN customers cust ON l.winner_id = cust.id
       LEFT JOIN tokens t ON l.winner_id = t.customer_id AND l.committee_id = t.committee_id
+      ${whereStr}
       ORDER BY l.id DESC
-      LIMIT 100
-    `);
+    `, params);
     res.json({ success: true, lotteries: result.rows, data: result.rows });
   } catch (err) {
     console.error("Error fetching lotteries:", err);
