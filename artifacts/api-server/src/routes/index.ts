@@ -518,76 +518,258 @@ router.get("/tokens", async (req, res) => {
   }
 });
 
+// ---------------------------------------------------------------------------
+// Real-Time Collections & Verification System
+// ---------------------------------------------------------------------------
+
 router.get("/collections", async (req, res) => {
   try {
     const limit = parseInt((req.query.limit as string) || "100", 10);
     const committeeIdQuery = req.query.committeeId;
     const collectorIdQuery = req.query.collectorId;
-    
+    const customerIdQuery = req.query.customerId;
+    const verificationStatusQuery = req.query.verificationStatus;
+    const dateQuery = req.query.date;
+
     let query = `
-      SELECT col.id, col.amount, col.payment_mode, col.notes, col.collected_at as "created_at",
-             cust.name as customer_name, cust.mobile as customer_mobile
+      SELECT 
+        col.id, 
+        col.customer_id as "customerId",
+        col.committee_id as "committeeId",
+        col.collector_id as "collectorId",
+        col.amount, 
+        col.payment_mode as "paymentMode", 
+        col.notes, 
+        col.receipt_number as "receiptNumber",
+        col.collected_at as "collectedAt",
+        col.collected_at as "created_at",
+        col.verification_status::text as "verificationStatus",
+        col.verification_notes as "verificationNotes",
+        col.billing_name as "billingName",
+        col.billing_phone as "billingPhone",
+        col.billing_address as "billingAddress",
+        col.billing_gstin as "billingGstin",
+        cust.name as "customerName", 
+        cust.mobile as "customerMobile",
+        cust.reference_number as "customerRef",
+        comm.name as "committeeName"
       FROM collections col
       LEFT JOIN customers cust ON cust.id = col.customer_id
+      LEFT JOIN committees comm ON comm.id = col.committee_id
     `;
-    const params: any[] = [limit];
-    let paramCount = 1;
-    const conditions = [];
 
-    if (committeeIdQuery) {
-      const parsedCommId = parseInt(committeeIdQuery as string, 10);
-      if (!isNaN(parsedCommId)) {
-        paramCount++;
-        conditions.push(`col.committee_id = $${paramCount}`);
-        params.push(parsedCommId);
+    const params: any[] = [];
+    const conditions: string[] = [];
+
+    if (committeeIdQuery && committeeIdQuery !== "all") {
+      const parsed = parseInt(committeeIdQuery as string, 10);
+      if (!isNaN(parsed)) {
+        params.push(parsed);
+        conditions.push(`col.committee_id = $${params.length}`);
       }
     }
 
-    if (collectorIdQuery) {
-      const parsedCollId = parseInt(collectorIdQuery as string, 10);
-      if (!isNaN(parsedCollId)) {
-        paramCount++;
-        conditions.push(`col.collector_id = $${paramCount}`);
-        params.push(parsedCollId);
+    if (collectorIdQuery && collectorIdQuery !== "all") {
+      const parsed = parseInt(collectorIdQuery as string, 10);
+      if (!isNaN(parsed)) {
+        params.push(parsed);
+        conditions.push(`col.collector_id = $${params.length}`);
       }
+    }
+
+    if (customerIdQuery && customerIdQuery !== "all") {
+      const parsed = parseInt(customerIdQuery as string, 10);
+      if (!isNaN(parsed)) {
+        params.push(parsed);
+        conditions.push(`col.customer_id = $${params.length}`);
+      }
+    }
+
+    if (verificationStatusQuery && verificationStatusQuery !== "all") {
+      params.push(verificationStatusQuery as string);
+      conditions.push(`col.verification_status::text = $${params.length}`);
+    }
+
+    if (dateQuery) {
+      params.push(dateQuery as string);
+      conditions.push(`col.collected_at::date = $${params.length}::date`);
     }
 
     if (conditions.length > 0) {
       query += ` WHERE ` + conditions.join(" AND ");
     }
 
-    query += ` ORDER BY col.id DESC LIMIT $1`;
+    params.push(limit);
+    query += ` ORDER BY col.id DESC LIMIT $${params.length}`;
 
     const result = await pool.query(query, params);
     const formatted = result.rows.map((r: any) => {
-      const dt = r.created_at || new Date().toISOString();
+      const dt = r.collectedAt || r.created_at || new Date().toISOString();
       return {
         ...r,
         amount: Number(r.amount),
-        paymentMode: r.payment_mode,
+        paymentMode: (r.paymentMode || 'cash').toLowerCase(),
+        verificationStatus: r.verificationStatus || 'verified',
         collectedAt: dt,
         paymentDate: dt,
+        createdAt: dt,
         date: dt,
-        created_at: dt,
-        receiptNumber: `REC-${r.id}`,
-        customerName: r.customer_name,
-        collectorName: "Admin Collector"
+        customerName: r.customerName || 'Bissi Member',
+        committeeName: r.committeeName || 'General Bissi'
       };
     });
-    res.json({ success: true, collections: formatted, data: formatted });
-  } catch (err) {
+
+    res.json(formatted);
+  } catch (err: any) {
     console.error("Error fetching collections:", err);
-    res.json({ success: true, collections: [], data: [] });
+    res.json([]);
   }
 });
+
+// Create Collection / Record Payment
+router.post("/collections", async (req, res) => {
+  try {
+    const { 
+      customerId, 
+      amount, 
+      paymentMode, 
+      collectorId, 
+      committeeId, 
+      loanId, 
+      notes, 
+      receiptNumber,
+      billingName,
+      billingPhone,
+      billingAddress,
+      billingGstin,
+      tokenAllocations
+    } = req.body;
+
+    if (!customerId || !amount) {
+      res.status(400).json({ success: false, error: "Customer ID and amount are required" });
+      return;
+    }
+
+    const cleanMode = (paymentMode || "cash").toString().toLowerCase();
+    const validMode = ["cash", "upi", "bank", "card"].includes(cleanMode) ? cleanMode : "cash";
+
+    // Handle token allocations if provided (multi-token payment split)
+    if (Array.isArray(tokenAllocations) && tokenAllocations.length > 0) {
+      const insertedRecords = [];
+      for (const alloc of tokenAllocations) {
+        const receiptNo = `REC-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
+        const query = `
+          INSERT INTO collections (
+            customer_id, collector_id, committee_id, loan_id, amount, payment_mode, receipt_number, notes, verification_status, collected_at, created_at
+          ) VALUES ($1, $2, $3, $4, $5, $6::payment_mode, $7, $8, 'verified'::collection_verification_status, NOW(), NOW())
+          RETURNING *
+        `;
+        const params = [
+          customerId,
+          collectorId || 1,
+          alloc.committeeId || committeeId || null,
+          loanId || null,
+          alloc.amount || amount,
+          validMode,
+          receiptNo,
+          alloc.notes || notes || "Token payment"
+        ];
+        const result = await pool.query(query, params);
+        insertedRecords.push(result.rows[0]);
+      }
+      res.json({ success: true, message: "Payment recorded successfully!", collections: insertedRecords, data: insertedRecords[0] });
+      return;
+    }
+
+    // Single collection insertion
+    const receiptNo = receiptNumber || `REC-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
+    const query = `
+      INSERT INTO collections (
+        customer_id, collector_id, committee_id, loan_id, amount, payment_mode, receipt_number, notes, 
+        billing_name, billing_phone, billing_address, billing_gstin, verification_status, collected_at, created_at
+      ) VALUES ($1, $2, $3, $4, $5, $6::payment_mode, $7, $8, $9, $10, $11, $12, 'verified'::collection_verification_status, NOW(), NOW())
+      RETURNING *
+    `;
+    const params = [
+      customerId,
+      collectorId || 1,
+      committeeId || null,
+      loanId || null,
+      amount,
+      validMode,
+      receiptNo,
+      notes || null,
+      billingName || null,
+      billingPhone || null,
+      billingAddress || null,
+      billingGstin || null
+    ];
+
+    const result = await pool.query(query, params);
+    const created = result.rows[0];
+
+    res.json({
+      success: true,
+      message: "Payment recorded successfully!",
+      collection: created,
+      data: created
+    });
+  } catch (err: any) {
+    console.error("Error recording collection:", err);
+    res.status(500).json({ success: false, error: "Failed to record collection: " + err.message });
+  }
+});
+
+// Verify / Reject Collection Receipt Endpoints
+const handleVerifyCollection = async (req: any, res: any) => {
+  try {
+    const { id } = req.params;
+    const collectionId = parseInt(id, 10);
+
+    const { verificationStatus, verification_status, status, verificationNotes, verification_notes, notes } = req.body;
+    const rawStatus = (verificationStatus || verification_status || status || "verified").toString().toLowerCase();
+    const cleanStatus = ["verified", "rejected", "pending"].includes(rawStatus) ? rawStatus : "verified";
+    const cleanNotes = verificationNotes || verification_notes || notes || null;
+
+    const result = await pool.query(`
+      UPDATE collections
+      SET verification_status = $1::collection_verification_status, 
+          verification_notes = $2,
+          verified_at = NOW()
+      WHERE id = $3
+      RETURNING *
+    `, [cleanStatus, cleanNotes, collectionId]);
+
+    if (result.rows.length === 0) {
+      res.status(404).json({ success: false, error: "Collection receipt record not found" });
+      return;
+    }
+
+    const updated = result.rows[0];
+    res.json({
+      success: true,
+      message: `Collection receipt marked as ${cleanStatus}!`,
+      collection: updated,
+      data: updated
+    });
+  } catch (err: any) {
+    console.error("Error verifying collection:", err);
+    res.status(500).json({ success: false, error: "Failed to update verification: " + err.message });
+  }
+};
+
+router.patch("/collections/:id/verify", handleVerifyCollection);
+router.post("/collections/:id/verify", handleVerifyCollection);
+router.put("/collections/:id/verify", handleVerifyCollection);
+router.post("/collections/:id/status", handleVerifyCollection);
 
 router.get("/collections/today-summary", async (_req, res) => {
   try {
     const result = await pool.query(
       `SELECT 
         COALESCE(SUM(amount), 0)::float as total_amount,
-        COALESCE(SUM(CASE WHEN LOWER(payment_mode) = 'cash' THEN amount ELSE 0 END), 0)::float as cash_amount,
-        COALESCE(SUM(CASE WHEN LOWER(payment_mode) != 'cash' THEN amount ELSE 0 END), 0)::float as online_amount,
+        COALESCE(SUM(CASE WHEN LOWER(payment_mode::text) = 'cash' THEN amount ELSE 0 END), 0)::float as cash_amount,
+        COALESCE(SUM(CASE WHEN LOWER(payment_mode::text) != 'cash' THEN amount ELSE 0 END), 0)::float as online_amount,
         COUNT(*)::int as total_count
        FROM collections 
        WHERE DATE(collected_at) = CURRENT_DATE`
@@ -617,7 +799,7 @@ router.get("/collections/due-today", async (_req, res) => {
 router.get("/collections/pending-verifications", async (_req, res) => {
   try {
     const result = await pool.query(
-      `SELECT COUNT(*)::int as count FROM collections WHERE status = 'pending'`
+      `SELECT COUNT(*)::int as count FROM collections WHERE verification_status::text = 'pending'`
     );
     const count = result.rows[0]?.count || 0;
     res.json({ success: true, count, data: { count } });
@@ -760,11 +942,7 @@ router.get("/dashboard/scheme-boxes", async (req, res) => {
         COALESCE(cm_sub.token_count, 0)::int as "tokenCount",
         COALESCE(col_sub.collected_amount, 0)::numeric as "collectedAmount",
         COALESCE(col_sub.collected_count, 0)::int as "collectedCount",
-        COALESCE(lot_sub.winners_count, 0)::int as "winnersCount",
-        latest_lot.latest_winner_name as "latestWinnerName",
-        latest_lot.latest_winner_token as "latestWinnerToken",
-        latest_lot.latest_reward as "latestReward",
-        latest_lot.latest_draw_date as "latestDrawDate"
+        COALESCE(lot_sub.winners_count, 0)::int as "winnersCount"
       FROM committees c
       LEFT JOIN (
         SELECT committee_id, COUNT(*)::int as token_count
@@ -782,19 +960,6 @@ router.get("/dashboard/scheme-boxes", async (req, res) => {
         WHERE status = 'completed' AND winner_id IS NOT NULL
         GROUP BY committee_id
       ) lot_sub ON c.id = lot_sub.committee_id
-      LEFT JOIN LATERAL (
-        SELECT 
-          cust.name as latest_winner_name,
-          cm_win.token_number as latest_winner_token,
-          lot.notes as latest_reward,
-          lot.draw_date as latest_draw_date
-        FROM lotteries lot
-        LEFT JOIN customers cust ON lot.winner_id = cust.id
-        LEFT JOIN committee_members cm_win ON (cm_win.committee_id = lot.committee_id AND cm_win.customer_id = lot.winner_id)
-        WHERE lot.committee_id = c.id AND lot.status = 'completed' AND lot.winner_id IS NOT NULL
-        ORDER BY lot.id DESC
-        LIMIT 1
-      ) latest_lot ON true
       ORDER BY c.id ASC
     `);
 

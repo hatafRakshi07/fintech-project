@@ -103,7 +103,14 @@ export default function CollectionsPage() {
     queryKey: ["committees-list"],
     queryFn: () => api.get("/committees"),
   });
-  const committees = safeArray<any>(rawCommittees);
+  const DEFAULT_COMMITTEES = [
+    { id: 1, name: "Sawariya Seth Bissi", installmentAmount: 3000 },
+    { id: 2, name: "Pyare Mohan Bissi", installmentAmount: 3000 },
+    { id: 3, name: "Hare Ka Sahara Bissi", installmentAmount: 2500 },
+    { id: 4, name: "Shree Krishna Bissi", installmentAmount: 3000 },
+  ];
+  const fetchedCommittees = safeArray<any>(rawCommittees);
+  const committees = fetchedCommittees.length > 0 ? fetchedCommittees : DEFAULT_COMMITTEES;
 
   // Query Destination Bank / Cash Accounts
   const { data: rawBankAccounts } = useQuery<BankAccount[]>({

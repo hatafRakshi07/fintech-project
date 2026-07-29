@@ -38,7 +38,14 @@ export default function CollectionsV2Page() {
     queryKey: ["v2-schemes"],
     queryFn: () => api.get("/v2/collector/schemes"),
   });
-  const schemes = safeArray(schemesRaw) as Scheme[];
+  const DEFAULT_SCHEMES: Scheme[] = [
+    { id: "1", name: "Sawariya Seth Bissi", installmentAmount: "3000" },
+    { id: "2", name: "Pyare Mohan Bissi", installmentAmount: "3000" },
+    { id: "3", name: "Hare Ka Sahara Bissi", installmentAmount: "2500" },
+    { id: "4", name: "Shree Krishna Bissi", installmentAmount: "3000" },
+  ];
+  const fetchedSchemes = safeArray(schemesRaw) as Scheme[];
+  const schemes = fetchedSchemes.length > 0 ? fetchedSchemes : DEFAULT_SCHEMES;
 
   // Search Customers (Name, Phone, or Token number)
   const { data: searchResultsRaw } = useQuery<Customer[]>({
