@@ -726,23 +726,90 @@ router.get("/dashboard/stats", async (req, res) => {
 router.get("/dashboard/recent-activity", async (req, res) => {
   try {
     const result = await pool.query(`
-      SELECT col.id, col.amount, col.payment_date, c.name as customer_name
+      SELECT col.id, col.amount, col.collected_at, col.payment_mode, c.name as customer_name, col.notes
       FROM collections col
       LEFT JOIN customers c ON c.id = col.customer_id
-      ORDER BY col.payment_date DESC, col.id DESC
-      LIMIT 10
+      ORDER BY col.id DESC
+      LIMIT 12
     `);
     const formatted = result.rows.map(r => ({
       id: r.id,
-      description: `Bissi Collection from ${r.customer_name || 'Member'}`,
+      description: r.notes || `Bissi Installment from ${r.customer_name || 'Member'}`,
       amount: Number(r.amount),
-      createdAt: r.payment_date || new Date().toISOString(),
+      paymentMode: r.payment_mode || 'CASH',
+      createdAt: r.collected_at || new Date().toISOString(),
       type: "collection",
       customerName: r.customer_name || 'Member'
     }));
     res.json(formatted);
   } catch (err) {
     res.json([]);
+  }
+});
+
+router.get("/dashboard/scheme-boxes", async (req, res) => {
+  try {
+    const result = await pool.query(`
+      SELECT 
+        c.id as "id",
+        c.name as "name",
+        c.installment_amount as "installmentAmount",
+        c.member_limit as "memberLimit",
+        c.draw_date as "drawDate",
+        c.status::text as "status",
+        COALESCE(cm_sub.token_count, 0)::int as "tokenCount",
+        COALESCE(col_sub.collected_amount, 0)::numeric as "collectedAmount",
+        COALESCE(col_sub.collected_count, 0)::int as "collectedCount",
+        COALESCE(lot_sub.winners_count, 0)::int as "winnersCount",
+        latest_lot.latest_winner_name as "latestWinnerName",
+        latest_lot.latest_winner_token as "latestWinnerToken",
+        latest_lot.latest_reward as "latestReward",
+        latest_lot.latest_draw_date as "latestDrawDate"
+      FROM committees c
+      LEFT JOIN (
+        SELECT committee_id, COUNT(*)::int as token_count
+        FROM committee_members
+        GROUP BY committee_id
+      ) cm_sub ON c.id = cm_sub.committee_id
+      LEFT JOIN (
+        SELECT committee_id, SUM(amount)::numeric as collected_amount, COUNT(*)::int as collected_count
+        FROM collections
+        GROUP BY committee_id
+      ) col_sub ON c.id = col_sub.committee_id
+      LEFT JOIN (
+        SELECT committee_id, COUNT(*)::int as winners_count
+        FROM lotteries
+        WHERE status = 'completed' AND winner_id IS NOT NULL
+        GROUP BY committee_id
+      ) lot_sub ON c.id = lot_sub.committee_id
+      LEFT JOIN LATERAL (
+        SELECT 
+          cust.name as latest_winner_name,
+          cm_win.token_number as latest_winner_token,
+          lot.notes as latest_reward,
+          lot.draw_date as latest_draw_date
+        FROM lotteries lot
+        LEFT JOIN customers cust ON lot.winner_id = cust.id
+        LEFT JOIN committee_members cm_win ON (cm_win.committee_id = lot.committee_id AND cm_win.customer_id = lot.winner_id)
+        WHERE lot.committee_id = c.id AND lot.status = 'completed' AND lot.winner_id IS NOT NULL
+        ORDER BY lot.id DESC
+        LIMIT 1
+      ) latest_lot ON true
+      ORDER BY c.id ASC
+    `);
+
+    const formatted = result.rows.map(r => ({
+      ...r,
+      installmentAmount: Number(r.installmentAmount || 3000),
+      collectedAmount: Number(r.collectedAmount || 0),
+      tokenCount: Number(r.tokenCount || 500),
+      dueAmount: Math.max(0, (r.tokenCount * Number(r.installmentAmount || 3000) * 20) - Number(r.collectedAmount || 0)),
+    }));
+
+    res.json({ success: true, schemes: formatted, data: formatted });
+  } catch (err: any) {
+    console.error("Error fetching scheme boxes:", err);
+    res.status(500).json({ success: false, error: err.message, data: [] });
   }
 });
 
