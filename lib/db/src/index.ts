@@ -17,7 +17,7 @@ const NEON_DEFAULT_URL =
 let poolInstance: pg.Pool | null = null;
 let dbInstance: any = null;
 
-function getPool() {
+function getPool(): pg.Pool {
   let url = process.env.DATABASE_URL || NEON_DEFAULT_URL;
 
   // Strip sslmode from URL so pg-connection-string never overrides our ssl config.
@@ -35,9 +35,6 @@ function getPool() {
     poolInstance = new Pool({
       connectionString: url,
       // Production-grade pool settings
-    poolInstance = new Pool({
-      connectionString: url,
-      // Production-grade pool settings
       max: parseInt(process.env.DB_POOL_MAX ?? "25", 10),
       min: 0,
       idleTimeoutMillis: 10_000,
@@ -45,14 +42,14 @@ function getPool() {
       keepAlive: true,
       keepAliveInitialDelayMillis: 10_000,
       ...(process.env.DATABASE_SSL === "false" || isLocal ? {} : { ssl: { rejectUnauthorized: false } }),
-    } as any);
+    } as pg.PoolConfig);
 
-    poolInstance.on("connect", (client) => {
+    poolInstance.on("connect", (client: pg.PoolClient) => {
       client.query("SET search_path TO public;").catch(() => {});
     });
 
     // Log pool errors so they surface in prod logs instead of crashing
-    poolInstance.on("error", (err) => {
+    poolInstance.on("error", (err: Error) => {
       console.error("[pg-pool] Unexpected pool error", err.message);
     });
   }
@@ -149,7 +146,8 @@ export async function closePool(): Promise<void> {
 
 /** Ping the DB — used by the health-check endpoint. */
 export async function pingDb(): Promise<void> {
-  const client = await getPool().connect();
+  const pool = getPool();
+  const client = await pool.connect();
   try {
     await client.query("SELECT 1");
   } finally {
@@ -163,7 +161,8 @@ export async function warmupDb(): Promise<void> {
   try {
     await queryWithRetry(
       async () => {
-        const client = await getPool().connect();
+        const pool = getPool();
+        const client = await pool.connect();
         try {
           await client.query("SELECT 1;");
         } finally {
