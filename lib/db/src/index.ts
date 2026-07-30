@@ -35,10 +35,13 @@ function getPool() {
     poolInstance = new Pool({
       connectionString: url,
       // Production-grade pool settings
-      max: parseInt(process.env.DB_POOL_MAX ?? "10", 10),
+    poolInstance = new Pool({
+      connectionString: url,
+      // Production-grade pool settings
+      max: parseInt(process.env.DB_POOL_MAX ?? "25", 10),
       min: 0,
       idleTimeoutMillis: 10_000,
-      connectionTimeoutMillis: 5_000,
+      connectionTimeoutMillis: 8_000,
       keepAlive: true,
       keepAliveInitialDelayMillis: 10_000,
       ...(process.env.DATABASE_SSL === "false" || isLocal ? {} : { ssl: { rejectUnauthorized: false } }),
@@ -79,13 +82,20 @@ function isConnectionError(err: any): boolean {
   const msg = (err.message || "").toLowerCase();
   const code = String(err.code || "");
   return (
+    msg.includes("timeout exceeded") ||
     msg.includes("timeout exceeded when trying to connect") ||
+    msg.includes("connection timeout") ||
     msg.includes("connect etimedout") ||
     msg.includes("econnrefused") ||
     msg.includes("econnreset") ||
     msg.includes("connection terminated") ||
     msg.includes("pool is closed") ||
+    msg.includes("pool is full") ||
+    msg.includes("max client connections") ||
+    msg.includes("too many clients") ||
+    msg.includes("remaining connection slots") ||
     code === "57P01" ||
+    code === "53300" ||
     code === "08006" ||
     code === "08001" ||
     code === "08004"

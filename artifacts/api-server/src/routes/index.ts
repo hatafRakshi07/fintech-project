@@ -33,10 +33,15 @@ router.get("/notifications", (req, res) => {
 
 router.get("/branches", async (req, res) => {
   try {
-    const result = await pool.query("SELECT id, name, code, city, status FROM branches LIMIT 100");
+    const result = await queryWithRetry(
+      () => pool.query("SELECT id, name, code, city, status FROM branches LIMIT 100"),
+      { routeName: "GET /branches", retries: 2, delayMs: 500 }
+    );
     const formatted = result.rows.map(r => ({ ...r, branchName: r.name }));
     res.json({ success: true, branches: formatted, data: formatted });
-  } catch (err) {
+  } catch (err: any) {
+    const stats = getPoolStats();
+    console.error(`Error fetching branches [Pool stats: total=${stats.total}, active=${stats.active}, idle=${stats.idle}, waiting=${stats.waiting}]:`, err);
     const fallback = [{ id: 1, name: "Shree Krishna Associate", code: "SKA001", status: "active" }];
     res.json({ success: true, branches: fallback, data: fallback });
   }
@@ -885,15 +890,18 @@ router.get("/lotteries", async (req, res) => {
 // Dashboard Endpoints — 100% Real-Time Bissi Command Center
 router.get("/dashboard/stats", async (req, res) => {
   try {
-    const [custRes, commRes, colRes, colSumRes, tokenRes, winnersRes, kycRes] = await Promise.all([
-      pool.query("SELECT COUNT(*) FROM customers"),
-      pool.query("SELECT COUNT(*) FROM committees"),
-      pool.query("SELECT COUNT(*) FROM collections"),
-      pool.query("SELECT COALESCE(SUM(amount), 0)::numeric FROM collections"),
-      pool.query("SELECT COUNT(*) FROM committee_members"),
-      pool.query("SELECT COUNT(*) FROM lotteries WHERE status = 'completed' AND winner_id IS NOT NULL"),
-      pool.query("SELECT COUNT(*) FROM kyc_verifications WHERE status = 'pending'"),
-    ]);
+    const [custRes, commRes, colRes, colSumRes, tokenRes, winnersRes, kycRes] = await queryWithRetry(
+      () => Promise.all([
+        pool.query("SELECT COUNT(*) FROM customers"),
+        pool.query("SELECT COUNT(*) FROM committees"),
+        pool.query("SELECT COUNT(*) FROM collections"),
+        pool.query("SELECT COALESCE(SUM(amount), 0)::numeric FROM collections"),
+        pool.query("SELECT COUNT(*) FROM committee_members"),
+        pool.query("SELECT COUNT(*) FROM lotteries WHERE status = 'completed' AND winner_id IS NOT NULL"),
+        pool.query("SELECT COUNT(*) FROM kyc_verifications WHERE status = 'pending'"),
+      ]),
+      { routeName: "GET /dashboard/stats", retries: 2, delayMs: 500 }
+    );
     res.json({
       success: true,
       totalCustomers: parseInt(custRes.rows[0].count, 10),
@@ -908,7 +916,9 @@ router.get("/dashboard/stats", async (req, res) => {
       totalActiveLoans: 0,
       outstandingLoanAmount: 0
     });
-  } catch (err) {
+  } catch (err: any) {
+    const stats = getPoolStats();
+    console.error(`Error fetching dashboard stats [Pool stats: total=${stats.total}, active=${stats.active}, idle=${stats.idle}, waiting=${stats.waiting}]:`, err);
     res.json({
       success: true,
       totalCustomers: 2311,
@@ -928,13 +938,16 @@ router.get("/dashboard/stats", async (req, res) => {
 
 router.get("/dashboard/recent-activity", async (req, res) => {
   try {
-    const result = await pool.query(`
+    const result = await queryWithRetry(
+      () => pool.query(`
       SELECT col.id, col.amount, col.collected_at, col.payment_mode, c.name as customer_name, col.notes
       FROM collections col
       LEFT JOIN customers c ON c.id = col.customer_id
       ORDER BY col.id DESC
       LIMIT 12
-    `);
+    `),
+      { routeName: "GET /dashboard/recent-activity", retries: 2, delayMs: 500 }
+    );
     const formatted = result.rows.map(r => ({
       id: r.id,
       description: r.notes || `Bissi Installment from ${r.customer_name || 'Member'}`,
@@ -945,14 +958,17 @@ router.get("/dashboard/recent-activity", async (req, res) => {
       customerName: r.customer_name || 'Member'
     }));
     res.json(formatted);
-  } catch (err) {
+  } catch (err: any) {
+    const stats = getPoolStats();
+    console.error(`Error fetching recent activity [Pool stats: total=${stats.total}, active=${stats.active}, idle=${stats.idle}, waiting=${stats.waiting}]:`, err);
     res.json([]);
   }
 });
 
 router.get("/dashboard/scheme-boxes", async (req, res) => {
   try {
-    const result = await pool.query(`
+    const result = await queryWithRetry(
+      () => pool.query(`
       SELECT 
         c.id as "id",
         c.name as "name",
@@ -992,7 +1008,9 @@ router.get("/dashboard/scheme-boxes", async (req, res) => {
         GROUP BY committee_id
       ) lot_sub ON c.id = lot_sub.committee_id
       ORDER BY c.id ASC
-    `);
+    `),
+      { routeName: "GET /dashboard/scheme-boxes", retries: 2, delayMs: 500 }
+    );
 
     const formatted = result.rows.map(r => ({
       ...r,
@@ -1004,8 +1022,9 @@ router.get("/dashboard/scheme-boxes", async (req, res) => {
 
     res.json({ success: true, schemes: formatted, data: formatted });
   } catch (err: any) {
-    console.error("Error fetching scheme boxes:", err);
-    res.status(500).json({ success: false, error: err.message, data: [] });
+    const stats = getPoolStats();
+    console.error(`Error fetching scheme boxes [Pool stats: total=${stats.total}, active=${stats.active}, idle=${stats.idle}, waiting=${stats.waiting}]:`, err);
+    res.status(500).json({ success: false, error: err?.message || "Failed to fetch scheme boxes", data: [] });
   }
 });
 

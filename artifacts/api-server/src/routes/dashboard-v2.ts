@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { pool } from "@workspace/db";
+import { pool, queryWithRetry } from "@workspace/db";
 
 const router = Router();
 
@@ -16,7 +16,10 @@ const DEFAULT_BISSI_SCHEMES = [
  */
 router.get("/summary", async (req, res) => {
   try {
-    const result = await pool.query("SELECT id, name, type, installment_amount, member_limit, status FROM committees ORDER BY id ASC");
+    const result = await queryWithRetry(
+      () => pool.query("SELECT id, name, type, installment_amount, member_limit, status FROM committees ORDER BY id ASC"),
+      { routeName: "GET /api/v2/dashboard/summary", retries: 2, delayMs: 500 }
+    );
     const committees = result.rows.length > 0 ? result.rows : DEFAULT_BISSI_SCHEMES;
     
     const dashboardData = [];
@@ -28,15 +31,18 @@ router.get("/summary", async (req, res) => {
       let memberCount = comm.member_limit || (commId === 4 ? 1111 : 500);
 
       try {
-        const [tokenRes, colRes] = await Promise.all([
-          pool.query("SELECT COUNT(*) FROM tokens WHERE committee_id = $1", [commId]),
-          pool.query(`
-            SELECT COALESCE(SUM(c.amount), 0) as total
-            FROM collections c
-            JOIN tokens t ON t.customer_id = c.customer_id
-            WHERE t.committee_id = $1
-          `, [commId])
-        ]);
+        const [tokenRes, colRes] = await queryWithRetry(
+          () => Promise.all([
+            pool.query("SELECT COUNT(*) FROM tokens WHERE committee_id = $1", [commId]),
+            pool.query(`
+              SELECT COALESCE(SUM(c.amount), 0) as total
+              FROM collections c
+              JOIN tokens t ON t.customer_id = c.customer_id
+              WHERE t.committee_id = $1
+            `, [commId])
+          ]),
+          { routeName: `GET /api/v2/dashboard/summary comm #${commId}`, retries: 2, delayMs: 500 }
+        );
 
         const tokensCount = parseInt(tokenRes.rows[0].count, 10);
         if (tokensCount > 0) memberCount = comm.member_limit || tokensCount;
