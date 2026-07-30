@@ -7,7 +7,7 @@ import { dashboardV2Router } from "./dashboard-v2";
 import { migrationV2Router } from "./migration-v2";
 import { ledgerV2Router } from "./ledger-v2";
 import { calendarV2Router } from "./calendar-v2";
-import { pool } from "@workspace/db";
+import { pool, queryWithRetry, getPoolStats } from "@workspace/db";
 
 const router: IRouter = Router();
 
@@ -68,10 +68,16 @@ router.get("/customers", async (req, res) => {
       params = [`%${search}%`, limit, offset];
     }
 
-    const countRes = await pool.query(countQuery, search ? [`%${search}%`] : []);
-    const total = parseInt(countRes.rows[0].count, 10);
+    const { countRes, dataRes } = await queryWithRetry(
+      async () => {
+        const count = await pool.query(countQuery, search ? [`%${search}%`] : []);
+        const data = await pool.query(dataQuery, params);
+        return { countRes: count, dataRes: data };
+      },
+      { routeName: "GET /customers", retries: 2, delayMs: 500 }
+    );
 
-    const dataRes = await pool.query(dataQuery, params);
+    const total = parseInt(countRes.rows[0].count, 10);
     const formattedRows = dataRes.rows.map(r => ({
       ...r,
       referenceNumber: r.reference_number,
@@ -81,7 +87,8 @@ router.get("/customers", async (req, res) => {
 
     res.json({ success: true, customers: formattedRows, data: formattedRows, total, page, limit });
   } catch (err: any) {
-    console.error("Error fetching customers:", err);
+    const stats = getPoolStats();
+    console.error(`Error fetching customers [Pool stats: total=${stats.total}, active=${stats.active}, idle=${stats.idle}, waiting=${stats.waiting}]:`, err);
     res.status(500).json({ success: false, error: "Failed to fetch customers", details: err?.message, data: [] });
   }
 });
@@ -247,7 +254,8 @@ router.get("/customers/:id", async (req, res) => {
 // The 4 Bissi Schemes (Committees)
 router.get("/committees", async (req, res) => {
   try {
-    const result = await pool.query(`
+    const result = await queryWithRetry(
+      () => pool.query(`
       SELECT 
         c.id,
         c.name,
@@ -269,7 +277,9 @@ router.get("/committees", async (req, res) => {
         GROUP BY committee_id
       ) tok_sub ON c.id = tok_sub.committee_id
       ORDER BY c.id ASC
-    `);
+    `),
+      { routeName: "GET /committees", retries: 2, delayMs: 500 }
+    );
     const formatted = result.rows.map(r => ({
       ...r,
       installmentAmount: Number(r.installment_amount),
@@ -278,7 +288,8 @@ router.get("/committees", async (req, res) => {
     }));
     res.json({ success: true, committees: formatted, data: formatted });
   } catch (err: any) {
-    console.error("Error fetching committees:", err);
+    const stats = getPoolStats();
+    console.error(`Error fetching committees [Pool stats: total=${stats.total}, active=${stats.active}, idle=${stats.idle}, waiting=${stats.waiting}]:`, err);
     res.status(500).json({ success: false, error: "Failed to fetch committees", details: err?.message, data: [] });
   }
 });
@@ -499,7 +510,8 @@ router.get("/committees/:id/members", async (req, res): Promise<void> => {
 router.get("/tokens", async (req, res) => {
   try {
     const limit = parseInt((req.query.limit as string) || "5000", 10);
-    const result = await pool.query(`
+    const result = await queryWithRetry(
+      () => pool.query(`
       SELECT t.id, t.token_number, t.customer_id, t.committee_id, t.status, t.created_at,
              c.name as customer_name, cm.name as committee_name
       FROM tokens t
@@ -507,7 +519,9 @@ router.get("/tokens", async (req, res) => {
       LEFT JOIN committees cm ON cm.id = t.committee_id
       ORDER BY t.id ASC
       LIMIT $1
-    `, [limit]);
+    `, [limit]),
+      { routeName: "GET /tokens", retries: 2, delayMs: 500 }
+    );
     const formatted = result.rows.map(r => ({
       ...r,
       tokenNumber: r.token_number,
@@ -519,7 +533,8 @@ router.get("/tokens", async (req, res) => {
     }));
     res.json({ success: true, tokens: formatted, data: formatted });
   } catch (err: any) {
-    console.error("Error fetching tokens:", err);
+    const stats = getPoolStats();
+    console.error(`Error fetching tokens [Pool stats: total=${stats.total}, active=${stats.active}, idle=${stats.idle}, waiting=${stats.waiting}]:`, err);
     res.status(500).json({ success: false, error: "Failed to fetch tokens", details: err?.message, data: [] });
   }
 });

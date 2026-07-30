@@ -5,16 +5,21 @@ try {
 
 import app from "./app";
 import { logger } from "./lib/logger";
-import { closePool } from "@workspace/db";
+import { closePool, warmupDb } from "@workspace/db";
 import { startScheduler, stopScheduler } from "./lib/scheduler";
 
-// Neon (IPv4, Render-accessible). Supabase direct URL is IPv6-only and times out on Render.
+// Default Neon fallback (IPv4, Render-accessible).
 const NEON_URL =
   "postgresql://neondb_owner:npg_qSQN29ZxTKzt@ep-frosty-cloud-at51tjed.c-9.us-east-1.aws.neon.tech/neondb";
 
-// Force Neon when DATABASE_URL is absent or points to Supabase direct host (IPv6-only).
+// Force Neon when DATABASE_URL is absent or points to direct Supabase host (.supabase.co:5432).
+// Allows Supabase POOLER connection strings (*.pooler.supabase.com or port 6543).
 const dbUrl = process.env.DATABASE_URL || "";
-if (!dbUrl || /\.supabase\.co[/:]/i.test(dbUrl) || dbUrl.endsWith(".supabase.co")) {
+const isDirectSupabase = (/\.supabase\.co[/:]/i.test(dbUrl) || dbUrl.endsWith(".supabase.co")) && !dbUrl.includes(".pooler.supabase.com") && !dbUrl.includes(":6543");
+if (!dbUrl || isDirectSupabase) {
+  if (isDirectSupabase) {
+    logger.warn("Direct Supabase connection (port 5432) detected which is IPv6-only on Render. Falling back to pooled DB connection. Use Supabase Pooler (port 6543, *.pooler.supabase.com) in DATABASE_URL.");
+  }
   process.env.DATABASE_URL = NEON_URL;
 }
 
@@ -40,6 +45,11 @@ if (!process.env.VERCEL) {
 
     // Start hourly alert scheduler after server is ready
     startScheduler();
+
+    // Trigger DB pool warm-up on boot
+    warmupDb().catch((wErr) => {
+      logger.error({ err: wErr }, "Database warmup ping error");
+    });
   });
 
   // ---------------------------------------------------------------------------

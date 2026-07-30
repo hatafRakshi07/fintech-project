@@ -35,10 +35,10 @@ function getPool() {
     poolInstance = new Pool({
       connectionString: url,
       // Production-grade pool settings
-      max: parseInt(process.env.DB_POOL_MAX ?? "5", 10),
+      max: parseInt(process.env.DB_POOL_MAX ?? "10", 10),
       min: 0,
       idleTimeoutMillis: 10_000,
-      connectionTimeoutMillis: 10_000,
+      connectionTimeoutMillis: 5_000,
       keepAlive: true,
       keepAliveInitialDelayMillis: 10_000,
       ...(process.env.DATABASE_SSL === "false" || isLocal ? {} : { ssl: { rejectUnauthorized: false } }),
@@ -54,6 +54,78 @@ function getPool() {
     });
   }
   return poolInstance;
+}
+
+export interface PoolStats {
+  total: number;
+  idle: number;
+  active: number;
+  waiting: number;
+}
+
+/** Returns stats for the current pg Pool instance. */
+export function getPoolStats(): PoolStats {
+  const p = getPool();
+  return {
+    total: p.totalCount,
+    idle: p.idleCount,
+    active: p.totalCount - p.idleCount,
+    waiting: p.waitingCount,
+  };
+}
+
+function isConnectionError(err: any): boolean {
+  if (!err) return false;
+  const msg = (err.message || "").toLowerCase();
+  const code = String(err.code || "");
+  return (
+    msg.includes("timeout exceeded when trying to connect") ||
+    msg.includes("connect etimedout") ||
+    msg.includes("econnrefused") ||
+    msg.includes("econnreset") ||
+    msg.includes("connection terminated") ||
+    msg.includes("pool is closed") ||
+    code === "57P01" ||
+    code === "08006" ||
+    code === "08001" ||
+    code === "08004"
+  );
+}
+
+export interface RetryOptions {
+  retries?: number;
+  delayMs?: number;
+  backoffFactor?: number;
+  routeName?: string;
+}
+
+/** Executed a query/operation with automatic exponential backoff retries on connection establishment failures. */
+export async function queryWithRetry<T = any>(
+  queryFn: () => Promise<T>,
+  options: RetryOptions = {}
+): Promise<T> {
+  const maxRetries = options.retries ?? 2;
+  let delay = options.delayMs ?? 500;
+  const backoff = options.backoffFactor ?? 2;
+
+  for (let attempt = 1; attempt <= maxRetries + 1; attempt++) {
+    try {
+      return await queryFn();
+    } catch (err: any) {
+      const connErr = isConnectionError(err);
+      if (connErr && attempt <= maxRetries) {
+        const stats = getPoolStats();
+        console.warn(
+          `[DB Retry] Connection error on attempt ${attempt}/${maxRetries + 1} (${options.routeName || "query"}): "${err.message}". Retrying in ${delay}ms... [Pool stats: total=${stats.total}, active=${stats.active}, idle=${stats.idle}, waiting=${stats.waiting}]`
+        );
+        await new Promise((resolve) => setTimeout(resolve, delay));
+        delay *= backoff;
+      } else {
+        throw err;
+      }
+    }
+  }
+  throw new Error("Unreachable");
 }
 
 /** Drain the pool gracefully — call on SIGTERM/SIGINT. */
@@ -72,6 +144,27 @@ export async function pingDb(): Promise<void> {
     await client.query("SELECT 1");
   } finally {
     client.release();
+  }
+}
+
+/** Lightweight health check / warm-up ping to database on boot. */
+export async function warmupDb(): Promise<void> {
+  console.log("[DB Warmup] Triggering database pool warm-up ping...");
+  try {
+    await queryWithRetry(
+      async () => {
+        const client = await getPool().connect();
+        try {
+          await client.query("SELECT 1;");
+        } finally {
+          client.release();
+        }
+      },
+      { retries: 2, delayMs: 1000, routeName: "DB Boot Warmup" }
+    );
+    console.log("[DB Warmup] Connection pool warmed up successfully.");
+  } catch (err: any) {
+    console.error("[DB Warmup] Warm-up ping failed (requests will retry dynamically):", err.message);
   }
 }
 
