@@ -24,8 +24,6 @@ function getPool() {
   if (!poolInstance) {
     poolInstance = new Pool({
       connectionString: url,
-      // Force public schema to prevent collisions with Supabase internal auth.users table
-      options: "-c search_path=public",
       // Production-grade pool settings
       max: parseInt(process.env.DB_POOL_MAX ?? "5", 10),
       min: 0,
