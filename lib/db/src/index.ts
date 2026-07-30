@@ -18,7 +18,18 @@ let poolInstance: pg.Pool | null = null;
 let dbInstance: any = null;
 
 function getPool() {
-  const url = process.env.DATABASE_URL || NEON_DEFAULT_URL;
+  let url = process.env.DATABASE_URL || NEON_DEFAULT_URL;
+
+  // Strip sslmode from URL so pg-connection-string never overrides our ssl config.
+  // (pg v8+ treats sslmode=require as verify-full, breaking rejectUnauthorized:false.)
+  try {
+    const u = new URL(url);
+    u.searchParams.delete("sslmode");
+    u.searchParams.delete("ssl");
+    url = u.toString();
+  } catch { /* non-standard URL — leave as-is */ }
+
+  const isLocal = url.includes("localhost") || url.includes("127.0.0.1");
 
   if (!poolInstance) {
     poolInstance = new Pool({
@@ -30,10 +41,7 @@ function getPool() {
       connectionTimeoutMillis: 10_000,
       keepAlive: true,
       keepAliveInitialDelayMillis: 10_000,
-      // SSL for cloud DBs (CockroachDB, Neon, Supabase, Render, Vercel, etc.)
-      ...(process.env.DATABASE_SSL === "false" || url.includes("ssl=false") || url.includes("localhost") || url.includes("127.0.0.1")
-        ? {}
-        : { ssl: { rejectUnauthorized: false } }),
+      ...(process.env.DATABASE_SSL === "false" || isLocal ? {} : { ssl: { rejectUnauthorized: false } }),
     } as any);
 
     poolInstance.on("connect", (client) => {
