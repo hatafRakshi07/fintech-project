@@ -9,10 +9,10 @@ import * as schema from "./schema/index";
 
 const { Pool } = pg;
 
-// Supabase direct connection — rejectUnauthorized:false handles SSL in pool config
+// Neon (IPv4, Render-accessible). Supabase direct URL is IPv6-only and times out on Render.
 const NEON_DEFAULT_URL =
   process.env.DATABASE_URL ||
-  "postgresql://postgres:hatafrakshi@db.qnflaeexcmwwcabrcrhb.supabase.co:5432/postgres";
+  "postgresql://neondb_owner:npg_qSQN29ZxTKzt@ep-frosty-cloud-at51tjed.c-9.us-east-1.aws.neon.tech/neondb";
 
 let poolInstance: pg.Pool | null = null;
 let dbInstance: any = null;
