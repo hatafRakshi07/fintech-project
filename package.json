@@ -5,7 +5,7 @@
   "license": "MIT",
   "scripts": {
     "preinstall": "node -e \"const agent = process.env.npm_config_user_agent||''; if(!agent.startsWith('pnpm')){process.stderr.write('Use pnpm instead\\n');process.exit(1);}\"",
-    "prebuild": "pnpm install --no-frozen-lockfile",
+    "prebuild": "pnpm install --no-frozen-lockfile --prod=false",
     "dev": "pnpm -r --parallel --filter \"./artifacts/**\" run dev",
     "dev:all": "cmd /c START.bat",
     "build": "pnpm run typecheck && pnpm -r --if-present run build && node ./scripts/copy-assets.mjs",
@@ -15,21 +15,21 @@
   },
   "private": true,
   "devDependencies": {
-    "@tanstack/react-query": "^5.90.21",
-    "@types/node": "^22.10.10",
-    "@types/pg": "^8.20.0",
-    "prettier": "^3.8.4",
-    "typescript": "~5.9.3",
-    "zod": "^3.25.76"
+    "prettier": "^3.8.4"
   },
   "dependencies": {
     "@electric-sql/pglite": "^0.5.4",
     "@esbuild/win32-x64": "^0.27.3",
     "@rollup/rollup-win32-x64-msvc": "4.62.2",
     "@tailwindcss/oxide-win32-x64-msvc": "4.3.1",
+    "@tanstack/react-query": "^5.90.21",
+    "@types/node": "^22.10.10",
+    "@types/pg": "^8.20.0",
     "lightningcss-win32-x64-msvc": "1.32.0",
     "pg": "^8.22.0",
-    "xlsx": "^0.18.5"
+    "typescript": "~5.9.3",
+    "xlsx": "^0.18.5",
+    "zod": "^3.25.76"
   },
   "pnpm": {
     "onlyBuiltDependencies": [
