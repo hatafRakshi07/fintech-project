@@ -8,9 +8,9 @@ import { logger } from "./lib/logger";
 import { closePool } from "@workspace/db";
 import { startScheduler, stopScheduler } from "./lib/scheduler";
 
-const NEON_DEFAULT_URL = "postgresql://neondb_owner:npg_qSQN29ZxTKzt@ep-frosty-cloud-at51tjed.c-9.us-east-1.aws.neon.tech/neondb?sslmode=require";
+const NEON_DEFAULT_URL = "postgresql://postgres:hatafrakshi@db.qnflaeexcmwwcabrcrhb.supabase.co:5432/postgres?sslmode=require";
 
-if (!process.env.DATABASE_URL || process.env.DATABASE_URL.includes("supabase.co:5432")) {
+if (!process.env.DATABASE_URL) {
   process.env.DATABASE_URL = NEON_DEFAULT_URL;
 }
 

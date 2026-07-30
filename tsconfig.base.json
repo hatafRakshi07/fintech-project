@@ -21,9 +21,8 @@
     "skipLibCheck": true,
     "target": "es2022",
     "types": [],
-    "baseUrl": ".",
     "paths": {
-      "zod": ["node_modules/zod"]
+      "zod": ["./node_modules/zod"]
     },
     "customConditions": ["workspace"],
     "esModuleInterop": true,
