@@ -994,12 +994,12 @@ router.get("/dashboard/scheme-boxes", async (req, res) => {
       ) tok_sub ON c.id = tok_sub.committee_id
       LEFT JOIN (
         SELECT 
-          COALESCE(col.committee_id, tok.committee_id) as committee_id,
-          SUM(col.amount)::numeric as collected_amount, 
-          COUNT(col.id)::int as collected_count
-        FROM collections col
-        LEFT JOIN tokens tok ON col.customer_id = tok.customer_id
-        GROUP BY COALESCE(col.committee_id, tok.committee_id)
+          committee_id,
+          SUM(amount)::numeric as collected_amount, 
+          COUNT(id)::int as collected_count
+        FROM collections
+        WHERE committee_id IS NOT NULL
+        GROUP BY committee_id
       ) col_sub ON c.id = col_sub.committee_id
       LEFT JOIN (
         SELECT committee_id, COUNT(*)::int as winners_count
@@ -1030,16 +1030,19 @@ router.get("/dashboard/scheme-boxes", async (req, res) => {
 
 router.get("/dashboard/collection-trend", async (req, res) => {
   try {
-    const result = await pool.query(`
-      SELECT 
-        TO_CHAR(c.collected_at, 'Mon DD') as date,
-        SUM(c.amount)::numeric as amount,
-        COUNT(c.id)::int as count
-      FROM collections c
-      WHERE c.collected_at >= NOW() - INTERVAL '30 days'
-      GROUP BY TO_CHAR(c.collected_at, 'Mon DD'), DATE(c.collected_at)
-      ORDER BY DATE(c.collected_at) ASC
-    `);
+    const result = await queryWithRetry(
+      () => pool.query(`
+        SELECT 
+          TO_CHAR(c.collected_at, 'Mon DD') as date,
+          SUM(c.amount)::numeric as amount,
+          COUNT(c.id)::int as count
+        FROM collections c
+        WHERE c.collected_at >= NOW() - INTERVAL '30 days'
+        GROUP BY TO_CHAR(c.collected_at, 'Mon DD'), DATE(c.collected_at)
+        ORDER BY DATE(c.collected_at) ASC
+      `),
+      { routeName: "GET /dashboard/collection-trend", retries: 2, delayMs: 500 }
+    );
     res.json(result.rows.length > 0 ? result.rows : [
       { date: "Mon 1", amount: 150000, count: 50 },
       { date: "Mon 2", amount: 220000, count: 75 },
@@ -1233,23 +1236,26 @@ router.post("/kyc/submit", async (req, res) => {
 // 2. Fetch Pending KYC submissions for Admin Review
 router.get("/kyc/pending", async (_req, res) => {
   try {
-    const result = await pool.query(`
-      SELECT 
-        k.id,
-        k.user_id as "userId",
-        k.customer_id as "customerId",
-        k.user_role as "userRole",
-        k.user_name as "userName",
-        k.user_mobile as "userMobile",
-        k.aadhaar_number as "aadhaarNumber",
-        k.aadhaar_front_url as "aadhaarFrontUrl",
-        k.aadhaar_back_url as "aadhaarBackUrl",
-        k.status::text as "status",
-        k.rejection_reason as "rejectionReason",
-        k.submitted_at as "submittedAt"
-      FROM kyc_verifications k
-      ORDER BY k.id DESC
-    `);
+    const result = await queryWithRetry(
+      () => pool.query(`
+        SELECT 
+          k.id,
+          k.user_id as "userId",
+          k.customer_id as "customerId",
+          k.user_role as "userRole",
+          k.user_name as "userName",
+          k.user_mobile as "userMobile",
+          k.aadhaar_number as "aadhaarNumber",
+          k.aadhaar_front_url as "aadhaarFrontUrl",
+          k.aadhaar_back_url as "aadhaarBackUrl",
+          k.status::text as "status",
+          k.rejection_reason as "rejectionReason",
+          k.submitted_at as "submittedAt"
+        FROM kyc_verifications k
+        ORDER BY k.id DESC
+      `),
+      { routeName: "GET /kyc/pending", retries: 2, delayMs: 500 }
+    );
     
     const mapped = result.rows.map(row => ({
       userName: row.userName || `User #${row.userId || row.customerId}`,
