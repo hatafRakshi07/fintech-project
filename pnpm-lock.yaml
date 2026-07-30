@@ -45,15 +45,24 @@ importers:
         specifier: ^0.18.5
         version: 0.18.5
     devDependencies:
+      '@tanstack/react-query':
+        specifier: ^5.90.21
+        version: 5.101.0(react@19.1.0)
       '@types/node':
         specifier: ^22.10.10
         version: 22.20.1
+      '@types/pg':
+        specifier: ^8.20.0
+        version: 8.20.0
       prettier:
         specifier: ^3.8.4
         version: 3.9.5
       typescript:
         specifier: ~5.9.3
         version: 5.9.3
+      zod:
+        specifier: ^3.25.76
+        version: 3.25.76
 
   artifacts/api-server:
     dependencies:

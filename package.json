@@ -14,9 +14,12 @@
   },
   "private": true,
   "devDependencies": {
+    "@tanstack/react-query": "^5.90.21",
     "@types/node": "^22.10.10",
+    "@types/pg": "^8.20.0",
     "prettier": "^3.8.4",
-    "typescript": "~5.9.3"
+    "typescript": "~5.9.3",
+    "zod": "^3.25.76"
   },
   "dependencies": {
     "@electric-sql/pglite": "^0.5.4",
