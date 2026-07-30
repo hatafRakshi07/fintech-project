@@ -10,7 +10,7 @@ import { startScheduler, stopScheduler } from "./lib/scheduler";
 
 const NEON_DEFAULT_URL =
   process.env.SUPABASE_POOLER_URL ||
-  "postgresql://postgres:hatafrakshi@db.qnflaeexcmwwcabrcrhb.supabase.co:5432/postgres?sslmode=require";
+  "postgresql://postgres.qnflaeexcmwwcabrcrhb:hatafrakshi@aws-0-ap-south-1.pooler.supabase.com:6543/postgres?sslmode=require";
 
 if (!process.env.DATABASE_URL) {
   process.env.DATABASE_URL = NEON_DEFAULT_URL;
