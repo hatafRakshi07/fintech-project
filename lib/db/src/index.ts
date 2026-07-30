@@ -9,7 +9,12 @@ import * as schema from "./schema/index";
 
 const { Pool } = pg;
 
-const NEON_DEFAULT_URL = "postgresql://postgres:hatafrakshi@db.qnflaeexcmwwcabrcrhb.supabase.co:5432/postgres?sslmode=require";
+// Supabase connection pooler (Transaction mode, port 6543) — works reliably from Render/cloud hosts.
+// Falls back to direct connection (port 5432) only if pooler URL is not available.
+const NEON_DEFAULT_URL =
+  process.env.DATABASE_URL ||
+  process.env.SUPABASE_POOLER_URL ||
+  "postgresql://postgres.qnflaeexcmwwcabrcrhb:hatafrakshi@aws-0-ap-south-1.pooler.supabase.com:6543/postgres?sslmode=require";
 
 let poolInstance: pg.Pool | null = null;
 let dbInstance: any = null;
@@ -23,10 +28,10 @@ function getPool() {
       // Force public schema to prevent collisions with Supabase internal auth.users table
       options: "-c search_path=public",
       // Production-grade pool settings
-      max: parseInt(process.env.DB_POOL_MAX ?? "10", 10),
+      max: parseInt(process.env.DB_POOL_MAX ?? "5", 10),
       min: parseInt(process.env.DB_POOL_MIN ?? "1", 10),
       idleTimeoutMillis: 30_000,           // release idle clients after 30s
-      connectionTimeoutMillis: 15_000,     // fail fast if DB is unreachable
+      connectionTimeoutMillis: 8_000,      // fail fast — 8s timeout for faster fallback
       keepAlive: true,
       keepAliveInitialDelayMillis: 10_000,
       // SSL for cloud DBs (CockroachDB, Neon, Supabase, Render, Vercel, etc.)
