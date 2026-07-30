@@ -35,16 +35,6 @@ importers:
       '@tailwindcss/oxide-win32-x64-msvc':
         specifier: 4.3.1
         version: 4.3.1
-      lightningcss-win32-x64-msvc:
-        specifier: 1.32.0
-        version: 1.32.0
-      pg:
-        specifier: ^8.22.0
-        version: 8.22.0
-      xlsx:
-        specifier: ^0.18.5
-        version: 0.18.5
-    devDependencies:
       '@tanstack/react-query':
         specifier: ^5.90.21
         version: 5.101.0(react@19.1.0)
@@ -54,15 +44,25 @@ importers:
       '@types/pg':
         specifier: ^8.20.0
         version: 8.20.0
-      prettier:
-        specifier: ^3.8.4
-        version: 3.9.5
+      lightningcss-win32-x64-msvc:
+        specifier: 1.32.0
+        version: 1.32.0
+      pg:
+        specifier: ^8.22.0
+        version: 8.22.0
       typescript:
         specifier: ~5.9.3
         version: 5.9.3
+      xlsx:
+        specifier: ^0.18.5
+        version: 0.18.5
       zod:
         specifier: ^3.25.76
         version: 3.25.76
+    devDependencies:
+      prettier:
+        specifier: ^3.8.4
+        version: 3.9.5
 
   artifacts/api-server:
     dependencies:
