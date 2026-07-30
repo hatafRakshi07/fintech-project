@@ -161,28 +161,44 @@ function AdminDashboard() {
   const [timeFilter, setTimeFilter] = useState("all");
 
   // Load KPI Stats
-  const { data: statsData, isLoading: statsLoading } = useGetDashboardStats();
+  const { data: statsData, isLoading: statsLoading } = useGetDashboardStats({
+    query: {
+      placeholderData: (prev: any) => prev,
+      staleTime: 30000,
+    } as any
+  });
   const stats = statsData as any || {};
 
   // Load Per-Scheme Operational Boxes Data (Sawariya, Pyare Mohan, Hare Ka Sahara, Shree Krishna)
   const { data: schemeBoxesData, isLoading: schemesLoading } = useQuery<any>({
     queryKey: ["dashboard-scheme-boxes"],
     queryFn: () => customFetch("/dashboard/scheme-boxes"),
+    placeholderData: (prev) => prev,
+    staleTime: 30000,
   });
 
   // Load Collection Trend Chart Data
   const { data: trend } = useQuery<any[]>({
     queryKey: ["collection-trend"],
     queryFn: () => customFetch("/dashboard/collection-trend"),
+    placeholderData: (prev) => prev,
+    staleTime: 30000,
   });
 
   // Load Recent Activity (Collections Feed)
-  const { data: activity } = useGetRecentActivity();
+  const { data: activity } = useGetRecentActivity({
+    query: {
+      placeholderData: (prev: any) => prev,
+      staleTime: 30000,
+    } as any
+  });
 
   // Load Pending KYC Count
   const { data: pendingKycData } = useQuery<any>({
     queryKey: ["dashboard-pending-kyc"],
     queryFn: () => customFetch("/kyc/pending"),
+    placeholderData: (prev) => prev,
+    staleTime: 30000,
   });
 
   const schemes = Array.isArray(schemeBoxesData?.schemes) ? schemeBoxesData.schemes : Array.isArray(schemeBoxesData?.data) ? schemeBoxesData.data : [];

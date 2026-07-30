@@ -13,8 +13,19 @@ import { logger } from "./lib/logger";
 
 const app: Express = express();
 
+// Disable ETag generation for API responses so server always returns 200 OK with full JSON (prevents 304 empty bodies)
+app.disable("etag");
+
 // Trust the first proxy hop (Replit, Vercel, nginx) so rate-limiters see real IPs
 app.set("trust proxy", 1);
+
+// Prevent browser/CDN caching of API responses
+app.use("/api", (req: Request, res: Response, next: NextFunction) => {
+  res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate");
+  res.setHeader("Pragma", "no-cache");
+  res.setHeader("Expires", "0");
+  next();
+});
 
 // ---------------------------------------------------------------------------
 // Security headers
