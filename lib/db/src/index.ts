@@ -9,11 +9,10 @@ import * as schema from "./schema/index";
 
 const { Pool } = pg;
 
-// Supabase connection pooler — Transaction mode (port 6543), region ap-south-1 (Mumbai)
-// Direct connection (port 5432) times out from Render — pooler is the reliable option.
+// Supabase direct connection — rejectUnauthorized:false handles SSL in pool config
 const NEON_DEFAULT_URL =
   process.env.DATABASE_URL ||
-  "postgresql://postgres.qnflaeexcmwwcabrcrhb:hatafrakshi@aws-0-ap-south-1.pooler.supabase.com:6543/postgres?sslmode=require";
+  "postgresql://postgres:hatafrakshi@db.qnflaeexcmwwcabrcrhb.supabase.co:5432/postgres";
 
 let poolInstance: pg.Pool | null = null;
 let dbInstance: any = null;
