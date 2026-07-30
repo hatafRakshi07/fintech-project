@@ -9,12 +9,13 @@ import { closePool } from "@workspace/db";
 import { startScheduler, stopScheduler } from "./lib/scheduler";
 
 // Neon (IPv4, Render-accessible). Supabase direct URL is IPv6-only and times out on Render.
-const NEON_DEFAULT_URL =
+const NEON_URL =
   "postgresql://neondb_owner:npg_qSQN29ZxTKzt@ep-frosty-cloud-at51tjed.c-9.us-east-1.aws.neon.tech/neondb";
 
-// Always use Neon unless DATABASE_URL is explicitly overridden to something other than Supabase direct
-if (!process.env.DATABASE_URL || process.env.DATABASE_URL.includes("supabase.co:5432")) {
-  process.env.DATABASE_URL = NEON_DEFAULT_URL;
+// Force Neon when DATABASE_URL is absent or points to Supabase direct host (IPv6-only).
+const dbUrl = process.env.DATABASE_URL || "";
+if (!dbUrl || /\.supabase\.co[/:]/i.test(dbUrl) || dbUrl.endsWith(".supabase.co")) {
+  process.env.DATABASE_URL = NEON_URL;
 }
 
 if (!process.env.PORT) {
