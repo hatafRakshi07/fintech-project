@@ -20,6 +20,18 @@ let dbInstance: any = null;
 function getPool() {
   let url = process.env.DATABASE_URL || NEON_DEFAULT_URL;
 
+  // Supabase direct URLs (port 5432) use IPv6 which times out on Render IPv4 hosts.
+  // Automatically rewrite to Supabase IPv4 Pooler (port 6543).
+  if (url.includes("db.qnflaeexcmwwcabrcrhb.supabase.co")) {
+    url = url.replace(
+      "postgres:hatafrakshi@db.qnflaeexcmwwcabrcrhb.supabase.co:5432",
+      "postgres.qnflaeexcmwwcabrcrhb:hatafrakshi@aws-0-ap-south-1.pooler.supabase.com:6543"
+    ).replace(
+      "postgres:hatafrakshi@db.qnflaeexcmwwcabrcrhb.supabase.co",
+      "postgres.qnflaeexcmwwcabrcrhb:hatafrakshi@aws-0-ap-south-1.pooler.supabase.com:6543"
+    );
+  }
+
   if (!poolInstance) {
     poolInstance = new Pool({
       connectionString: url,
