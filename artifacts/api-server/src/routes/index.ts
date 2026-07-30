@@ -890,28 +890,30 @@ router.get("/lotteries", async (req, res) => {
 // Dashboard Endpoints — 100% Real-Time Bissi Command Center
 router.get("/dashboard/stats", async (req, res) => {
   try {
-    const [custRes, commRes, colRes, colSumRes, tokenRes, winnersRes, kycRes] = await queryWithRetry(
-      () => Promise.all([
-        pool.query("SELECT COUNT(*) FROM customers"),
-        pool.query("SELECT COUNT(*) FROM committees"),
-        pool.query("SELECT COUNT(*) FROM collections"),
-        pool.query("SELECT COALESCE(SUM(amount), 0)::numeric FROM collections"),
-        pool.query("SELECT COUNT(*) FROM committee_members"),
-        pool.query("SELECT COUNT(*) FROM lotteries WHERE status = 'completed' AND winner_id IS NOT NULL"),
-        pool.query("SELECT COUNT(*) FROM kyc_verifications WHERE status = 'pending'"),
-      ]),
+    const result = await queryWithRetry(
+      () => pool.query(`
+        SELECT 
+          (SELECT COUNT(*)::int FROM customers) as "totalCustomers",
+          (SELECT COUNT(*)::int FROM committees) as "totalCommittees",
+          (SELECT COUNT(*)::int FROM collections) as "totalCollections",
+          (SELECT COALESCE(SUM(amount), 0)::numeric FROM collections) as "totalCollectionAmount",
+          (SELECT COUNT(*)::int FROM committee_members) as "totalTokens",
+          (SELECT COUNT(*)::int FROM lotteries WHERE status = 'completed' AND winner_id IS NOT NULL) as "totalWinners",
+          (SELECT COUNT(*)::int FROM kyc_verifications WHERE status = 'pending') as "pendingKycCount"
+      `),
       { routeName: "GET /dashboard/stats", retries: 2, delayMs: 500 }
     );
+    const row = result.rows[0] || {};
     res.json({
       success: true,
-      totalCustomers: parseInt(custRes.rows[0].count, 10),
-      totalCommittees: parseInt(commRes.rows[0].count, 10),
-      totalActiveCommittees: parseInt(commRes.rows[0].count, 10),
-      totalCollections: parseInt(colRes.rows[0].count, 10),
-      totalCollectionAmount: parseFloat(colSumRes.rows[0].coalesce || "0"),
-      totalTokens: parseInt(tokenRes.rows[0].count, 10),
-      totalWinners: parseInt(winnersRes.rows[0].count, 10),
-      pendingKycCount: parseInt(kycRes.rows[0].count, 10),
+      totalCustomers: Number(row.totalCustomers || 0),
+      totalCommittees: Number(row.totalCommittees || 0),
+      totalActiveCommittees: Number(row.totalCommittees || 0),
+      totalCollections: Number(row.totalCollections || 0),
+      totalCollectionAmount: Number(row.totalCollectionAmount || 0),
+      totalTokens: Number(row.totalTokens || 0),
+      totalWinners: Number(row.totalWinners || 0),
+      pendingKycCount: Number(row.pendingKycCount || 0),
       totalLoans: 0,
       totalActiveLoans: 0,
       outstandingLoanAmount: 0
@@ -1064,17 +1066,22 @@ router.get("/dashboard/branch-summary", async (req, res) => {
 // Gifts & Interests
 router.get("/gifts/summary", async (req, res) => {
   try {
-    const [inv, dist, pending, cat] = await Promise.all([
-      pool.query("SELECT COUNT(*)::int as count FROM gift_inventory"),
-      pool.query("SELECT COUNT(*)::int as count FROM gift_distributions WHERE status = 'given'"),
-      pool.query("SELECT COUNT(*)::int as count FROM gift_distributions WHERE status = 'pending'"),
-      pool.query("SELECT COUNT(*)::int as count FROM gift_categories")
-    ]);
+    const result = await queryWithRetry(
+      () => pool.query(`
+        SELECT 
+          (SELECT COUNT(*)::int FROM gift_inventory) as "totalItems",
+          (SELECT COUNT(*)::int FROM gift_distributions WHERE status = 'given') as "totalDistributed",
+          (SELECT COUNT(*)::int FROM gift_distributions WHERE status = 'pending') as "pendingDistribution",
+          (SELECT COUNT(*)::int FROM gift_categories) as "totalCategories"
+      `),
+      { routeName: "GET /gifts/summary", retries: 2, delayMs: 500 }
+    );
+    const row = result.rows[0] || {};
     res.json({
-      totalItems: inv.rows[0].count,
-      totalDistributed: dist.rows[0].count,
-      pendingDistribution: pending.rows[0].count,
-      totalCategories: cat.rows[0].count
+      totalItems: Number(row.totalItems || 0),
+      totalDistributed: Number(row.totalDistributed || 0),
+      pendingDistribution: Number(row.pendingDistribution || 0),
+      totalCategories: Number(row.totalCategories || 0)
     });
   } catch (err) {
     res.json({ totalItems: 0, totalDistributed: 0, pendingDistribution: 0, totalCategories: 0 });

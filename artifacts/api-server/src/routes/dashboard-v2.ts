@@ -12,61 +12,45 @@ const DEFAULT_BISSI_SCHEMES = [
 
 /**
  * GET /api/v2/dashboard/summary
- * Returns aggregated stats for all 4 Bissi committees from Neon DB.
+ * Returns aggregated stats for all 4 Bissi committees from DB in a single fast query.
  */
 router.get("/summary", async (req, res) => {
   try {
     const result = await queryWithRetry(
-      () => pool.query("SELECT id, name, type, installment_amount, member_limit, status FROM committees ORDER BY id ASC"),
+      () => pool.query(`
+        SELECT 
+          c.id as "schemeId",
+          c.name as "schemeName",
+          CONCAT('BISSI-', c.id) as "schemeCode",
+          c.installment_amount::numeric as "monthlyInstallment",
+          c.member_limit::int as "membersCount",
+          COALESCE(col.collected_amount, 0)::numeric as "collectedAmount"
+        FROM committees c
+        LEFT JOIN (
+          SELECT committee_id, SUM(amount)::numeric as collected_amount
+          FROM collections
+          WHERE committee_id IS NOT NULL
+          GROUP BY committee_id
+        ) col ON c.id = col.committee_id
+        ORDER BY c.id ASC
+      `),
       { routeName: "GET /api/v2/dashboard/summary", retries: 2, delayMs: 500 }
     );
-    const committees = result.rows.length > 0 ? result.rows : DEFAULT_BISSI_SCHEMES;
-    
-    const dashboardData = [];
 
-    for (const comm of committees) {
-      const commId = comm.id;
-      
-      let collectedAmount = 0;
-      let memberCount = comm.member_limit || (commId === 4 ? 1111 : 500);
-
-      try {
-        const [tokenRes, colRes] = await queryWithRetry(
-          () => Promise.all([
-            pool.query("SELECT COUNT(*) FROM tokens WHERE committee_id = $1", [commId]),
-            pool.query(`
-              SELECT COALESCE(SUM(c.amount), 0) as total
-              FROM collections c
-              JOIN tokens t ON t.customer_id = c.customer_id
-              WHERE t.committee_id = $1
-            `, [commId])
-          ]),
-          { routeName: `GET /api/v2/dashboard/summary comm #${commId}`, retries: 2, delayMs: 500 }
-        );
-
-        const tokensCount = parseInt(tokenRes.rows[0].count, 10);
-        if (tokensCount > 0) memberCount = comm.member_limit || tokensCount;
-        collectedAmount = Number(colRes.rows[0].total) || 0;
-      } catch (err) {
-        // Fallback calculation if query fails
-        collectedAmount = commId === 4 ? 1420500 : 650000;
+    const dashboardData = result.rows.map((r: any) => ({
+      schemeId: r.schemeId,
+      schemeName: r.schemeName,
+      schemeCode: r.schemeCode,
+      monthlyInstallment: Number(r.monthlyInstallment || 500),
+      boxes: {
+        collectedAmount: Number(r.collectedAmount || 0),
+        dueAmount: 0,
+        dueTokens: 0,
+        membersCount: Number(r.membersCount || 500),
       }
+    }));
 
-      dashboardData.push({
-        schemeId: comm.id,
-        schemeName: comm.name,
-        schemeCode: `BISSI-${comm.id}`,
-        monthlyInstallment: Number(comm.installment_amount || 500),
-        boxes: {
-          collectedAmount,
-          dueAmount: 0, 
-          dueTokens: 0, 
-          membersCount: comm.member_limit || (comm.id === 4 ? 1111 : 500),
-        }
-      });
-    }
-
-    res.json({ success: true, data: dashboardData });
+    res.json({ success: true, data: dashboardData.length > 0 ? dashboardData : DEFAULT_BISSI_SCHEMES });
   } catch (error) {
     const fallbackData = DEFAULT_BISSI_SCHEMES.map(comm => ({
       schemeId: comm.id,

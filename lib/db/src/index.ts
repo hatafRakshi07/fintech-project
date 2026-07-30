@@ -35,10 +35,10 @@ function getPool(): pg.Pool {
     poolInstance = new Pool({
       connectionString: url,
       // Production-grade pool settings
-      max: parseInt(process.env.DB_POOL_MAX ?? "25", 10),
+      max: parseInt(process.env.DB_POOL_MAX ?? "35", 10),
       min: 0,
       idleTimeoutMillis: 10_000,
-      connectionTimeoutMillis: 8_000,
+      connectionTimeoutMillis: 3_000,
       keepAlive: true,
       keepAliveInitialDelayMillis: 10_000,
       ...(process.env.DATABASE_SSL === "false" || isLocal ? {} : { ssl: { rejectUnauthorized: false } }),
