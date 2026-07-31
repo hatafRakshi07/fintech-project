@@ -121,7 +121,7 @@ router.get("/customers/:id/history", async (req, res): Promise<void> => {
         [customerId]
       ),
       pool.query(
-        "SELECT COUNT(*)::int as count FROM committee_members WHERE customer_id = $1",
+        "SELECT COUNT(DISTINCT committee_id)::int as count FROM tokens WHERE customer_id = $1",
         [customerId]
       ),
       pool.query(
@@ -134,16 +134,15 @@ router.get("/customers/:id/history", async (req, res): Promise<void> => {
       ),
       pool.query(
       `SELECT 
-        cm.committee_id as "committeeId", 
+        t.committee_id as "committeeId", 
         c.name as "committeeName", 
         c.type::text as "type", 
         c.installment_amount::float as "installment",
         ARRAY_REMOVE(ARRAY_AGG(t.token_number), NULL) as "tokens"
-      FROM committee_members cm
-      JOIN committees c ON cm.committee_id = c.id
-      LEFT JOIN tokens t ON cm.customer_id = t.customer_id AND cm.committee_id = t.committee_id
-      WHERE cm.customer_id = $1
-      GROUP BY cm.committee_id, c.name, c.type, c.installment_amount`,
+      FROM tokens t
+      JOIN committees c ON t.committee_id = c.id
+      WHERE t.customer_id = $1
+      GROUP BY t.committee_id, c.name, c.type, c.installment_amount`,
       [customerId]
     ),
       pool.query(
@@ -908,11 +907,11 @@ router.get("/dashboard/stats", async (req, res) => {
     const result = await queryWithRetry(
       () => pool.query(`
         SELECT 
-          (SELECT COUNT(DISTINCT customer_id)::int FROM committee_members WHERE customer_id IS NOT NULL) as "totalCustomers",
+          (SELECT COUNT(DISTINCT customer_id)::int FROM tokens WHERE customer_id IS NOT NULL) as "totalCustomers",
           (SELECT COUNT(*)::int FROM committees) as "totalCommittees",
           (SELECT COUNT(*)::int FROM collections) as "totalCollections",
           (SELECT COALESCE(SUM(amount), 0)::numeric FROM collections) as "totalCollectionAmount",
-          (SELECT COUNT(*)::int FROM committee_members) as "totalTokens",
+          (SELECT COUNT(*)::int FROM tokens) as "totalTokens",
           (SELECT COUNT(*)::int FROM lotteries WHERE status = 'completed' AND winner_id IS NOT NULL) as "totalWinners",
           (SELECT COUNT(*)::int FROM kyc_verifications WHERE status = 'pending') as "pendingKycCount"
       `),
@@ -1071,19 +1070,19 @@ router.get("/dashboard/scheme-boxes", async (req, res) => {
     // Pending tokens: members who haven't paid this month
     const pendingTokensRes = await pool.query(`
       SELECT 
-        cm.committee_id,
+        t.committee_id,
         COUNT(*)::int as pending_count,
         (COUNT(*) * c2.installment_amount)::numeric as pending_amount
-      FROM committee_members cm
-      JOIN committees c2 ON c2.id = cm.committee_id
-      WHERE cm.customer_id NOT IN (
+      FROM tokens t
+      JOIN committees c2 ON c2.id = t.committee_id
+      WHERE t.customer_id NOT IN (
         SELECT DISTINCT col.customer_id
         FROM collections col
-        WHERE col.committee_id = cm.committee_id
+        WHERE col.committee_id = t.committee_id
           AND col.collected_at >= DATE_TRUNC('month', NOW())
           AND col.customer_id IS NOT NULL
       )
-      GROUP BY cm.committee_id, c2.installment_amount
+      GROUP BY t.committee_id, c2.installment_amount
     `);
     const pendingMap: Record<number, any> = {};
     for (const r of pendingTokensRes.rows) {
@@ -1151,26 +1150,26 @@ router.get("/dashboard/pending-report", async (req, res) => {
 
     const result = await pool.query(`
       SELECT 
-        cm.token_number as "tokenNumber",
-        cm.committee_id as "committeeId",
+        t.token_number as "tokenNumber",
+        t.committee_id as "committeeId",
         c.name as "committeeName",
         c.installment_amount as "installmentAmount",
         cust.name as "customerName",
         cust.mobile as "customerMobile",
         cust.reference_number as "referenceNumber"
-      FROM committee_members cm
-      JOIN committees c ON c.id = cm.committee_id
-      JOIN customers cust ON cust.id = cm.customer_id
-      WHERE cm.status = 'active' ${commCondition}
-        AND cm.customer_id NOT IN (
+      FROM tokens t
+      JOIN committees c ON c.id = t.committee_id
+      JOIN customers cust ON cust.id = t.customer_id
+      WHERE t.status = 'active' ${commCondition}
+        AND t.customer_id NOT IN (
           SELECT DISTINCT col.customer_id
           FROM collections col
-          WHERE col.committee_id = cm.committee_id
+          WHERE col.committee_id = t.committee_id
             AND col.collected_at >= DATE_TRUNC('month', NOW())
             AND col.customer_id IS NOT NULL
         )
       ORDER BY c.id ASC, 
-               CASE WHEN cm.token_number ~ '^[0-9]+$' THEN CAST(cm.token_number AS integer) ELSE 99999 END ASC
+               CASE WHEN t.token_number ~ '^[0-9]+$' THEN CAST(t.token_number AS integer) ELSE 99999 END ASC
       LIMIT 2000
     `, params);
 
