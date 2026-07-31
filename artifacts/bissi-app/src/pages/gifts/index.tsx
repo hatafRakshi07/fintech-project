@@ -37,6 +37,21 @@ const formatDate = (d: string) => {
   return new Date(d).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
 };
 
+const formatGiftName = (name: string, rewardType: string) => {
+  if (!name || name === "—") return rewardType === "gift" ? "Gift Item" : "Cash Reward";
+  let cleaned = name.replace(/^Winner Reward:\s*/i, "").trim();
+  if (!cleaned) return rewardType === "gift" ? "Gift Item" : "Cash Reward";
+  
+  if (/^\d+$/.test(cleaned)) {
+    return `₹${Number(cleaned).toLocaleString("en-IN")}`;
+  }
+  if (/^\d+cash$/i.test(cleaned)) {
+    const num = cleaned.replace(/cash/i, "");
+    return `₹${Number(num).toLocaleString("en-IN")} Cash`;
+  }
+  return cleaned.charAt(0).toUpperCase() + cleaned.slice(1);
+};
+
 export default function GiftsPage() {
   const [search, setSearch] = useState("");
   const [committeeId, setCommitteeId] = useState("all");
@@ -78,16 +93,17 @@ export default function GiftsPage() {
   const handlePrint = () => {
     const w = window.open("", "_blank");
     if (!w) return;
-    const rows = winners.map(winner =>
-      `<tr>
+    const rows = winners.map(winner => {
+      const gItem = formatGiftName(winner.giftName, winner.rewardType);
+      return `<tr>
         <td>${formatDate(winner.drawDate)}</td>
         <td>${winner.committeeName}</td>
         <td>${winner.winnerName}</td>
         <td>${winner.tokenNumber ? `#${winner.tokenNumber}` : "—"}</td>
-        <td>${winner.giftName || "—"}</td>
-        <td style="color:${winner.rewardType === 'gift' ? '#7c3aed' : '#059669'}">${winner.rewardType === "gift" ? "🎁 Gift" : "💵 Cash"}</td>
-      </tr>`
-    ).join("");
+        <td style="font-weight:bold;color:${winner.rewardType === 'gift' ? '#7c3aed' : '#059669'}">${gItem}</td>
+        <td>${winner.rewardType === "gift" ? "🎁 Gift" : "💵 Cash"}</td>
+      </tr>`;
+    }).join("");
 
     w.document.write(`<!DOCTYPE html>
 <html><head><title>Gift Winners Report</title>
@@ -107,7 +123,7 @@ export default function GiftsPage() {
 <p>${committeeId === "all" ? "All Bissi Schemes" : COMMITTEES.find(c => c.id === committeeId)?.name} | Total: ${total} records</p>
 <button onclick="window.print()">🖨️ Print</button>
 <table>
-  <thead><tr><th>Date</th><th>Bissi</th><th>Winner Name</th><th>Token</th><th>Gift / Amount</th><th>Type</th></tr></thead>
+  <thead><tr><th>Date</th><th>Bissi</th><th>Winner Name</th><th>Token</th><th>Gift Item / Reward (क्या मिला)</th><th>Type</th></tr></thead>
   <tbody>${rows}</tbody>
 </table>
 </body></html>`);
@@ -246,54 +262,62 @@ export default function GiftsPage() {
 
               {/* Cards */}
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
-                {monthWinners.map(w => (
-                  <div
-                    key={w.id}
-                    className={`p-3.5 rounded-xl border transition-shadow hover:shadow-md ${
-                      w.rewardType === "gift"
-                        ? "border-purple-500/20 bg-purple-500/5 hover:border-purple-500/40"
-                        : "border-emerald-500/20 bg-emerald-500/5 hover:border-emerald-500/40"
-                    }`}
-                  >
-                    <div className="flex items-start justify-between gap-2 mb-2">
-                      <span className="text-xs font-bold text-foreground leading-tight line-clamp-2">
-                        {w.winnerName}
-                      </span>
-                      <Badge
-                        className={`text-[10px] shrink-0 ${
-                          w.rewardType === "gift"
-                            ? "bg-purple-500/20 text-purple-600 border-purple-500/30"
-                            : "bg-emerald-500/20 text-emerald-600 border-emerald-500/30"
-                        }`}
-                        variant="outline"
-                      >
-                        {w.rewardType === "gift" ? "🎁 Gift" : "💵 Cash"}
-                      </Badge>
-                    </div>
-
-                    {/* Gift Name */}
-                    <div className={`text-sm font-bold mb-2 ${w.rewardType === "gift" ? "text-purple-600" : "text-emerald-600"}`}>
-                      {w.giftName || "—"}
-                    </div>
-
-                    <div className="space-y-1 text-[11px] text-muted-foreground">
-                      <div className="flex justify-between">
-                        <span>Bissi:</span>
-                        <span className="font-semibold text-foreground">{w.committeeName.replace(" Bissi", "")}</span>
+                {monthWinners.map(w => {
+                  const giftDetail = formatGiftName(w.giftName, w.rewardType);
+                  return (
+                    <div
+                      key={w.id}
+                      className={`p-4 rounded-xl border transition-shadow hover:shadow-md ${
+                        w.rewardType === "gift"
+                          ? "border-purple-500/20 bg-purple-500/5 hover:border-purple-500/40"
+                          : "border-emerald-500/20 bg-emerald-500/5 hover:border-emerald-500/40"
+                      }`}
+                    >
+                      <div className="flex items-start justify-between gap-2 mb-2">
+                        <span className="text-xs font-bold text-foreground leading-tight line-clamp-2">
+                          {w.winnerName}
+                        </span>
+                        <Badge
+                          className={`text-[10px] shrink-0 ${
+                            w.rewardType === "gift"
+                              ? "bg-purple-500/20 text-purple-600 border-purple-500/30"
+                              : "bg-emerald-500/20 text-emerald-600 border-emerald-500/30"
+                          }`}
+                          variant="outline"
+                        >
+                          {w.rewardType === "gift" ? "🎁 Gift" : "💵 Cash"}
+                        </Badge>
                       </div>
-                      {w.tokenNumber && (
+
+                      {/* Gift Item / Reward Details */}
+                      <div className="my-2.5 p-2 rounded-lg bg-background/80 border border-border/50">
+                        <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider block">
+                          Gift Item / Reward (क्या मिला):
+                        </span>
+                        <span className={`text-sm font-extrabold block mt-0.5 ${w.rewardType === "gift" ? "text-purple-600" : "text-emerald-600"}`}>
+                          {giftDetail}
+                        </span>
+                      </div>
+
+                      <div className="space-y-1 text-[11px] text-muted-foreground">
                         <div className="flex justify-between">
-                          <span>Token:</span>
-                          <span className="font-mono font-bold text-indigo-600">#{w.tokenNumber}</span>
+                          <span>Bissi:</span>
+                          <span className="font-semibold text-foreground">{w.committeeName.replace(" Bissi", "")}</span>
                         </div>
-                      )}
-                      <div className="flex justify-between">
-                        <span>Date:</span>
-                        <span className="font-semibold">{formatDate(w.drawDate)}</span>
+                        {w.tokenNumber && (
+                          <div className="flex justify-between">
+                            <span>Token:</span>
+                            <span className="font-mono font-bold text-indigo-600">#{w.tokenNumber}</span>
+                          </div>
+                        )}
+                        <div className="flex justify-between">
+                          <span>Date:</span>
+                          <span className="font-semibold">{formatDate(w.drawDate)}</span>
+                        </div>
                       </div>
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             </div>
           ))}
