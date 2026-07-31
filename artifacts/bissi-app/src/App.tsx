@@ -82,7 +82,15 @@ const queryClient = new QueryClient({
 });
 
 function AppRoutes() {
-  const [location] = useLocation();
+  const [location, setLocation] = useLocation();
+
+  React.useEffect(() => {
+    const onUnauthorized = () => {
+      setLocation("/login");
+    };
+    window.addEventListener("auth:unauthorized", onUnauthorized);
+    return () => window.removeEventListener("auth:unauthorized", onUnauthorized);
+  }, [setLocation]);
 
   if (location === "/customer-portal") {
     return <CustomerPortalPage />;

@@ -371,6 +371,9 @@ export async function customFetch<T = unknown>(
   if (!response.ok) {
     if (response.status === 401 && typeof window !== "undefined") {
       localStorage.removeItem("auth_token");
+      localStorage.removeItem("token");
+      // signal the app so it can redirect to login and stop further mutations
+      window.dispatchEvent(new CustomEvent("auth:unauthorized"));
     }
     const errorData = await parseErrorBody(response, method);
     throw new ApiError(response, errorData, requestInfo);

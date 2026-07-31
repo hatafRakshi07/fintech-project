@@ -10,6 +10,7 @@ import { fileURLToPath } from "node:url";
 import { dirname, resolve, join } from "node:path";
 import router from "./routes";
 import { logger } from "./lib/logger";
+import { getPoolStats } from "@workspace/db";
 
 const app: Express = express();
 
@@ -118,6 +119,20 @@ const globalLimiter = rateLimit({
   skip: (req) => req.path === "/api/healthz", // never rate-limit health checks
 });
 app.use("/api", globalLimiter);
+
+// ---------------------------------------------------------------------------
+// Circuit breaker — shed load immediately when DB pool is saturated
+// ---------------------------------------------------------------------------
+const POOL_WAIT_THRESHOLD = parseInt(process.env.POOL_CIRCUIT_THRESHOLD ?? "8", 10);
+app.use("/api", (req: Request, res: Response, next: NextFunction) => {
+  if (req.path === "/healthz") return next();
+  const { waiting } = getPoolStats();
+  if (waiting > POOL_WAIT_THRESHOLD) {
+    res.status(503).set("Retry-After", "5").json({ error: "Server busy, please retry in a few seconds." });
+    return;
+  }
+  next();
+});
 
 // ---------------------------------------------------------------------------
 // Request logging & body parsing

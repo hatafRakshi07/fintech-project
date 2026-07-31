@@ -36,9 +36,11 @@ function getPool(): pg.Pool {
       connectionString: url,
       // Production-grade pool settings
       max: parseInt(process.env.DB_POOL_MAX ?? "25", 10),
-      min: 2,
-      idleTimeoutMillis: 30_000,
-      connectionTimeoutMillis: 15_000,
+      min: 0,
+      idleTimeoutMillis: 10_000,
+      connectionTimeoutMillis: 3_000,
+      // prevent runaway queries from holding connections indefinitely
+      statement_timeout: 30_000,
       keepAlive: true,
       keepAliveInitialDelayMillis: 10_000,
       ...(process.env.DATABASE_SSL === "false" || isLocal ? {} : { ssl: { rejectUnauthorized: false } }),

@@ -160,51 +160,23 @@ function CollectorDashboard({ user }: { user: any }) {
 function AdminDashboard() {
   const [timeFilter, setTimeFilter] = useState("all");
 
-  // Load KPI Stats
-  const { data: statsData, isLoading: statsLoading } = useGetDashboardStats({
-    query: {
-      placeholderData: (prev: any) => prev,
-      staleTime: 30000,
-    } as any
-  });
-  const stats = statsData as any || {};
-
-  // Load Per-Scheme Operational Boxes Data (Sawariya, Pyare Mohan, Hare Ka Sahara, Shree Krishna)
-  const { data: schemeBoxesData, isLoading: schemesLoading } = useQuery<any>({
-    queryKey: ["dashboard-scheme-boxes"],
-    queryFn: () => customFetch("/dashboard/scheme-boxes"),
+  // Single request fetches all dashboard data — prevents DB pool exhaustion
+  const { data: dashAll, isLoading } = useQuery<any>({
+    queryKey: ["dashboard-all"],
+    queryFn: () => customFetch("/dashboard/all"),
     placeholderData: (prev) => prev,
     staleTime: 30000,
+    retry: 1,
   });
 
-  // Load Collection Trend Chart Data
-  const { data: trend } = useQuery<any[]>({
-    queryKey: ["collection-trend"],
-    queryFn: () => customFetch("/dashboard/collection-trend"),
-    placeholderData: (prev) => prev,
-    staleTime: 30000,
-  });
+  const stats = dashAll?.stats || {};
+  const schemes = Array.isArray(dashAll?.schemes) ? dashAll.schemes : [];
+  const safeTrend = Array.isArray(dashAll?.trend) ? dashAll.trend : [];
+  const safeActivity = Array.isArray(dashAll?.recentActivity) ? dashAll.recentActivity : [];
+  const pendingKycCount = stats?.pendingKycCount || 0;
 
-  // Load Recent Activity (Collections Feed)
-  const { data: activity } = useGetRecentActivity({
-    query: {
-      placeholderData: (prev: any) => prev,
-      staleTime: 30000,
-    } as any
-  });
-
-  // Load Pending KYC Count
-  const { data: pendingKycData } = useQuery<any>({
-    queryKey: ["dashboard-pending-kyc"],
-    queryFn: () => customFetch("/kyc/pending"),
-    placeholderData: (prev) => prev,
-    staleTime: 30000,
-  });
-
-  const schemes = Array.isArray(schemeBoxesData?.schemes) ? schemeBoxesData.schemes : Array.isArray(schemeBoxesData?.data) ? schemeBoxesData.data : [];
-  const safeTrend = Array.isArray(trend) ? trend : [];
-  const safeActivity = Array.isArray(activity) ? activity : [];
-  const pendingKycCount = pendingKycData?.pendingCount || stats?.pendingKycCount || 0;
+  const statsLoading = isLoading;
+  const schemesLoading = isLoading;
 
   if (statsLoading && schemesLoading) {
     return (
