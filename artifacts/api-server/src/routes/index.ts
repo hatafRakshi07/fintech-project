@@ -1134,7 +1134,8 @@ let dashboardAllCache: { data: any; timestamp: number } | null = null;
 router.get("/dashboard/all", async (req, res) => {
   try {
     if (dashboardAllCache && Date.now() - dashboardAllCache.timestamp < 30000) {
-      return res.json(dashboardAllCache.data);
+      res.json(dashboardAllCache.data);
+      return;
     }
     const result = await queryWithRetry(
       () => pool.query(`
@@ -1238,7 +1239,8 @@ router.get("/dashboard/all", async (req, res) => {
     res.json(responsePayload);
   } catch (err: any) {
     if (dashboardAllCache) {
-      return res.json(dashboardAllCache.data);
+      res.json(dashboardAllCache.data);
+      return;
     }
     const stats = getPoolStats();
     console.error(`Error fetching dashboard/all [Pool: total=${stats.total}, active=${stats.active}, waiting=${stats.waiting}]:`, err);
