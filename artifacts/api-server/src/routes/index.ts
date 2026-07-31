@@ -1129,8 +1129,13 @@ router.get("/dashboard/branch-summary", async (req, res) => {
 // dashboard page (stats, scheme-boxes, trend, recent-activity, kyc/pending).
 // One connection, one round-trip — eliminates pool exhaustion on page load.
 // ---------------------------------------------------------------------------
+let dashboardAllCache: { data: any; timestamp: number } | null = null;
+
 router.get("/dashboard/all", async (req, res) => {
   try {
+    if (dashboardAllCache && Date.now() - dashboardAllCache.timestamp < 30000) {
+      return res.json(dashboardAllCache.data);
+    }
     const result = await queryWithRetry(
       () => pool.query(`
         WITH
@@ -1209,7 +1214,7 @@ router.get("/dashboard/all", async (req, res) => {
       customerName: r.customer_name || "Member",
     }));
 
-    res.json({
+    const responsePayload = {
       success: true,
       stats: {
         totalCustomers: Number(kpi.total_customers || 0),
@@ -1227,8 +1232,14 @@ router.get("/dashboard/all", async (req, res) => {
       schemes,
       trend,
       recentActivity: recent,
-    });
+    };
+
+    dashboardAllCache = { data: responsePayload, timestamp: Date.now() };
+    res.json(responsePayload);
   } catch (err: any) {
+    if (dashboardAllCache) {
+      return res.json(dashboardAllCache.data);
+    }
     const stats = getPoolStats();
     console.error(`Error fetching dashboard/all [Pool: total=${stats.total}, active=${stats.active}, waiting=${stats.waiting}]:`, err);
     res.status(503).json({ success: false, error: "Dashboard data temporarily unavailable. Please retry." });
