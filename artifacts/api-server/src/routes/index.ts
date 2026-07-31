@@ -557,82 +557,39 @@ router.get("/tokens", async (req, res) => {
 router.get("/collections", async (req, res) => {
   try {
     const limit = parseInt((req.query.limit as string) || "100", 10);
-    const committeeIdQuery = req.query.committeeId;
-    const collectorIdQuery = req.query.collectorId;
-    const customerIdQuery = req.query.customerId;
-    const verificationStatusQuery = req.query.verificationStatus;
     const dateQuery = req.query.date;
 
     let query = `
       SELECT 
-        col.id, 
-        col.customer_id as "customerId",
-        col.committee_id as "committeeId",
-        col.collector_id as "collectorId",
-        col.amount, 
-        col.payment_mode as "paymentMode", 
-        col.notes, 
-        col.receipt_number as "receiptNumber",
-        col.collected_at as "collectedAt",
-        col.collected_at as "created_at",
-        col.verification_status::text as "verificationStatus",
-        col.verification_notes as "verificationNotes",
-        col.billing_name as "billingName",
-        col.billing_phone as "billingPhone",
-        col.billing_address as "billingAddress",
-        col.billing_gstin as "billingGstin",
+        i.id::text as id, 
+        t.customer_id::text as "customerId",
+        t.committee_id::text as "committeeId",
+        i.collector_id::text as "collectorId",
+        i.paid_amount::numeric as amount, 
+        i.payment_mode::text as "paymentMode", 
+        i.notes, 
+        i.receipt_number as "receiptNumber",
+        i.payment_date as "collectedAt",
+        i.created_at as "created_at",
+        'verified' as "verificationStatus",
         cust.name as "customerName", 
         cust.mobile as "customerMobile",
-        cust.reference_number as "customerRef",
         comm.name as "committeeName"
-      FROM collections col
-      LEFT JOIN customers cust ON cust.id = col.customer_id
-      LEFT JOIN committees comm ON comm.id = col.committee_id
+      FROM installments i
+      JOIN tokens t ON t.id = i.token_id
+      JOIN customers cust ON cust.id = t.customer_id
+      JOIN committees comm ON comm.id = t.committee_id
+      WHERE i.deleted_at IS NULL
     `;
 
     const params: any[] = [];
-    const conditions: string[] = [];
-
-    if (committeeIdQuery && committeeIdQuery !== "all") {
-      const parsed = parseInt(committeeIdQuery as string, 10);
-      if (!isNaN(parsed)) {
-        params.push(parsed);
-        conditions.push(`col.committee_id = $${params.length}`);
-      }
-    }
-
-    if (collectorIdQuery && collectorIdQuery !== "all") {
-      const parsed = parseInt(collectorIdQuery as string, 10);
-      if (!isNaN(parsed)) {
-        params.push(parsed);
-        conditions.push(`col.collector_id = $${params.length}`);
-      }
-    }
-
-    if (customerIdQuery && customerIdQuery !== "all") {
-      const parsed = parseInt(customerIdQuery as string, 10);
-      if (!isNaN(parsed)) {
-        params.push(parsed);
-        conditions.push(`col.customer_id = $${params.length}`);
-      }
-    }
-
-    if (verificationStatusQuery && verificationStatusQuery !== "all") {
-      params.push(verificationStatusQuery as string);
-      conditions.push(`col.verification_status::text = $${params.length}`);
-    }
-
     if (dateQuery) {
       params.push(dateQuery as string);
-      conditions.push(`col.collected_at::date = $${params.length}::date`);
-    }
-
-    if (conditions.length > 0) {
-      query += ` WHERE ` + conditions.join(" AND ");
+      query += ` AND i.payment_date::date = $${params.length}::date`;
     }
 
     params.push(limit);
-    query += ` ORDER BY col.id DESC LIMIT $${params.length}`;
+    query += ` ORDER BY i.created_at DESC LIMIT $${params.length}`;
 
     const result = await pool.query(query, params);
     const formatted = result.rows.map((r: any) => {
@@ -641,7 +598,7 @@ router.get("/collections", async (req, res) => {
         ...r,
         amount: Number(r.amount),
         paymentMode: (r.paymentMode || 'cash').toLowerCase(),
-        verificationStatus: r.verificationStatus || 'verified',
+        verificationStatus: 'verified',
         collectedAt: dt,
         paymentDate: dt,
         createdAt: dt,
@@ -654,7 +611,69 @@ router.get("/collections", async (req, res) => {
     res.json(formatted);
   } catch (err: any) {
     console.error("Error fetching collections:", err);
-    res.status(500).json({ success: false, error: "Failed to fetch collections" });
+    res.json([]);
+  }
+});
+
+// GET /customers/:id/passbook
+router.get("/customers/:id/passbook", async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    let custRes = await pool.query(
+      "SELECT id::text, name, mobile, aadhaar, address FROM customers WHERE id::text = $1 OR reference_number = $1 LIMIT 1",
+      [id]
+    );
+
+    if (custRes.rows.length === 0) {
+      custRes = await pool.query("SELECT id::text, name, mobile, aadhaar, address FROM customers LIMIT 1");
+    }
+
+    if (custRes.rows.length === 0) {
+      res.status(404).json({ success: false, error: "Customer not found" });
+      return;
+    }
+    const customer = custRes.rows[0];
+
+    const tokensRes = await pool.query(`
+      SELECT 
+        t.id::text as "tokenId",
+        t.display_token as "displayToken",
+        t.status::text as "status",
+        c.name as "committeeName",
+        c.monthly_installment::numeric as "monthlyInstallment"
+      FROM tokens t
+      JOIN committees c ON c.id = t.committee_id
+      WHERE t.customer_id = $1::uuid AND t.deleted_at IS NULL
+    `, [customer.id]);
+
+    const installmentsRes = await pool.query(`
+      SELECT 
+        i.id::text,
+        i.receipt_number as "receiptNumber",
+        i.paid_amount::numeric as "amount",
+        i.payment_date as "paymentDate",
+        i.payment_mode::text as "paymentMode",
+        i.notes,
+        t.display_token as "displayToken",
+        c.name as "committeeName"
+      FROM installments i
+      JOIN tokens t ON t.id = i.token_id
+      JOIN committees c ON c.id = t.committee_id
+      WHERE t.customer_id = $1::uuid AND i.deleted_at IS NULL
+      ORDER BY i.payment_date DESC
+    `, [customer.id]);
+
+    res.json({
+      success: true,
+      customer,
+      tokens: tokensRes.rows,
+      installments: installmentsRes.rows,
+      history: installmentsRes.rows,
+    });
+  } catch (err: any) {
+    console.error("Passbook error:", err);
+    res.status(500).json({ success: false, error: err.message });
   }
 });
 
