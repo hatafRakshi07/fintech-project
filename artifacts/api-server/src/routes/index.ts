@@ -111,11 +111,7 @@ router.get("/customers/:id/history", async (req, res): Promise<void> => {
     }
 
     // Run all independent queries in parallel to avoid N+1 pool exhaustion under load
-    const [collectionsRes, installmentsRes, membershipsCountRes, tokensCountRes, giftsCountRes, membershipsRes, tokensRes, collectionsQueryRes, giftsRes] = await Promise.all([
-      pool.query(
-        "SELECT COALESCE(SUM(amount), 0)::float as total_paid, COUNT(*)::int as total_collections FROM collections WHERE customer_id = $1",
-        [customerId]
-      ),
+    const [installmentsRes, membershipsCountRes, tokensCountRes, giftsCountRes, membershipsRes, tokensRes, collectionsQueryRes, giftsRes] = await Promise.all([
       pool.query(
         "SELECT COALESCE(SUM(amount), 0)::float as total_paid, COUNT(*)::int as total_installments FROM installments WHERE customer_id = $1",
         [customerId]
@@ -153,21 +149,12 @@ router.get("/customers/:id/history", async (req, res): Promise<void> => {
         `SELECT 
           id, 
           amount::float, 
-          collected_at as "date", 
+          payment_date as "date", 
           payment_mode::text as "paymentMode", 
-          notes 
-        FROM collections 
+          remarks as "notes" 
+        FROM installments 
         WHERE customer_id = $1 
-        UNION ALL
-        SELECT
-          id,
-          amount::float,
-          payment_date as "date",
-          payment_mode::text as "paymentMode",
-          remarks as "notes"
-        FROM installments
-        WHERE customer_id = $1
-        ORDER BY date DESC`,
+        ORDER BY payment_date DESC`,
         [customerId]
       ),
       pool.query(
@@ -184,8 +171,8 @@ router.get("/customers/:id/history", async (req, res): Promise<void> => {
       ),
     ]);
 
-    const totalPaid = collectionsRes.rows[0].total_paid + installmentsRes.rows[0].total_paid;
-    const totalCollections = collectionsRes.rows[0].total_collections + installmentsRes.rows[0].total_installments;
+    const totalPaid = installmentsRes.rows[0].total_paid;
+    const totalCollections = installmentsRes.rows[0].total_installments;
     const committeesJoined = membershipsCountRes.rows[0].count;
     const totalTokens = tokensCountRes.rows[0].count;
     const totalGifts = giftsCountRes.rows[0].count;
