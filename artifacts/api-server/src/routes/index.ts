@@ -280,20 +280,7 @@ router.get("/committees", async (req, res) => {
       { routeName: "GET /committees", retries: 2, delayMs: 500 }
     );
 
-    let rawCommittees = result.rows;
-    const dateNames = rawCommittees.map(c => (c.name || "").toLowerCase());
-    
-    // Keep date-named committees, filter out redundant plain duplicates
-    const filtered = rawCommittees.filter(c => {
-      const lower = (c.name || "").toLowerCase();
-      if (!lower.includes("date") && !lower.includes("associate")) {
-        const hasDateVersion = dateNames.some(dn => dn !== lower && dn.includes(lower) && (dn.includes("date") || dn.includes("associate")));
-        if (hasDateVersion) return false;
-      }
-      return true;
-    });
-
-    const formatted = (filtered.length > 0 ? filtered : rawCommittees).map(r => ({
+    const formatted = result.rows.map(r => ({
       ...r,
       installmentAmount: Number(r.installmentAmount || 3000),
       memberLimit: Number(r.memberLimit || 500),
