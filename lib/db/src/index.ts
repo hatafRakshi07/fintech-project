@@ -25,12 +25,25 @@ function getPool(): pg.Pool {
     url = url.replace(/([a-z0-9-]+)(\.[a-z0-9-]+\.aws\.neon\.tech)/i, "$1-pooler$2");
   }
 
+  let hostname = "";
   // Strip sslmode from URL so pg-connection-string never overrides our ssl config.
   // (pg v8+ treats sslmode=require as verify-full, breaking rejectUnauthorized:false.)
   try {
     const u = new URL(url);
+    hostname = u.hostname;
     u.searchParams.delete("sslmode");
     u.searchParams.delete("ssl");
+
+    if (u.hostname.includes(".neon.tech")) {
+      const endpointId = u.hostname.split(".")[0];
+      if (!u.searchParams.has("options") || !u.searchParams.get("options")?.includes("endpoint=")) {
+        const existingOptions = u.searchParams.get("options");
+        const newOptions = existingOptions
+          ? `${existingOptions} endpoint=${endpointId}`
+          : `endpoint=${endpointId}`;
+        u.searchParams.set("options", newOptions);
+      }
+    }
     url = u.toString();
   } catch { /* non-standard URL — leave as-is */ }
 
@@ -48,7 +61,9 @@ function getPool(): pg.Pool {
       statement_timeout: 30_000,
       keepAlive: true,
       keepAliveInitialDelayMillis: 10_000,
-      ...(process.env.DATABASE_SSL === "false" || isLocal ? {} : { ssl: { rejectUnauthorized: false } }),
+      ...(process.env.DATABASE_SSL === "false" || isLocal
+        ? {}
+        : { ssl: { rejectUnauthorized: false, ...(hostname ? { servername: hostname } : {}) } }),
     } as pg.PoolConfig);
 
     poolInstance.on("connect", (client: pg.PoolClient) => {
@@ -98,6 +113,10 @@ function isConnectionError(err: any): boolean {
     msg.includes("max client connections") ||
     msg.includes("too many clients") ||
     msg.includes("remaining connection slots") ||
+    msg.includes("endpoint id is not specified") ||
+    msg.includes("endpoint id") ||
+    msg.includes("inconsistent project name") ||
+    code === "28000" ||
     code === "57P01" ||
     code === "53300" ||
     code === "08006" ||
