@@ -110,8 +110,7 @@ router.get("/customers/:id/history", async (req, res): Promise<void> => {
       return;
     }
 
-    // Run all independent queries in parallel to avoid N+1 pool exhaustion under load
-    const [installmentsRes, membershipsCountRes, tokensCountRes, giftsCountRes, membershipsRes, tokensRes, collectionsQueryRes, giftsRes] = await Promise.all([
+    const [installmentsRes, membershipsCountRes, tokensCountRes, giftsCountRes, membershipsRes, tokensRes, collectionsQueryRes, giftsRes, lotteriesRes] = await Promise.all([
       pool.query(
         "SELECT COALESCE(SUM(amount), 0)::float as total_paid, COUNT(*)::int as total_installments FROM installments WHERE customer_id = $1",
         [customerId]
@@ -163,10 +162,30 @@ router.get("/customers/:id/history", async (req, res): Promise<void> => {
           gi.name as "giftName", 
           gd.quantity, 
           gd.distribution_date as "date", 
-          gd.status::text 
+          gd.status::text,
+          gd.notes,
+          c.name as "committeeName",
+          t.token_number as "tokenNumber"
         FROM gift_distributions gd
         LEFT JOIN gift_inventory gi ON gd.gift_id = gi.id
-        WHERE gd.customer_id = $1`,
+        LEFT JOIN committees c ON c.id = gd.committee_id
+        LEFT JOIN tokens t ON t.id = gd.token_id
+        WHERE gd.customer_id = $1
+        ORDER BY gd.distribution_date DESC`,
+        [customerId]
+      ),
+      pool.query(
+        `SELECT 
+          l.id,
+          l.draw_date as "date",
+          l.prize_amount::float as "prizeAmount",
+          l.notes,
+          l.status::text,
+          c.name as "committeeName"
+        FROM lotteries l
+        LEFT JOIN committees c ON c.id = l.committee_id
+        WHERE l.winner_id = $1
+        ORDER BY l.draw_date DESC`,
         [customerId]
       ),
     ]);
@@ -177,12 +196,20 @@ router.get("/customers/:id/history", async (req, res): Promise<void> => {
     const totalTokens = tokensCountRes.rows[0].count;
     const totalGifts = giftsCountRes.rows[0].count;
 
+    const claimedGifts = giftsRes.rows.filter(g => g.status === 'claimed' && !(g.notes || '').includes('CASH')).length;
+    const cashClaims = giftsRes.rows.filter(g => (g.notes || '').includes('CASH')).length;
+    const pendingGifts = giftsRes.rows.filter(g => g.status === 'pending').length;
+
     const summary = {
       totalPaid,
       totalCollections,
       committeesJoined,
       totalTokens,
       totalGifts,
+      claimedGifts,
+      cashClaims,
+      pendingGifts,
+      luckyWins: lotteriesRes.rows.length,
       totalLoans: 0,
       totalLoanAmount: 0
     };
@@ -193,8 +220,8 @@ router.get("/customers/:id/history", async (req, res): Promise<void> => {
     }));
     const tokens = tokensRes.rows;
     const collections = collectionsQueryRes.rows;
-
     const gifts = giftsRes.rows;
+    const lotteries = lotteriesRes.rows;
 
     res.json({
       success: true,
@@ -204,6 +231,7 @@ router.get("/customers/:id/history", async (req, res): Promise<void> => {
       collections,
       loans: [],
       gifts,
+      lotteries,
       interestAccounts: [],
       recoveryTasks: []
     });
