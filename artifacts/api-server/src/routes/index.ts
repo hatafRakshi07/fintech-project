@@ -501,20 +501,20 @@ router.get("/committees/:id/members", async (req, res): Promise<void> => {
 
     const result = await pool.query(`
       SELECT 
-        cm.id,
-        cm.committee_id as "committeeId",
-        cm.customer_id as "customerId",
-        cm.token_number as "tokenNumber",
-        cm.status::text as "status",
+        t.id,
+        t.committee_id as "committeeId",
+        t.customer_id as "customerId",
+        t.token_number as "tokenNumber",
+        t.status::text as "status",
         c.name as "customerName",
         c.reference_number as "customerReferenceNumber",
         c.mobile as "customerMobile"
-      FROM committee_members cm
-      LEFT JOIN customers c ON cm.customer_id = c.id
-      WHERE cm.committee_id = $1
+      FROM tokens t
+      LEFT JOIN customers c ON t.customer_id = c.id
+      WHERE t.committee_id = $1
       ORDER BY 
-        CASE WHEN cm.token_number ~ '^[0-9]+' THEN substring(cm.token_number from '^[0-9]+')::int ELSE 99999 END ASC,
-        cm.token_number ASC
+        CASE WHEN t.token_number ~ '^[0-9]+' THEN substring(t.token_number from '^[0-9]+')::int ELSE 99999 END ASC,
+        t.token_number ASC
     `, [committeeId]);
 
     res.json(result.rows);
