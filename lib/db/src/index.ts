@@ -25,6 +25,20 @@ function getPool(): pg.Pool {
     url = url.replace(/([a-z0-9-]+)(\.[a-z0-9-]+\.aws\.neon\.tech)/i, "$1-pooler$2");
   }
 
+  // Auto-convert direct Supabase host (db.[ref].supabase.co:5432) to IPv4 Pooler (aws-0-ap-south-1.pooler.supabase.com:6543)
+  const supabaseMatch = url.match(/postgres(?::([^@]+))?@db\.([a-z0-9]+)\.supabase\.co/i);
+  if (supabaseMatch) {
+    const password = supabaseMatch[1] ? `:${supabaseMatch[1]}` : "";
+    const projectRef = supabaseMatch[2];
+    url = url.replace(
+      `postgres${password}@db.${projectRef}.supabase.co:5432`,
+      `postgres.${projectRef}${password}@aws-0-ap-south-1.pooler.supabase.com:6543`
+    ).replace(
+      `postgres${password}@db.${projectRef}.supabase.co`,
+      `postgres.${projectRef}${password}@aws-0-ap-south-1.pooler.supabase.com:6543`
+    );
+  }
+
   let hostname = "";
   // Strip sslmode from URL so pg-connection-string never overrides our ssl config.
   // (pg v8+ treats sslmode=require as verify-full, breaking rejectUnauthorized:false.)
