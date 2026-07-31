@@ -318,10 +318,10 @@ router.get("/committees", async (req, res) => {
 
 router.post("/committees", async (req, res): Promise<void> => {
   try {
-    const { name, type, installmentAmount, installment_amount, memberLimit, member_limit, drawDate, draw_date, duration, status, rules } = req.body;
-    const finalAmount = installmentAmount !== undefined ? installmentAmount : installment_amount;
-    const finalMemberLimit = memberLimit !== undefined ? memberLimit : member_limit;
-    const finalDrawDate = drawDate !== undefined ? drawDate : draw_date;
+    const { name, code, installmentAmount, installment_amount, memberLimit, member_limit, totalMonths, startDate, status } = req.body;
+    const finalAmount = installmentAmount !== undefined ? installmentAmount : (installment_amount || 3000);
+    const finalMemberLimit = memberLimit !== undefined ? memberLimit : (member_limit || 500);
+    const DEFAULT_ORG_ID = '00000000-0000-0000-0000-000000000001';
 
     if (!name || !finalAmount || !finalMemberLimit) {
       res.status(400).json({ success: false, error: "Name, installment amount, and member limit are required" });
@@ -329,18 +329,18 @@ router.post("/committees", async (req, res): Promise<void> => {
     }
 
     const result = await pool.query(`
-      INSERT INTO committees (name, type, installment_amount, member_limit, draw_date, duration, status, rules, branch_id, created_at, updated_at)
-      VALUES ($1, $2::committee_type, $3, $4, $5, $6, $7::committee_status, $8, 1, NOW(), NOW())
+      INSERT INTO committees (organization_id, name, code, total_members, total_months, monthly_installment, start_date, status, created_at, updated_at)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8::committee_status_enum, NOW(), NOW())
       RETURNING *
     `, [
+      DEFAULT_ORG_ID,
       name,
-      type || "monthly",
-      finalAmount,
+      code || name.substring(0, 20).toUpperCase().replace(/\s+/g, '-'),
       finalMemberLimit,
-      finalDrawDate || null,
-      duration || 20,
-      status || "active",
-      rules || null
+      totalMonths || 30,
+      finalAmount,
+      startDate || new Date().toISOString().split('T')[0],
+      status || 'ACTIVE'
     ]);
 
     const created = result.rows[0];
@@ -349,8 +349,8 @@ router.post("/committees", async (req, res): Promise<void> => {
       message: "Committee created successfully",
       committee: {
         ...created,
-        installmentAmount: Number(created.installment_amount),
-        memberLimit: created.member_limit,
+        installmentAmount: Number(created.monthly_installment),
+        memberLimit: created.total_members,
       },
       data: created
     });
@@ -363,26 +363,21 @@ router.post("/committees", async (req, res): Promise<void> => {
 router.get("/committees/:id", async (req, res) => {
   try {
     const { id } = req.params;
-    const committeeId = parseInt(id, 10);
-    if (isNaN(committeeId)) {
-      res.status(400).json({ success: false, error: "Invalid committee ID" });
-      return;
-    }
+
     const result = await pool.query(`
       SELECT 
-        c.id,
+        c.id::text,
         c.name,
-        c.type::text as type,
-        c.installment_amount,
-        c.member_limit,
-        c.draw_date as "drawDate",
-        c.status::text as status,
-        c.rules,
-        b.name as "branchName"
+        c.code,
+        c.monthly_installment::numeric as "installmentAmount",
+        c.total_members::int as "memberLimit",
+        c.total_months::int as "totalMonths",
+        c.start_date as "startDate",
+        c.end_date as "endDate",
+        c.status::text as status
       FROM committees c
-      LEFT JOIN branches b ON c.branch_id = b.id
-      WHERE c.id = $1
-    `, [committeeId]);
+      WHERE c.id::text = $1 AND c.deleted_at IS NULL
+    `, [id]);
 
     if (result.rows.length === 0) {
       res.status(404).json({ success: false, error: "Committee not found" });
@@ -390,15 +385,16 @@ router.get("/committees/:id", async (req, res) => {
     }
 
     const r = result.rows[0];
-    const membersCountResult = await pool.query("SELECT COUNT(*)::int as count FROM committee_members WHERE committee_id = $1", [committeeId]);
+    const membersCountResult = await pool.query("SELECT COUNT(*)::int as count FROM tokens WHERE committee_id = $1::uuid AND deleted_at IS NULL", [id]);
     const currentMembers = membersCountResult.rows[0].count;
 
     const committee = {
       ...r,
-      installmentAmount: Number(r.installment_amount),
-      memberLimit: r.member_limit,
+      installmentAmount: Number(r.installmentAmount),
+      memberLimit: Number(r.memberLimit),
+      totalMembers: Number(r.memberLimit),
       currentMembers: currentMembers,
-      branchName: r.branchName || "Shree Krishna Associate"
+      branchName: "Shree Krishna Associate"
     };
     res.json(committee);
   } catch (err: any) {
@@ -409,13 +405,9 @@ router.get("/committees/:id", async (req, res) => {
 
 router.put("/committees/:id", async (req, res): Promise<void> => {
   try {
-    const committeeId = parseInt(req.params.id, 10);
-    if (isNaN(committeeId)) {
-      res.status(400).json({ success: false, error: "Invalid committee ID" });
-      return;
-    }
+    const committeeId = req.params.id;
 
-    const { name, installmentAmount, installment_amount, memberLimit, member_limit, type, status, duration, rules } = req.body;
+    const { name, installmentAmount, installment_amount, memberLimit, member_limit, status, totalMonths } = req.body;
     const finalAmount = installmentAmount !== undefined ? installmentAmount : installment_amount;
     const finalMemberLimit = memberLimit !== undefined ? memberLimit : member_limit;
 
@@ -428,28 +420,20 @@ router.put("/committees/:id", async (req, res): Promise<void> => {
       params.push(name);
     }
     if (finalAmount !== undefined) {
-      updates.push(`installment_amount = $${paramIdx++}`);
+      updates.push(`monthly_installment = $${paramIdx++}`);
       params.push(finalAmount);
     }
     if (finalMemberLimit !== undefined) {
-      updates.push(`member_limit = $${paramIdx++}`);
+      updates.push(`total_members = $${paramIdx++}`);
       params.push(finalMemberLimit);
     }
-    if (type !== undefined) {
-      updates.push(`type = $${paramIdx++}::committee_type`);
-      params.push(type);
-    }
     if (status !== undefined) {
-      updates.push(`status = $${paramIdx++}::committee_status`);
+      updates.push(`status = $${paramIdx++}::committee_status_enum`);
       params.push(status);
     }
-    if (duration !== undefined) {
-      updates.push(`duration = $${paramIdx++}`);
-      params.push(duration);
-    }
-    if (rules !== undefined) {
-      updates.push(`rules = $${paramIdx++}`);
-      params.push(rules);
+    if (totalMonths !== undefined) {
+      updates.push(`total_months = $${paramIdx++}`);
+      params.push(totalMonths);
     }
 
     updates.push(`updated_at = NOW()`);
@@ -460,7 +444,7 @@ router.put("/committees/:id", async (req, res): Promise<void> => {
     }
 
     params.push(committeeId);
-    const query = `UPDATE committees SET ${updates.join(", ")} WHERE id = $${paramIdx} RETURNING *`;
+    const query = `UPDATE committees SET ${updates.join(", ")} WHERE id = $${paramIdx}::uuid RETURNING *`;
     const result = await pool.query(query, params);
 
     if (result.rows.length === 0) {
@@ -590,7 +574,7 @@ router.get("/collections", async (req, res) => {
       JOIN tokens t ON t.id = i.token_id
       JOIN customers cust ON cust.id = t.customer_id
       JOIN committees comm ON comm.id = t.committee_id
-      WHERE i.deleted_at IS NULL
+      WHERE 1=1
     `;
 
     const params: any[] = [];
