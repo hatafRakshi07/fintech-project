@@ -159,6 +159,11 @@ export async function queryWithRetry<T = any>(
     try {
       return await queryFn();
     } catch (err: any) {
+      if (err?.code === '42703') {
+        console.error(
+          `[SCHEMA MISMATCH WARNING] Database query failed with code 42703 (undefined_column) on route "${options.routeName || "query"}": ${err.message}`
+        );
+      }
       const connErr = isConnectionError(err);
       if (connErr && attempt <= maxRetries) {
         const stats = getPoolStats();

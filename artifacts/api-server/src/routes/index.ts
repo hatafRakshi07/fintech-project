@@ -264,19 +264,17 @@ router.get("/committees", async (req, res) => {
       SELECT 
         c.id::text as id,
         c.name,
-        c.code,
-        c.monthly_installment::numeric as "installmentAmount",
-        c.total_members::int as "memberLimit",
+        c.type::text as type,
+        c.installment_amount::numeric as "installmentAmount",
+        c.member_limit::int as "memberLimit",
         c.status::text as status,
         COALESCE(tok_sub.token_count, 0)::int as "currentMembers"
       FROM committees c
       LEFT JOIN (
         SELECT committee_id, COUNT(*)::int as token_count 
         FROM tokens 
-        WHERE deleted_at IS NULL 
         GROUP BY committee_id
       ) tok_sub ON c.id = tok_sub.committee_id
-      WHERE c.deleted_at IS NULL
       ORDER BY c.created_at ASC
     `),
       { routeName: "GET /committees", retries: 2, delayMs: 500 }
@@ -318,10 +316,10 @@ router.get("/committees", async (req, res) => {
 
 router.post("/committees", async (req, res): Promise<void> => {
   try {
-    const { name, code, installmentAmount, installment_amount, memberLimit, member_limit, totalMonths, startDate, status } = req.body;
+    const { name, type, installmentAmount, installment_amount, memberLimit, member_limit, drawDate, draw_date, duration, status } = req.body;
     const finalAmount = installmentAmount !== undefined ? installmentAmount : (installment_amount || 3000);
     const finalMemberLimit = memberLimit !== undefined ? memberLimit : (member_limit || 500);
-    const DEFAULT_ORG_ID = '00000000-0000-0000-0000-000000000001';
+    const finalDrawDate = drawDate !== undefined ? drawDate : draw_date;
 
     if (!name || !finalAmount || !finalMemberLimit) {
       res.status(400).json({ success: false, error: "Name, installment amount, and member limit are required" });
@@ -329,18 +327,17 @@ router.post("/committees", async (req, res): Promise<void> => {
     }
 
     const result = await pool.query(`
-      INSERT INTO committees (organization_id, name, code, total_members, total_months, monthly_installment, start_date, status, created_at, updated_at)
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8::committee_status_enum, NOW(), NOW())
+      INSERT INTO committees (name, type, installment_amount, member_limit, draw_date, duration, status, branch_id, created_at, updated_at)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, 1, NOW(), NOW())
       RETURNING *
     `, [
-      DEFAULT_ORG_ID,
       name,
-      code || name.substring(0, 20).toUpperCase().replace(/\s+/g, '-'),
-      finalMemberLimit,
-      totalMonths || 30,
+      type || 'monthly',
       finalAmount,
-      startDate || new Date().toISOString().split('T')[0],
-      status || 'ACTIVE'
+      finalMemberLimit,
+      finalDrawDate || null,
+      duration || 20,
+      status || 'active'
     ]);
 
     const created = result.rows[0];
@@ -349,8 +346,8 @@ router.post("/committees", async (req, res): Promise<void> => {
       message: "Committee created successfully",
       committee: {
         ...created,
-        installmentAmount: Number(created.monthly_installment),
-        memberLimit: created.total_members,
+        installmentAmount: Number(created.installment_amount),
+        memberLimit: created.member_limit,
       },
       data: created
     });
@@ -363,21 +360,27 @@ router.post("/committees", async (req, res): Promise<void> => {
 router.get("/committees/:id", async (req, res) => {
   try {
     const { id } = req.params;
+    const committeeId = parseInt(id, 10);
+    if (isNaN(committeeId)) {
+      res.status(400).json({ success: false, error: "Invalid committee ID" });
+      return;
+    }
 
     const result = await pool.query(`
       SELECT 
         c.id::text,
         c.name,
-        c.code,
-        c.monthly_installment::numeric as "installmentAmount",
-        c.total_members::int as "memberLimit",
-        c.total_months::int as "totalMonths",
-        c.start_date as "startDate",
-        c.end_date as "endDate",
-        c.status::text as status
+        c.type::text as type,
+        c.installment_amount::numeric as "installmentAmount",
+        c.member_limit::int as "memberLimit",
+        c.draw_date as "drawDate",
+        c.duration::int as duration,
+        c.status::text as status,
+        b.name as "branchName"
       FROM committees c
-      WHERE c.id::text = $1 AND c.deleted_at IS NULL
-    `, [id]);
+      LEFT JOIN branches b ON c.branch_id = b.id
+      WHERE c.id = $1
+    `, [committeeId]);
 
     if (result.rows.length === 0) {
       res.status(404).json({ success: false, error: "Committee not found" });
@@ -385,7 +388,7 @@ router.get("/committees/:id", async (req, res) => {
     }
 
     const r = result.rows[0];
-    const membersCountResult = await pool.query("SELECT COUNT(*)::int as count FROM tokens WHERE committee_id = $1::uuid AND deleted_at IS NULL", [id]);
+    const membersCountResult = await pool.query("SELECT COUNT(*)::int as count FROM tokens WHERE committee_id = $1", [committeeId]);
     const currentMembers = membersCountResult.rows[0].count;
 
     const committee = {
@@ -394,7 +397,7 @@ router.get("/committees/:id", async (req, res) => {
       memberLimit: Number(r.memberLimit),
       totalMembers: Number(r.memberLimit),
       currentMembers: currentMembers,
-      branchName: "Shree Krishna Associate"
+      branchName: r.branchName || "Shree Krishna Associate"
     };
     res.json(committee);
   } catch (err: any) {
@@ -405,9 +408,13 @@ router.get("/committees/:id", async (req, res) => {
 
 router.put("/committees/:id", async (req, res): Promise<void> => {
   try {
-    const committeeId = req.params.id;
+    const committeeId = parseInt(req.params.id, 10);
+    if (isNaN(committeeId)) {
+      res.status(400).json({ success: false, error: "Invalid committee ID" });
+      return;
+    }
 
-    const { name, installmentAmount, installment_amount, memberLimit, member_limit, status, totalMonths } = req.body;
+    const { name, installmentAmount, installment_amount, memberLimit, member_limit, type, status, duration } = req.body;
     const finalAmount = installmentAmount !== undefined ? installmentAmount : installment_amount;
     const finalMemberLimit = memberLimit !== undefined ? memberLimit : member_limit;
 
@@ -420,20 +427,24 @@ router.put("/committees/:id", async (req, res): Promise<void> => {
       params.push(name);
     }
     if (finalAmount !== undefined) {
-      updates.push(`monthly_installment = $${paramIdx++}`);
+      updates.push(`installment_amount = $${paramIdx++}`);
       params.push(finalAmount);
     }
     if (finalMemberLimit !== undefined) {
-      updates.push(`total_members = $${paramIdx++}`);
+      updates.push(`member_limit = $${paramIdx++}`);
       params.push(finalMemberLimit);
     }
+    if (type !== undefined) {
+      updates.push(`type = $${paramIdx++}`);
+      params.push(type);
+    }
     if (status !== undefined) {
-      updates.push(`status = $${paramIdx++}::committee_status_enum`);
+      updates.push(`status = $${paramIdx++}`);
       params.push(status);
     }
-    if (totalMonths !== undefined) {
-      updates.push(`total_months = $${paramIdx++}`);
-      params.push(totalMonths);
+    if (duration !== undefined) {
+      updates.push(`duration = $${paramIdx++}`);
+      params.push(duration);
     }
 
     updates.push(`updated_at = NOW()`);
@@ -444,7 +455,7 @@ router.put("/committees/:id", async (req, res): Promise<void> => {
     }
 
     params.push(committeeId);
-    const query = `UPDATE committees SET ${updates.join(", ")} WHERE id = $${paramIdx}::uuid RETURNING *`;
+    const query = `UPDATE committees SET ${updates.join(", ")} WHERE id = $${paramIdx} RETURNING *`;
     const result = await pool.query(query, params);
 
     if (result.rows.length === 0) {
@@ -557,12 +568,12 @@ router.get("/collections", async (req, res) => {
     let query = `
       SELECT 
         i.id::text as id, 
-        t.customer_id::text as "customerId",
-        t.committee_id::text as "committeeId",
+        i.customer_id::text as "customerId",
+        i.committee_id::text as "committeeId",
         i.collector_id::text as "collectorId",
-        i.paid_amount::numeric as amount, 
+        i.amount::numeric as amount, 
         i.payment_mode::text as "paymentMode", 
-        i.notes, 
+        i.remarks as notes, 
         i.receipt_number as "receiptNumber",
         i.payment_date as "collectedAt",
         i.created_at as "created_at",
@@ -571,9 +582,8 @@ router.get("/collections", async (req, res) => {
         cust.mobile as "customerMobile",
         comm.name as "committeeName"
       FROM installments i
-      JOIN tokens t ON t.id = i.token_id
-      JOIN customers cust ON cust.id = t.customer_id
-      JOIN committees comm ON comm.id = t.committee_id
+      JOIN customers cust ON cust.id = i.customer_id
+      JOIN committees comm ON comm.id = i.committee_id
       WHERE 1=1
     `;
 
@@ -633,29 +643,29 @@ router.get("/customers/:id/passbook", async (req, res) => {
     const tokensRes = await pool.query(`
       SELECT 
         t.id::text as "tokenId",
-        t.display_token as "displayToken",
+        t.token_number as "displayToken",
         t.status::text as "status",
         c.name as "committeeName",
-        c.monthly_installment::numeric as "monthlyInstallment"
+        c.installment_amount::numeric as "monthlyInstallment"
       FROM tokens t
       JOIN committees c ON c.id = t.committee_id
-      WHERE t.customer_id = $1::uuid AND t.deleted_at IS NULL
+      WHERE t.customer_id = $1
     `, [customer.id]);
 
     const installmentsRes = await pool.query(`
       SELECT 
         i.id::text,
         i.receipt_number as "receiptNumber",
-        i.paid_amount::numeric as "amount",
+        i.amount::numeric as "amount",
         i.payment_date as "paymentDate",
         i.payment_mode::text as "paymentMode",
-        i.notes,
-        t.display_token as "displayToken",
+        i.remarks as notes,
+        t.token_number as "displayToken",
         c.name as "committeeName"
       FROM installments i
       JOIN tokens t ON t.id = i.token_id
-      JOIN committees c ON c.id = t.committee_id
-      WHERE t.customer_id = $1::uuid AND i.deleted_at IS NULL
+      JOIN committees c ON c.id = i.committee_id
+      WHERE i.customer_id = $1
       ORDER BY i.payment_date DESC
     `, [customer.id]);
 

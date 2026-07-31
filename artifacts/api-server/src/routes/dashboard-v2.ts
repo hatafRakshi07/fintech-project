@@ -21,16 +21,15 @@ router.get("/summary", async (req, res) => {
         SELECT 
           c.id::text as "schemeId",
           c.name as "schemeName",
-          c.code as "schemeCode",
-          c.monthly_installment::numeric as "monthlyInstallment",
-          c.total_members::int as "membersCount",
+          c.name as "schemeCode",
+          c.installment_amount::numeric as "monthlyInstallment",
+          c.member_limit::int as "membersCount",
           COALESCE(inst.collected_amount, 0)::numeric as "collectedAmount"
         FROM committees c
         LEFT JOIN (
-          SELECT cm.committee_id, SUM(i.paid_amount)::numeric as collected_amount
+          SELECT i.committee_id, SUM(i.amount)::numeric as collected_amount
           FROM installments i
-          JOIN committee_months cm ON cm.id = i.committee_month_id
-          GROUP BY cm.committee_id
+          GROUP BY i.committee_id
         ) inst ON c.id = inst.committee_id
         ORDER BY c.created_at ASC
       `),
