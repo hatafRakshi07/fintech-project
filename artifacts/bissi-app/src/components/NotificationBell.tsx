@@ -48,14 +48,14 @@ export default function NotificationBell() {
   const { data: countData } = useQuery<{ count: number }>({
     queryKey: ["notifications-count"],
     queryFn: () => api.get("/notifications/unread-count"),
-    refetchInterval: 3_000,
+    refetchInterval: 60_000,
   });
 
   const { data: notifications = [] } = useQuery<Notification[]>({
     queryKey: ["notifications"],
     queryFn: () => api.get("/notifications?limit=20"),
     enabled: open,
-    refetchInterval: open ? 3_000 : 5_000,
+    refetchInterval: open ? 15_000 : false,
   });
 
   const markRead = useMutation({
