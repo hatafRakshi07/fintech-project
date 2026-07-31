@@ -897,7 +897,7 @@ router.get("/dashboard/stats", async (req, res) => {
     const result = await queryWithRetry(
       () => pool.query(`
         SELECT 
-          (SELECT COUNT(*)::int FROM customers) as "totalCustomers",
+          (SELECT COUNT(DISTINCT customer_id)::int FROM committee_members WHERE customer_id IS NOT NULL) as "totalCustomers",
           (SELECT COUNT(*)::int FROM committees) as "totalCommittees",
           (SELECT COUNT(*)::int FROM collections) as "totalCollections",
           (SELECT COALESCE(SUM(amount), 0)::numeric FROM collections) as "totalCollectionAmount",
