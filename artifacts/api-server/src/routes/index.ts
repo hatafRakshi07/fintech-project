@@ -1276,13 +1276,42 @@ router.get("/dashboard/all", async (req, res) => {
 
     const row = result.rows[0];
     const kpi = row.kpi || {};
-    const schemes = (row.schemes || []).map((s: any) => ({
-      ...s,
-      installmentAmount: Number(s.installmentAmount || 3000),
-      collectedAmount: Number(s.collectedAmount || 0),
-      tokenCount: Number(s.tokenCount || 0),
-      dueAmount: Math.max(0, (Number(s.tokenCount || 0) * Number(s.installmentAmount || 3000) * 20) - Number(s.collectedAmount || 0)),
-    }));
+
+    const pendingRes = await pool.query(`
+      SELECT 
+        cm.committee_id,
+        COUNT(*)::int as pending_count,
+        (COUNT(*) * c2.installment_amount)::numeric as pending_amount
+      FROM committee_members cm
+      JOIN committees c2 ON c2.id = cm.committee_id
+      WHERE cm.customer_id NOT IN (
+        SELECT DISTINCT col.customer_id
+        FROM collections col
+        WHERE col.committee_id = cm.committee_id
+          AND col.collected_at >= DATE_TRUNC('month', NOW())
+          AND col.customer_id IS NOT NULL
+      )
+      GROUP BY cm.committee_id, c2.installment_amount
+    `);
+    const pendingMap: Record<number, any> = {};
+    for (const p of pendingRes.rows) {
+      pendingMap[p.committee_id] = Number(p.pending_amount || 0);
+    }
+
+    const schemes = (row.schemes || []).map((s: any) => {
+      const installAmt = Number(s.installmentAmount || 3000);
+      const limit = Number(s.memberLimit || 500);
+      const tokenCount = Number(s.tokenCount || limit);
+      const pmAmount = pendingMap[s.id] ?? (tokenCount * installAmt);
+      return {
+        ...s,
+        installmentAmount: installAmt,
+        collectedAmount: Number(s.collectedAmount || 0),
+        tokenCount: tokenCount,
+        dueAmount: Number(pmAmount),
+        thisMonthPendingCount: Math.round(Number(pmAmount) / installAmt),
+      };
+    });
     const trend = row.trend || [];
     const recent = (row.recent || []).map((r: any) => ({
       id: r.id,
