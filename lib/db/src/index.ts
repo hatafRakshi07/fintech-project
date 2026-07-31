@@ -9,16 +9,21 @@ import * as schema from "./schema/index";
 
 const { Pool } = pg;
 
-// Neon (IPv4, Render-accessible). Supabase direct URL is IPv6-only and times out on Render.
+// Neon (IPv4, Render-accessible pooler endpoint). Supabase direct URL is IPv6-only and times out on Render.
 const NEON_DEFAULT_URL =
   process.env.DATABASE_URL ||
-  "postgresql://neondb_owner:npg_qSQN29ZxTKzt@ep-frosty-cloud-at51tjed.c-9.us-east-1.aws.neon.tech/neondb";
+  "postgresql://neondb_owner:npg_qSQN29ZxTKzt@ep-frosty-cloud-at51tjed-pooler.c-9.us-east-1.aws.neon.tech/neondb";
 
 let poolInstance: pg.Pool | null = null;
 let dbInstance: any = null;
 
 function getPool(): pg.Pool {
   let url = process.env.DATABASE_URL || NEON_DEFAULT_URL;
+
+  // Auto-convert direct Neon host to Neon PgBouncer pooler host if needed
+  if (url.includes(".neon.tech") && !url.includes("-pooler")) {
+    url = url.replace(/([a-z0-9-]+)(\.[a-z0-9-]+\.aws\.neon\.tech)/i, "$1-pooler$2");
+  }
 
   // Strip sslmode from URL so pg-connection-string never overrides our ssl config.
   // (pg v8+ treats sslmode=require as verify-full, breaking rejectUnauthorized:false.)
@@ -35,10 +40,10 @@ function getPool(): pg.Pool {
     poolInstance = new Pool({
       connectionString: url,
       // Production-grade pool settings
-      max: parseInt(process.env.DB_POOL_MAX ?? "25", 10),
-      min: 0,
-      idleTimeoutMillis: 10_000,
-      connectionTimeoutMillis: 3_000,
+      max: parseInt(process.env.DB_POOL_MAX ?? "15", 10),
+      min: 2,
+      idleTimeoutMillis: 30_000,
+      connectionTimeoutMillis: 15_000,
       // prevent runaway queries from holding connections indefinitely
       statement_timeout: 30_000,
       keepAlive: true,
@@ -148,8 +153,8 @@ export async function closePool(): Promise<void> {
 
 /** Ping the DB — used by the health-check endpoint. */
 export async function pingDb(): Promise<void> {
-  const pool = getPool();
-  const client = await pool.connect();
+  const p = getPool();
+  const client = await p.connect();
   try {
     await client.query("SELECT 1");
   } finally {
@@ -163,8 +168,8 @@ export async function warmupDb(): Promise<void> {
   try {
     await queryWithRetry(
       async () => {
-        const pool = getPool();
-        const client = await pool.connect();
+        const p = getPool();
+        const client = await p.connect();
         try {
           await client.query("SELECT 1;");
         } finally {
@@ -181,7 +186,7 @@ export async function warmupDb(): Promise<void> {
 
 function getDb() {
   if (!dbInstance) {
-    dbInstance = drizzle(getPool(), { schema });
+    dbInstance = drizzle(pool, { schema });
   }
   return dbInstance;
 }
@@ -189,7 +194,34 @@ function getDb() {
 export const pool: pg.Pool = new Proxy({} as pg.Pool, {
   get(target, prop, receiver) {
     if (prop === "then") return undefined;
-    return Reflect.get(getPool(), prop, receiver);
+    const realPool = getPool();
+    const value = Reflect.get(realPool, prop, receiver);
+
+    if (prop === "query") {
+      return function queryWithPoolRetry(...args: any[]) {
+        if (typeof args[args.length - 1] === "function") {
+          return realPool.query.apply(realPool, args as any);
+        }
+        return queryWithRetry(
+          () => realPool.query.apply(realPool, args as any) as unknown as Promise<any>,
+          { retries: 2, delayMs: 500, backoffFactor: 2, routeName: "pool.query" }
+        );
+      };
+    }
+
+    if (prop === "connect") {
+      return function connectWithPoolRetry(...args: any[]) {
+        if (typeof args[0] === "function") {
+          return realPool.connect.apply(realPool, args as any);
+        }
+        return queryWithRetry(
+          () => realPool.connect.apply(realPool, args as any) as unknown as Promise<any>,
+          { retries: 2, delayMs: 500, backoffFactor: 2, routeName: "pool.connect" }
+        );
+      };
+    }
+
+    return typeof value === "function" ? value.bind(realPool) : value;
   }
 });
 

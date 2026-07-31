@@ -8,9 +8,9 @@ import { logger } from "./lib/logger";
 import { closePool, warmupDb } from "@workspace/db";
 import { startScheduler, stopScheduler } from "./lib/scheduler";
 
-// Default Neon fallback (IPv4, Render-accessible).
+// Default Neon fallback (IPv4, Render-accessible pooler endpoint).
 const NEON_URL =
-  "postgresql://neondb_owner:npg_qSQN29ZxTKzt@ep-frosty-cloud-at51tjed.c-9.us-east-1.aws.neon.tech/neondb";
+  "postgresql://neondb_owner:npg_qSQN29ZxTKzt@ep-frosty-cloud-at51tjed-pooler.c-9.us-east-1.aws.neon.tech/neondb";
 
 // Force Neon when DATABASE_URL is absent or points to direct Supabase host (.supabase.co:5432).
 // Allows Supabase POOLER connection strings (*.pooler.supabase.com or port 6543).
