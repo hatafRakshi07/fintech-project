@@ -1,35 +1,40 @@
-
-import { pgTable, uuid, varchar, text, integer, numeric, date, time } from 'drizzle-orm/pg-core';
+import { pgTable, uuid, varchar, integer, numeric, date, jsonb } from 'drizzle-orm/pg-core';
 import { timestamps } from './utils';
-import { schemeStatusEnum } from './enums';
+import { organizations } from './iam';
 
-export const schemes = pgTable('schemes', {
+export const committees = pgTable('committees', {
   id: uuid('id').defaultRandom().primaryKey(),
-  name: varchar('name', { length: 100 }).notNull(),
-  code: varchar('code', { length: 20 }).notNull().unique(),
-  drawDay: integer('draw_day').notNull(), // 1-31
-  drawTime: time('draw_time').notNull(),
+  organizationId: uuid('organization_id').references(() => organizations.id, { onDelete: 'cascade' }).notNull(),
+  name: varchar('name', { length: 150 }).notNull(),
+  code: varchar('code', { length: 50 }).notNull(),
+  totalMembers: integer('total_members').notNull(),
+  totalMonths: integer('total_months').notNull(),
+  monthlyInstallment: numeric('monthly_installment', { precision: 12, scale: 2 }).notNull(),
   startDate: date('start_date').notNull(),
   endDate: date('end_date'),
-  monthlyInstallment: numeric('monthly_installment', { precision: 12, scale: 2 }).notNull(),
-  durationMonths: integer('duration_months').notNull(),
-  securityDeposit: numeric('security_deposit', { precision: 12, scale: 2 }).default('0'),
-  graceDays: integer('grace_days').default(0),
-  lateFee: numeric('late_fee', { precision: 12, scale: 2 }).default('0'),
-  cancellationPercentage: numeric('cancellation_percentage', { precision: 5, scale: 2 }).default('0'),
-  settlementPercentage: numeric('settlement_percentage', { precision: 5, scale: 2 }).default('0'),
-  status: schemeStatusEnum('status').default('DRAFT').notNull(),
+  status: varchar('status', { length: 20 }).default('ACTIVE').notNull(),
   ...timestamps
 });
 
-export const schemePrizes = pgTable('scheme_prizes', {
+export const committeeMonths = pgTable('committee_months', {
   id: uuid('id').defaultRandom().primaryKey(),
-  schemeId: uuid('scheme_id').references(() => schemes.id, { onDelete: 'cascade' }).notNull(),
+  organizationId: uuid('organization_id').references(() => organizations.id, { onDelete: 'cascade' }).notNull(),
+  committeeId: uuid('committee_id').references(() => committees.id, { onDelete: 'cascade' }).notNull(),
   monthNumber: integer('month_number').notNull(),
-  giftName: varchar('gift_name', { length: 100 }).notNull(),
-  giftValue: numeric('gift_value', { precision: 12, scale: 2 }),
-  giftQuantity: integer('gift_quantity').default(1),
-  cashAlternative: numeric('cash_alternative', { precision: 12, scale: 2 }),
-  prizeCategory: varchar('prize_category', { length: 50 }),
+  monthName: varchar('month_name', { length: 50 }).notNull(),
+  dueDate: date('due_date').notNull(),
+  drawDate: date('draw_date'),
+  status: varchar('status', { length: 20 }).default('UPCOMING').notNull(),
   ...timestamps
 });
+
+export const committeeRules = pgTable('committee_rules', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  organizationId: uuid('organization_id').references(() => organizations.id, { onDelete: 'cascade' }).notNull(),
+  committeeId: uuid('committee_id').references(() => committees.id, { onDelete: 'cascade' }).notNull().unique(),
+  rulesJsonb: jsonb('rules_jsonb').notNull(),
+  ...timestamps
+});
+
+// Alias export for backwards compatibility
+export const schemes = committees;

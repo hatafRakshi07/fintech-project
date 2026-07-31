@@ -1,0 +1,27 @@
+kind = "web"
+previewPath = "/"
+title = "Bissi Management System"
+version = "1.0.0"
+id = "artifacts/bissi-app"
+router = "path"
+
+[[services]]
+name = "web"
+paths = [ "/" ]
+localPort = 20465
+
+[services.development]
+run = "pnpm --filter @workspace/bissi-app run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/bissi-app", "run", "build" ]
+serve = "static"
+publicDir = "artifacts/bissi-app/dist/public"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
+
+[services.env]
+PORT = "20465"
+BASE_PATH = "/"

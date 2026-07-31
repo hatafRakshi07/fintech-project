@@ -1,34 +1,19 @@
-
-import { pgTable, uuid, varchar, text, date } from 'drizzle-orm/pg-core';
+import { pgTable, uuid, varchar, text, timestamp } from 'drizzle-orm/pg-core';
 import { timestamps } from './utils';
-import { docTypeEnum } from './enums';
-import { users } from './iam';
+import { organizations } from './iam';
 
 export const customers = pgTable('customers', {
   id: uuid('id').defaultRandom().primaryKey(),
-  userId: uuid('user_id').references(() => users.id), // Optional login
+  organizationId: uuid('organization_id').references(() => organizations.id, { onDelete: 'cascade' }).notNull(),
   name: varchar('name', { length: 100 }).notNull(),
-  phone: varchar('phone', { length: 20 }).notNull().unique(),
+  fatherName: varchar('father_name', { length: 100 }),
+  mobile: varchar('mobile', { length: 20 }).notNull(),
+  altMobile: varchar('alt_mobile', { length: 20 }),
+  aadhaar: varchar('aadhaar', { length: 20 }),
   address: text('address'),
   city: varchar('city', { length: 50 }),
-  dob: date('dob'),
-  ...timestamps
-});
-
-export const customerDocuments = pgTable('customer_documents', {
-  id: uuid('id').defaultRandom().primaryKey(),
-  customerId: uuid('customer_id').references(() => customers.id, { onDelete: 'cascade' }).notNull(),
-  docType: docTypeEnum('doc_type').notNull(),
-  docNumber: varchar('doc_number', { length: 50 }),
-  fileUrl: text('file_url'),
-  ...timestamps
-});
-
-export const customerReferences = pgTable('customer_references', {
-  id: uuid('id').defaultRandom().primaryKey(),
-  customerId: uuid('customer_id').references(() => customers.id, { onDelete: 'cascade' }).notNull(),
-  name: varchar('name', { length: 100 }).notNull(),
-  phone: varchar('phone', { length: 20 }).notNull(),
-  relation: varchar('relation', { length: 50 }),
+  photoUrl: text('photo_url'),
+  status: varchar('status', { length: 20 }).default('ACTIVE').notNull(),
+  deletedAt: timestamp('deleted_at', { withTimezone: true }),
   ...timestamps
 });
