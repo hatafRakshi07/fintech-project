@@ -427,45 +427,38 @@ function AdminDashboard() {
                   {/* Monthly Collection Breakdown for this Committee */}
                   {scheme.monthlyBreakdown && scheme.monthlyBreakdown.length > 0 && (
                     <div className="p-3 bg-slate-50 dark:bg-slate-900/50 rounded-xl border border-border/60">
-                      <h4 className="text-xs font-bold text-muted-foreground uppercase tracking-wider mb-2">Monthly Collections Breakdown</h4>
-                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                        {scheme.monthlyBreakdown.slice(0, 8).map((mb: any, mIdx: number) => (
-                          <div key={mIdx} className="p-2 rounded-lg bg-background border text-xs">
-                            <span className="text-muted-foreground block text-[10px] font-semibold">{mb.month}</span>
-                            <span className="font-bold font-mono text-emerald-600">{formatCurrency(mb.amount)}</span>
+                    <div className="p-4 bg-slate-50 dark:bg-slate-900/50 rounded-xl border border-border/60">
+                      <div className="flex items-center justify-between mb-3">
+                        <h4 className="text-xs font-bold text-muted-foreground uppercase tracking-wider">📅 Har Mahine Ka Total — {scheme.name}</h4>
+                        <div className="flex items-center gap-2">
+                          <span className="text-[10px] text-muted-foreground">{scheme.monthlyBreakdown.length} months</span>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="h-7 text-xs gap-1 text-rose-600 border-rose-500/30 hover:bg-rose-50 dark:hover:bg-rose-950/30"
+                            onClick={() => {
+                              const w = window.open('', '_blank');
+                              if (!w) return;
+                              const rows = (scheme.monthlyBreakdown || []).map((mb: any) =>
+                                `<tr><td style="padding:6px 12px;border-bottom:1px solid #eee">${mb.month}</td><td style="padding:6px 12px;border-bottom:1px solid #eee;text-align:right;font-weight:bold;color:#059669">${new Intl.NumberFormat('en-IN',{style:'currency',currency:'INR',maximumFractionDigits:0}).format(mb.amount)}</td><td style="padding:6px 12px;border-bottom:1px solid #eee;text-align:center">${mb.count || ''}</td></tr>`
+                              ).join('');
+                              w.document.write(`<!DOCTYPE html><html><head><title>Pending List - ${scheme.name}</title><style>body{font-family:Arial;padding:24px}h2{color:#1e293b}table{width:100%;border-collapse:collapse}th{background:#f1f5f9;padding:8px 12px;text-align:left}@media print{button{display:none}}</style></head><body><h2>📋 Monthly Collection Report — ${scheme.name}</h2><p>Installment: ₹${scheme.installmentAmount}/month | Members: ${scheme.filledTokens}/${scheme.memberLimit}</p><button onclick="window.print()" style="margin-bottom:16px;padding:8px 16px;background:#6366f1;color:white;border:none;border-radius:6px;cursor:pointer">🖨️ Print</button><table><thead><tr><th>Month</th><th style="text-align:right">Amount Collected</th><th style="text-align:center">Receipts</th></tr></thead><tbody>${rows}</tbody></table><p style="margin-top:16px;color:#666">This Month Pending: ₹${new Intl.NumberFormat('en-IN').format(scheme.dueAmount||0)} (${scheme.thisMonthPendingCount||0} members)</p></body></html>`);
+                              w.document.close();
+                            }}
+                          >
+                            <Printer className="w-3 h-3" />
+                            Print / Pending List
+                          </Button>
+                        </div>
+                      </div>
+                      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2">
+                        {scheme.monthlyBreakdown.slice(0, 12).map((mb: any, mIdx: number) => (
+                          <div key={mIdx} className="p-2.5 rounded-lg bg-background border text-center hover:border-emerald-500/40 transition-colors">
+                            <span className="text-muted-foreground block text-[10px] font-semibold mb-1">{mb.month}</span>
+                            <span className="font-bold font-mono text-emerald-600 text-xs">{formatCurrency(mb.amount)}</span>
+                            {mb.count && <span className="text-[9px] text-muted-foreground block mt-0.5">{mb.count} receipts</span>}
                           </div>
                         ))}
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Latest Winner Card for this Committee */}
-                  {scheme.latestWinnerName && (
-                    <div className="p-3 bg-gradient-to-r from-amber-500/10 via-amber-500/5 to-transparent border border-amber-500/30 rounded-xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
-                      <div className="flex items-center gap-3">
-                        <div className="p-2 rounded-xl bg-amber-500/20 text-amber-600 border border-amber-500/30 shrink-0">
-                          <Trophy className="w-5 h-5 text-amber-500" />
-                        </div>
-                        <div>
-                          <div className="flex items-center gap-2">
-                            <span className="text-xs font-bold text-foreground">Latest Winner: {scheme.latestWinnerName}</span>
-                            <Badge variant="outline" className="font-mono text-[10px] bg-amber-500/20 text-amber-600 border-amber-500/30">
-                              TOKEN #{scheme.latestWinnerToken || "—"}
-                            </Badge>
-                          </div>
-                          <p className="text-xs font-semibold text-purple-600 dark:text-purple-400 mt-0.5">
-                            {scheme.latestReward?.includes("Winner Reward:") ? scheme.latestReward.replace("Winner Reward:", "").trim() : scheme.latestReward || "Lucky Winner Package"}
-                          </p>
-                        </div>
-                      </div>
-
-                      <div className="flex items-center gap-3 text-xs text-muted-foreground self-end sm:self-center">
-                        <span>Draw Date: {scheme.latestDrawDate ? new Date(scheme.latestDrawDate).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" }) : ""}</span>
-                        <Link href="/lotteries">
-                          <Button size="sm" variant="ghost" className="h-7 text-xs text-amber-600 font-bold p-0">
-                            Draw Details →
-                          </Button>
-                        </Link>
                       </div>
                     </div>
                   )}

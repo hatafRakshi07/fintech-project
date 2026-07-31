@@ -1018,38 +1018,88 @@ router.get("/dashboard/scheme-boxes", async (req, res) => {
       { routeName: "GET /dashboard/scheme-boxes", retries: 2, delayMs: 500 }
     );
 
-    // Fetch monthly collections breakdown per committee
+    // Fetch monthly collections breakdown per committee (all months)
     const monthlyRes = await pool.query(`
       SELECT 
         committee_id as "committeeId",
         TO_CHAR(collected_at, 'Mon YYYY') as "month",
-        SUM(amount)::numeric as "amount"
+        DATE_TRUNC('month', collected_at) as "monthDate",
+        SUM(amount)::numeric as "amount",
+        COUNT(*)::int as "count"
       FROM collections
       WHERE committee_id IS NOT NULL
       GROUP BY committee_id, TO_CHAR(collected_at, 'Mon YYYY'), DATE_TRUNC('month', collected_at)
       ORDER BY DATE_TRUNC('month', collected_at) DESC
-      LIMIT 24
     `);
 
     const monthlyMap: Record<number, any[]> = {};
     for (const r of monthlyRes.rows) {
       if (!monthlyMap[r.committeeId]) monthlyMap[r.committeeId] = [];
-      monthlyMap[r.committeeId].push({ month: r.month, amount: Number(r.amount) });
+      monthlyMap[r.committeeId].push({ month: r.month, amount: Number(r.amount), count: r.count });
+    }
+
+    // Fetch latest winner per committee
+    const latestWinnerRes = await pool.query(`
+      SELECT DISTINCT ON (l.committee_id)
+        l.committee_id as "committeeId",
+        cust.name as "winnerName",
+        t.token_number as "winnerToken",
+        l.notes as "reward",
+        l.draw_date as "drawDate"
+      FROM lotteries l
+      JOIN customers cust ON cust.id = l.winner_id
+      LEFT JOIN tokens t ON t.customer_id = l.winner_id AND t.committee_id = l.committee_id
+      WHERE l.status = 'completed' AND l.winner_id IS NOT NULL
+      ORDER BY l.committee_id, l.draw_date DESC, l.id DESC
+    `);
+    const latestWinnerMap: Record<number, any> = {};
+    for (const r of latestWinnerRes.rows) {
+      latestWinnerMap[r.committeeId] = r;
+    }
+
+    // Pending tokens: members who haven't paid this month
+    const pendingTokensRes = await pool.query(`
+      SELECT 
+        cm.committee_id,
+        COUNT(*)::int as pending_count,
+        (COUNT(*) * c2.installment_amount)::numeric as pending_amount
+      FROM committee_members cm
+      JOIN committees c2 ON c2.id = cm.committee_id
+      WHERE cm.customer_id NOT IN (
+        SELECT DISTINCT col.customer_id
+        FROM collections col
+        WHERE col.committee_id = cm.committee_id
+          AND col.collected_at >= DATE_TRUNC('month', NOW())
+          AND col.customer_id IS NOT NULL
+      )
+      GROUP BY cm.committee_id, c2.installment_amount
+    `);
+    const pendingMap: Record<number, any> = {};
+    for (const r of pendingTokensRes.rows) {
+      pendingMap[r.committee_id] = { pendingCount: Number(r.pending_count), pendingAmount: Number(r.pending_amount || 0) };
     }
 
     const formatted = result.rows.map(r => {
       const limit = Number(r.memberLimit || 500);
       const filled = Number(r.filledTokens || 0);
-      const pending = Math.max(0, limit - filled);
+      const unregistered = Math.max(0, limit - filled);
+      const installAmt = Number(r.installmentAmount || 3000);
+      const lw = latestWinnerMap[r.id];
+      const pm = pendingMap[r.id] || {};
       return {
         ...r,
-        installmentAmount: Number(r.installmentAmount || 3000),
+        installmentAmount: installAmt,
         collectedAmount: Number(r.collectedAmount || 0),
         tokenCount: filled,
         filledTokens: filled,
-        pendingTokens: pending,
-        dueAmount: Math.max(0, (limit * Number(r.installmentAmount || 3000) * 20) - Number(r.collectedAmount || 0)),
-        monthlyBreakdown: monthlyMap[r.id] || []
+        pendingTokens: unregistered,
+        dueAmount: Number(pm.pendingAmount || 0),
+        thisMonthPendingCount: pm.pendingCount || 0,
+        monthlyBreakdown: monthlyMap[r.id] || [],
+        latestWinnerName: lw?.winnerName || null,
+        latestWinnerToken: lw?.winnerToken || null,
+        latestReward: lw?.reward || null,
+        latestDrawDate: lw?.drawDate || null,
       };
     });
 
@@ -1060,7 +1110,7 @@ router.get("/dashboard/scheme-boxes", async (req, res) => {
     const fallback = [
       { id: 1, name: "Sawariya Seth Bissi", installmentAmount: 3000, memberLimit: 500, drawDate: 5, status: "active", tokenCount: 500, filledTokens: 500, pendingTokens: 0, collectedAmount: 650000, collectedCount: 200, winnersCount: 5, dueAmount: 0, monthlyBreakdown: [] },
       { id: 2, name: "Pyare Mohan Bissi", installmentAmount: 3000, memberLimit: 500, drawDate: 10, status: "active", tokenCount: 500, filledTokens: 500, pendingTokens: 0, collectedAmount: 650000, collectedCount: 200, winnersCount: 5, dueAmount: 0, monthlyBreakdown: [] },
-      { id: 3, name: "Hare Ka Sahara Bissi", installmentAmount: 3000, memberLimit: 500, drawDate: 15, status: "active", tokenCount: 500, filledTokens: 500, pendingTokens: 0, collectedAmount: 650000, collectedCount: 200, winnersCount: 5, dueAmount: 0, monthlyBreakdown: [] },
+      { id: 3, name: "Hare Ka Sahara Bissi", installmentAmount: 2500, memberLimit: 500, drawDate: 15, status: "active", tokenCount: 500, filledTokens: 500, pendingTokens: 0, collectedAmount: 650000, collectedCount: 200, winnersCount: 5, dueAmount: 0, monthlyBreakdown: [] },
       { id: 4, name: "Shree Krishna Bissi", installmentAmount: 3000, memberLimit: 1111, drawDate: 20, status: "active", tokenCount: 1111, filledTokens: 1111, pendingTokens: 0, collectedAmount: 1420500, collectedCount: 450, winnersCount: 10, dueAmount: 0, monthlyBreakdown: [] },
     ];
     res.json({ success: true, schemes: fallback, data: fallback });
