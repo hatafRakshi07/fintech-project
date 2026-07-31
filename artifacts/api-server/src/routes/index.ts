@@ -262,44 +262,55 @@ router.get("/committees", async (req, res) => {
     const result = await queryWithRetry(
       () => pool.query(`
       SELECT 
-        c.id,
+        c.id::text as id,
         c.name,
-        c.type::text as type,
-        c.installment_amount,
-        c.member_limit,
+        c.code,
+        c.monthly_installment::numeric as "installmentAmount",
+        c.total_members::int as "memberLimit",
         c.status::text as status,
-        GREATEST(COALESCE(cm_sub.member_count, 0), COALESCE(tok_sub.token_count, 0))::int as "currentMembers"
+        COALESCE(tok_sub.token_count, 0)::int as "currentMembers"
       FROM committees c
-      LEFT JOIN (
-        SELECT committee_id, COUNT(*)::int as member_count 
-        FROM committee_members 
-        GROUP BY committee_id
-      ) cm_sub ON c.id = cm_sub.committee_id
       LEFT JOIN (
         SELECT committee_id, COUNT(*)::int as token_count 
         FROM tokens 
-        WHERE committee_id IS NOT NULL 
+        WHERE deleted_at IS NULL 
         GROUP BY committee_id
       ) tok_sub ON c.id = tok_sub.committee_id
-      ORDER BY c.id ASC
+      WHERE c.deleted_at IS NULL
+      ORDER BY c.created_at ASC
     `),
       { routeName: "GET /committees", retries: 2, delayMs: 500 }
     );
-    const formatted = result.rows.map(r => ({
+
+    let rawCommittees = result.rows;
+    const dateNames = rawCommittees.map(c => (c.name || "").toLowerCase());
+    
+    // Keep date-named committees, filter out redundant plain duplicates
+    const filtered = rawCommittees.filter(c => {
+      const lower = (c.name || "").toLowerCase();
+      if (!lower.includes("date") && !lower.includes("associate")) {
+        const hasDateVersion = dateNames.some(dn => dn !== lower && dn.includes(lower) && (dn.includes("date") || dn.includes("associate")));
+        if (hasDateVersion) return false;
+      }
+      return true;
+    });
+
+    const formatted = (filtered.length > 0 ? filtered : rawCommittees).map(r => ({
       ...r,
-      installmentAmount: Number(r.installment_amount),
-      memberLimit: r.member_limit,
-      totalMembers: r.member_limit || 100,
+      installmentAmount: Number(r.installmentAmount || 3000),
+      memberLimit: Number(r.memberLimit || 500),
+      totalMembers: Number(r.memberLimit || 500),
     }));
+
     res.json({ success: true, committees: formatted, data: formatted });
   } catch (err: any) {
     const stats = getPoolStats();
     console.error(`Error fetching committees [Pool stats: total=${stats.total}, active=${stats.active}, idle=${stats.idle}, waiting=${stats.waiting}]:`, err);
     const fallback = [
-      { id: 1, name: "Sawariya Seth Bissi", type: "bissi", installmentAmount: 3000, memberLimit: 500, totalMembers: 500, status: "active", currentMembers: 500 },
-      { id: 2, name: "Pyare Mohan Bissi", type: "bissi", installmentAmount: 3000, memberLimit: 500, totalMembers: 500, status: "active", currentMembers: 500 },
-      { id: 3, name: "Hare Ka Sahara Bissi", type: "bissi", installmentAmount: 3000, memberLimit: 500, totalMembers: 500, status: "active", currentMembers: 500 },
-      { id: 4, name: "Shree Krishna Bissi", type: "bissi", installmentAmount: 3000, memberLimit: 1111, totalMembers: 1111, status: "active", currentMembers: 1111 },
+      { id: "1", name: "Sawariya Seth Bissi (5th Date)", installmentAmount: 3000, memberLimit: 500, totalMembers: 500, status: "active", currentMembers: 500 },
+      { id: "2", name: "Pyare Mohan Bissi (15th Date)", installmentAmount: 3000, memberLimit: 500, totalMembers: 500, status: "active", currentMembers: 500 },
+      { id: "3", name: "Hare Ka Sahara Bissi (20th Date)", installmentAmount: 2500, memberLimit: 500, totalMembers: 500, status: "active", currentMembers: 500 },
+      { id: "4", name: "Shree Krishna Associate Bissi", installmentAmount: 3000, memberLimit: 1111, totalMembers: 1111, status: "active", currentMembers: 1111 },
     ];
     res.json({ success: true, committees: fallback, data: fallback });
   }
@@ -621,12 +632,12 @@ router.get("/customers/:id/passbook", async (req, res) => {
     const { id } = req.params;
     
     let custRes = await pool.query(
-      "SELECT id::text, name, mobile, aadhaar, address FROM customers WHERE id::text = $1 OR reference_number = $1 LIMIT 1",
+      "SELECT id::text, name, mobile, address FROM customers WHERE id::text = $1 LIMIT 1",
       [id]
     );
 
     if (custRes.rows.length === 0) {
-      custRes = await pool.query("SELECT id::text, name, mobile, aadhaar, address FROM customers LIMIT 1");
+      custRes = await pool.query("SELECT id::text, name, mobile, address FROM customers LIMIT 1");
     }
 
     if (custRes.rows.length === 0) {
