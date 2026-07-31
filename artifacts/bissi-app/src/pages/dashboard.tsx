@@ -9,6 +9,9 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Input } from "@/components/ui/input";
 import { 
   useGetDashboardStats, 
   useGetRecentActivity
@@ -161,6 +164,7 @@ function CollectorDashboard({ user }: { user: any }) {
 // ── 2. REAL-TIME BISSI MASTER COMMAND CENTER DASHBOARD ──────────────────────────
 function AdminDashboard() {
   const [timeFilter, setTimeFilter] = useState("all");
+  const [selectedPendingScheme, setSelectedPendingScheme] = useState<any>(null);
 
   // Load KPI Stats
   const { data: statsData, isLoading: statsLoading } = useGetDashboardStats();
@@ -373,8 +377,11 @@ function AdminDashboard() {
                       </span>
                     </div>
 
-                    {/* 2. Pending Tokens / Pending Amount */}
-                    <div className="p-4 rounded-xl border border-rose-500/20 bg-rose-500/5 space-y-1">
+                    {/* 2. Pending Tokens / Pending Amount (Clickable) */}
+                    <div 
+                      onClick={() => setSelectedPendingScheme(scheme)}
+                      className="p-4 rounded-xl border border-rose-500/20 bg-rose-500/5 space-y-1 cursor-pointer hover:border-rose-500/50 transition-colors"
+                    >
                       <div className="flex justify-between items-center text-xs font-bold text-rose-600 dark:text-rose-400">
                         <span>This Month Pending (बकाया)</span>
                         <AlertCircle className="w-4 h-4" />
@@ -382,8 +389,8 @@ function AdminDashboard() {
                       <div className="text-xl lg:text-2xl font-extrabold font-mono text-rose-600 dark:text-rose-400">
                         {formatCurrency(scheme.dueAmount || 0)}
                       </div>
-                      <span className="text-[11px] text-rose-600 font-bold block">
-                        🔴 {scheme.thisMonthPendingCount || 0} Member Tokens Unpaid
+                      <span className="text-[11px] text-rose-600 font-bold block hover:underline">
+                        🔴 {scheme.thisMonthPendingCount || 0} Tokens Unpaid →
                       </span>
                     </div>
 
@@ -403,20 +410,21 @@ function AdminDashboard() {
                       </Link>
                     </div>
 
-                    {/* 4. Total Winners */}
-                    <div className="p-4 rounded-xl border border-amber-500/20 bg-amber-50/50 dark:bg-amber-950/20 space-y-1">
-                      <div className="flex justify-between items-center text-xs font-bold text-amber-600 dark:text-amber-400">
-                        <span>Winners Declared</span>
-                        <Trophy className="w-4 h-4" />
+                    {/* 4. Pending Tokens List Popup Trigger */}
+                    <div 
+                      onClick={() => setSelectedPendingScheme(scheme)}
+                      className="p-4 rounded-xl border border-rose-500/20 bg-rose-50/50 dark:bg-rose-950/20 space-y-1 cursor-pointer hover:border-rose-500/50 transition-colors"
+                    >
+                      <div className="flex justify-between items-center text-xs font-bold text-rose-600 dark:text-rose-400">
+                        <span>Pending Tokens List</span>
+                        <AlertCircle className="w-4 h-4" />
                       </div>
-                      <div className="text-xl lg:text-2xl font-extrabold font-mono text-amber-600 dark:text-amber-400">
-                        {scheme.winnersCount || 0} Winners
+                      <div className="text-xl lg:text-2xl font-extrabold font-mono text-rose-600 dark:text-rose-400">
+                        {scheme.thisMonthPendingCount || 0} Pending
                       </div>
-                      <Link href="/lotteries">
-                        <span className="text-[11px] font-semibold text-amber-600 hover:underline flex items-center gap-0.5 cursor-pointer pt-0.5">
-                          View draw history →
-                        </span>
-                      </Link>
+                      <span className="text-[11px] font-semibold text-rose-600 hover:underline flex items-center gap-0.5 cursor-pointer pt-0.5">
+                        📋 View Complete Pending List →
+                      </span>
                     </div>
                   </div>
 
@@ -566,6 +574,14 @@ function AdminDashboard() {
 
       {/* Printable Pending Tokens & Members Report Section */}
       <PendingReportCard />
+
+      {/* Interactive Pending Tokens List Modal */}
+      {selectedPendingScheme && (
+        <PendingTokensModal
+          scheme={selectedPendingScheme}
+          onClose={() => setSelectedPendingScheme(null)}
+        />
+      )}
     </div>
   );
 }
@@ -639,5 +655,142 @@ function PendingReportCard() {
         )}
       </CardContent>
     </Card>
+  );
+}
+
+function PendingTokensModal({ scheme, onClose }: { scheme: any; onClose: () => void }) {
+  const [search, setSearch] = useState("");
+
+  const { data, isLoading } = useQuery<any>({
+    queryKey: ["dashboard-pending-report", scheme.id],
+    queryFn: () => customFetch(`/dashboard/pending-report?committeeId=${scheme.id}`),
+  });
+
+  const rawPendingList = Array.isArray(data?.pendingList) ? data.pendingList : [];
+  
+  const pendingList = rawPendingList.filter((item: any) => {
+    if (!search.trim()) return true;
+    const q = search.toLowerCase().trim();
+    return (
+      (item.customerName && item.customerName.toLowerCase().includes(q)) ||
+      (item.customerMobile && item.customerMobile.includes(q)) ||
+      (item.tokenNumber && String(item.tokenNumber).includes(q))
+    );
+  });
+
+  const handlePrint = () => {
+    const w = window.open('', '_blank');
+    if (!w) return;
+    const rows = pendingList.map((p: any) =>
+      `<tr>
+        <td style="padding:8px;border-bottom:1px solid #eee;font-weight:bold;color:#4f46e5">#${p.tokenNumber || '—'}</td>
+        <td style="padding:8px;border-bottom:1px solid #eee;font-weight:bold">${p.customerName || 'Member'}</td>
+        <td style="padding:8px;border-bottom:1px solid #eee">${p.customerMobile || '—'}</td>
+        <td style="padding:8px;border-bottom:1px solid #eee;text-align:right;font-weight:bold;color:#dc2626">₹${Number(p.installmentAmount || scheme.installmentAmount || 3000).toLocaleString('en-IN')}</td>
+        <td style="padding:8px;border-bottom:1px solid #eee;text-align:center;color:#dc2626;font-weight:bold">🔴 Pending (Unpaid)</td>
+      </tr>`
+    ).join('');
+
+    w.document.write(`<!DOCTYPE html>
+<html><head><title>Pending Members - ${scheme.name}</title>
+<style>
+  body { font-family: Arial; padding: 24px; font-size: 12px; }
+  h2 { color: #1e293b; margin-bottom: 4px; }
+  p { color: #64748b; margin-bottom: 16px; }
+  table { width: 100%; border-collapse: collapse; }
+  th { background: #f1f5f9; padding: 8px; text-align: left; border-bottom: 2px solid #e2e8f0; }
+  button { margin-bottom: 16px; padding: 8px 16px; background: #dc2626; color: white; border: none; border-radius: 6px; cursor: pointer; }
+  @media print { button { display: none; } }
+</style></head>
+<body>
+<h2>🔴 Pending Member Tokens List — ${scheme.name}</h2>
+<p>Installment: ₹${scheme.installmentAmount}/month | Total Pending Tokens: ${pendingList.length}</p>
+<button onclick="window.print()">🖨️ Print Pending List</button>
+<table>
+  <thead><tr><th>Token #</th><th>Member Name</th><th>Mobile</th><th style="text-align:right">Pending Amount</th><th style="text-align:center">Status</th></tr></thead>
+  <tbody>${rows}</tbody>
+</table>
+</body></html>`);
+    w.document.close();
+  };
+
+  return (
+    <Dialog open={true} onOpenChange={(o) => !o && onClose()}>
+      <DialogContent className="max-w-4xl max-h-[90vh] flex flex-col">
+        <DialogHeader className="pb-2 border-b">
+          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 pr-6">
+            <DialogTitle className="flex items-center gap-2 text-lg font-bold text-rose-600">
+              <AlertCircle className="h-5 w-5 text-rose-600" />
+              Pending Member Tokens — {scheme.name}
+            </DialogTitle>
+            <div className="flex items-center gap-2">
+              <Badge variant="outline" className="text-xs bg-rose-500/10 text-rose-600 border-rose-500/30 font-mono">
+                {pendingList.length} Pending Tokens
+              </Badge>
+              <Button size="sm" variant="outline" onClick={handlePrint} className="h-8 text-xs gap-1 text-rose-600 border-rose-500/30">
+                <Printer className="w-3.5 h-3.5" />
+                Print List
+              </Button>
+            </div>
+          </div>
+
+          <div className="pt-3">
+            <Input
+              placeholder="Search Member Name, Mobile or Token #..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="h-9 text-xs"
+            />
+          </div>
+        </DialogHeader>
+
+        <div className="flex-1 overflow-y-auto min-h-[300px]">
+          {isLoading ? (
+            <div className="h-48 flex items-center justify-center">
+              <div className="w-8 h-8 border-4 border-rose-500 border-t-transparent rounded-full animate-spin" />
+            </div>
+          ) : pendingList.length === 0 ? (
+            <div className="text-center py-12 text-sm text-muted-foreground">
+              🎉 All members have paid for this month! No pending tokens found.
+            </div>
+          ) : (
+            <Table>
+              <TableHeader className="bg-muted/50 sticky top-0">
+                <TableRow>
+                  <TableHead>Token #</TableHead>
+                  <TableHead>Member Name (नाम)</TableHead>
+                  <TableHead>Mobile (मोबाइल)</TableHead>
+                  <TableHead className="text-right">Due Amount</TableHead>
+                  <TableHead className="text-center">Status</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {pendingList.map((p: any, idx: number) => (
+                  <TableRow key={idx} className="hover:bg-rose-500/5">
+                    <TableCell className="font-mono text-xs font-bold text-indigo-600">
+                      #{p.tokenNumber || "—"}
+                    </TableCell>
+                    <TableCell className="font-bold text-xs">
+                      {p.customerName || "Member"}
+                    </TableCell>
+                    <TableCell className="text-xs font-mono text-muted-foreground">
+                      {p.customerMobile || "—"}
+                    </TableCell>
+                    <TableCell className="text-right text-xs font-mono font-bold text-rose-600">
+                      {formatCurrency(p.installmentAmount || scheme.installmentAmount || 3000)}
+                    </TableCell>
+                    <TableCell className="text-center">
+                      <Badge variant="destructive" className="text-[10px] uppercase bg-rose-500/10 text-rose-600 border border-rose-300">
+                        🔴 Pending
+                      </Badge>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          )}
+        </div>
+      </DialogContent>
+    </Dialog>
   );
 }

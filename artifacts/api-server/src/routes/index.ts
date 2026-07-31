@@ -1130,9 +1130,18 @@ router.get("/dashboard/scheme-boxes", async (req, res) => {
 
 router.get("/dashboard/pending-report", async (req, res) => {
   try {
+    const { committeeId } = req.query;
+    const params: any[] = [];
+    let commCondition = "";
+    if (committeeId && committeeId !== "all") {
+      params.push(parseInt(committeeId as string));
+      commCondition = ` AND cm.committee_id = $1`;
+    }
+
     const result = await pool.query(`
       SELECT 
         cm.token_number as "tokenNumber",
+        cm.committee_id as "committeeId",
         c.name as "committeeName",
         c.installment_amount as "installmentAmount",
         cust.name as "customerName",
@@ -1141,13 +1150,22 @@ router.get("/dashboard/pending-report", async (req, res) => {
       FROM committee_members cm
       JOIN committees c ON c.id = cm.committee_id
       JOIN customers cust ON cust.id = cm.customer_id
-      WHERE cm.status = 'active'
-      ORDER BY c.id ASC, cm.token_number ASC
-      LIMIT 200
-    `);
+      WHERE cm.status = 'active' ${commCondition}
+        AND cm.customer_id NOT IN (
+          SELECT DISTINCT col.customer_id
+          FROM collections col
+          WHERE col.committee_id = cm.committee_id
+            AND col.collected_at >= DATE_TRUNC('month', NOW())
+            AND col.customer_id IS NOT NULL
+        )
+      ORDER BY c.id ASC, 
+               CASE WHEN cm.token_number ~ '^[0-9]+$' THEN CAST(cm.token_number AS integer) ELSE 99999 END ASC
+      LIMIT 2000
+    `, params);
 
     res.json({ success: true, pendingList: result.rows, totalPending: result.rows.length });
   } catch (err: any) {
+    console.error("Error fetching pending report:", err);
     res.json({ success: true, pendingList: [], totalPending: 0 });
   }
 });
@@ -1344,7 +1362,13 @@ router.get("/gifts/bissi-winners", async (req, res) => {
         l.winner_id as "winnerId",
         cust.name as "winnerName",
         cust.mobile as "winnerMobile",
-        t.token_number as "tokenNumber",
+        (
+          SELECT t.token_number 
+          FROM tokens t 
+          WHERE t.customer_id = l.winner_id AND t.committee_id = l.committee_id 
+          ORDER BY CASE WHEN t.token_number ~ '^[0-9]+$' THEN CAST(t.token_number AS integer) ELSE 99999 END ASC 
+          LIMIT 1
+        ) as "tokenNumber",
         l.draw_date as "drawDate",
         l.notes as "giftName",
         l.reward_type as "rewardType",
@@ -1352,7 +1376,6 @@ router.get("/gifts/bissi-winners", async (req, res) => {
       FROM lotteries l
       JOIN committees c ON c.id = l.committee_id
       JOIN customers cust ON cust.id = l.winner_id
-      LEFT JOIN tokens t ON t.customer_id = l.winner_id AND t.committee_id = l.committee_id
       ${whereClause}
       ORDER BY l.draw_date DESC, l.id DESC
       LIMIT $${params.length - 1} OFFSET $${params.length}
