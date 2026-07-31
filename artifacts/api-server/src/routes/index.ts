@@ -982,7 +982,7 @@ router.get("/dashboard/scheme-boxes", async (req, res) => {
         c.member_limit as "memberLimit",
         c.draw_date as "drawDate",
         c.status::text as "status",
-        GREATEST(COALESCE(cm_sub.token_count, 0), COALESCE(tok_sub.token_count, 0))::int as "tokenCount",
+        GREATEST(COALESCE(cm_sub.token_count, 0), COALESCE(tok_sub.token_count, 0))::int as "filledTokens",
         COALESCE(col_sub.collected_amount, 0)::numeric as "collectedAmount",
         COALESCE(col_sub.collected_count, 0)::int as "collectedCount",
         COALESCE(lot_sub.winners_count, 0)::int as "winnersCount"
@@ -1018,25 +1018,76 @@ router.get("/dashboard/scheme-boxes", async (req, res) => {
       { routeName: "GET /dashboard/scheme-boxes", retries: 2, delayMs: 500 }
     );
 
-    const formatted = result.rows.map(r => ({
-      ...r,
-      installmentAmount: Number(r.installmentAmount || 3000),
-      collectedAmount: Number(r.collectedAmount || 0),
-      tokenCount: Number(r.tokenCount || 500),
-      dueAmount: Math.max(0, (r.tokenCount * Number(r.installmentAmount || 3000) * 20) - Number(r.collectedAmount || 0)),
-    }));
+    // Fetch monthly collections breakdown per committee
+    const monthlyRes = await pool.query(`
+      SELECT 
+        committee_id as "committeeId",
+        TO_CHAR(collected_at, 'Mon YYYY') as "month",
+        SUM(amount)::numeric as "amount"
+      FROM collections
+      WHERE committee_id IS NOT NULL
+      GROUP BY committee_id, TO_CHAR(collected_at, 'Mon YYYY'), DATE_TRUNC('month', collected_at)
+      ORDER BY DATE_TRUNC('month', collected_at) DESC
+      LIMIT 24
+    `);
+
+    const monthlyMap: Record<number, any[]> = {};
+    for (const r of monthlyRes.rows) {
+      if (!monthlyMap[r.committeeId]) monthlyMap[r.committeeId] = [];
+      monthlyMap[r.committeeId].push({ month: r.month, amount: Number(r.amount) });
+    }
+
+    const formatted = result.rows.map(r => {
+      const limit = Number(r.memberLimit || 500);
+      const filled = Number(r.filledTokens || 0);
+      const pending = Math.max(0, limit - filled);
+      return {
+        ...r,
+        installmentAmount: Number(r.installmentAmount || 3000),
+        collectedAmount: Number(r.collectedAmount || 0),
+        tokenCount: filled,
+        filledTokens: filled,
+        pendingTokens: pending,
+        dueAmount: Math.max(0, (limit * Number(r.installmentAmount || 3000) * 20) - Number(r.collectedAmount || 0)),
+        monthlyBreakdown: monthlyMap[r.id] || []
+      };
+    });
 
     res.json({ success: true, schemes: formatted, data: formatted });
   } catch (err: any) {
     const stats = getPoolStats();
     console.error(`Error fetching scheme boxes [Pool stats: total=${stats.total}, active=${stats.active}, idle=${stats.idle}, waiting=${stats.waiting}]:`, err);
     const fallback = [
-      { id: 1, name: "Sawariya Seth Bissi", installmentAmount: 3000, memberLimit: 500, drawDate: 5, status: "active", tokenCount: 500, collectedAmount: 650000, collectedCount: 200, winnersCount: 5, dueAmount: 0 },
-      { id: 2, name: "Pyare Mohan Bissi", installmentAmount: 3000, memberLimit: 500, drawDate: 10, status: "active", tokenCount: 500, collectedAmount: 650000, collectedCount: 200, winnersCount: 5, dueAmount: 0 },
-      { id: 3, name: "Hare Ka Sahara Bissi", installmentAmount: 3000, memberLimit: 500, drawDate: 15, status: "active", tokenCount: 500, collectedAmount: 650000, collectedCount: 200, winnersCount: 5, dueAmount: 0 },
-      { id: 4, name: "Shree Krishna Bissi", installmentAmount: 3000, memberLimit: 1111, drawDate: 20, status: "active", tokenCount: 1111, collectedAmount: 1420500, collectedCount: 450, winnersCount: 10, dueAmount: 0 },
+      { id: 1, name: "Sawariya Seth Bissi", installmentAmount: 3000, memberLimit: 500, drawDate: 5, status: "active", tokenCount: 500, filledTokens: 500, pendingTokens: 0, collectedAmount: 650000, collectedCount: 200, winnersCount: 5, dueAmount: 0, monthlyBreakdown: [] },
+      { id: 2, name: "Pyare Mohan Bissi", installmentAmount: 3000, memberLimit: 500, drawDate: 10, status: "active", tokenCount: 500, filledTokens: 500, pendingTokens: 0, collectedAmount: 650000, collectedCount: 200, winnersCount: 5, dueAmount: 0, monthlyBreakdown: [] },
+      { id: 3, name: "Hare Ka Sahara Bissi", installmentAmount: 3000, memberLimit: 500, drawDate: 15, status: "active", tokenCount: 500, filledTokens: 500, pendingTokens: 0, collectedAmount: 650000, collectedCount: 200, winnersCount: 5, dueAmount: 0, monthlyBreakdown: [] },
+      { id: 4, name: "Shree Krishna Bissi", installmentAmount: 3000, memberLimit: 1111, drawDate: 20, status: "active", tokenCount: 1111, filledTokens: 1111, pendingTokens: 0, collectedAmount: 1420500, collectedCount: 450, winnersCount: 10, dueAmount: 0, monthlyBreakdown: [] },
     ];
     res.json({ success: true, schemes: fallback, data: fallback });
+  }
+});
+
+router.get("/dashboard/pending-report", async (req, res) => {
+  try {
+    const result = await pool.query(`
+      SELECT 
+        cm.token_number as "tokenNumber",
+        c.name as "committeeName",
+        c.installment_amount as "installmentAmount",
+        cust.name as "customerName",
+        cust.mobile as "customerMobile",
+        cust.reference_number as "referenceNumber"
+      FROM committee_members cm
+      JOIN committees c ON c.id = cm.committee_id
+      JOIN customers cust ON cust.id = cm.customer_id
+      WHERE cm.status = 'active'
+      ORDER BY c.id ASC, cm.token_number ASC
+      LIMIT 200
+    `);
+
+    res.json({ success: true, pendingList: result.rows, totalPending: result.rows.length });
+  } catch (err: any) {
+    res.json({ success: true, pendingList: [], totalPending: 0 });
   }
 });
 

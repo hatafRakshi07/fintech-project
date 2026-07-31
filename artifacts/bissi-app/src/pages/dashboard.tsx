@@ -31,7 +31,8 @@ import {
   Sparkles,
   AlertCircle,
   ChevronRight,
-  Filter
+  Filter,
+  Printer
 } from "lucide-react";
 import {
   LineChart,
@@ -341,7 +342,10 @@ function AdminDashboard() {
 
                   <div className="flex flex-wrap items-center gap-2">
                     <Badge variant="secondary" className="text-xs bg-indigo-500/10 text-indigo-600 border-indigo-500/20 font-medium">
-                      Capacity: {scheme.memberLimit || scheme.tokenCount} Members
+                      Filled Tokens: {scheme.filledTokens || scheme.tokenCount || 500} / {scheme.memberLimit || 500}
+                    </Badge>
+                    <Badge variant="secondary" className="text-xs bg-rose-500/10 text-rose-600 border-rose-500/20 font-medium">
+                      Pending Tokens: {scheme.pendingTokens || 0}
                     </Badge>
                     <Badge variant="secondary" className="text-xs bg-emerald-500/10 text-emerald-600 border-emerald-500/20 font-medium">
                       Installment: ₹{scheme.installmentAmount}/month
@@ -358,7 +362,7 @@ function AdminDashboard() {
                     {/* Collected Amount */}
                     <div className="p-4 rounded-xl border border-emerald-500/20 bg-emerald-500/5 space-y-1">
                       <div className="flex justify-between items-center text-xs font-bold text-emerald-600 dark:text-emerald-400">
-                        <span>Collected Amount</span>
+                        <span>Total Collected</span>
                         <Wallet className="w-4 h-4" />
                       </div>
                       <div className="text-xl lg:text-2xl font-extrabold font-mono text-emerald-600 dark:text-emerald-400">
@@ -371,10 +375,26 @@ function AdminDashboard() {
                       </Link>
                     </div>
 
-                    {/* Due Amount */}
+                    {/* Filled vs Pending Tokens */}
+                    <div className="p-4 rounded-xl border border-indigo-500/20 bg-indigo-500/5 space-y-1">
+                      <div className="flex justify-between items-center text-xs font-bold text-indigo-600 dark:text-indigo-400">
+                        <span>Tokens Fill / Pending</span>
+                        <Ticket className="w-4 h-4" />
+                      </div>
+                      <div className="text-lg font-extrabold font-mono text-indigo-600 dark:text-indigo-400">
+                        {scheme.filledTokens || scheme.tokenCount} Filled / {scheme.pendingTokens || 0} Pending
+                      </div>
+                      <Link href={`/committees/${scheme.id}`}>
+                        <span className="text-[11px] font-semibold text-indigo-600 hover:underline flex items-center gap-0.5 cursor-pointer pt-1">
+                          Manage tokens →
+                        </span>
+                      </Link>
+                    </div>
+
+                    {/* Due / Pending Amount */}
                     <div className="p-4 rounded-xl border border-rose-500/20 bg-rose-500/5 space-y-1">
                       <div className="flex justify-between items-center text-xs font-bold text-rose-600 dark:text-rose-400">
-                        <span>Due / Pending</span>
+                        <span>Due / Pending Amount</span>
                         <AlertCircle className="w-4 h-4" />
                       </div>
                       <div className="text-xl lg:text-2xl font-extrabold font-mono text-rose-600 dark:text-rose-400">
@@ -383,22 +403,6 @@ function AdminDashboard() {
                       <Link href={`/committees/${scheme.id}`}>
                         <span className="text-[11px] font-semibold text-rose-600 hover:underline flex items-center gap-0.5 cursor-pointer pt-1">
                           View pending →
-                        </span>
-                      </Link>
-                    </div>
-
-                    {/* Due / Active Tokens */}
-                    <div className="p-4 rounded-xl border border-amber-500/20 bg-amber-500/5 space-y-1">
-                      <div className="flex justify-between items-center text-xs font-bold text-amber-600 dark:text-amber-400">
-                        <span>Active Tokens</span>
-                        <Ticket className="w-4 h-4" />
-                      </div>
-                      <div className="text-xl lg:text-2xl font-extrabold font-mono text-amber-600 dark:text-amber-400">
-                        {scheme.tokenCount}
-                      </div>
-                      <Link href={`/committees/${scheme.id}`}>
-                        <span className="text-[11px] font-semibold text-amber-600 hover:underline flex items-center gap-0.5 cursor-pointer pt-1">
-                          Manage tokens →
                         </span>
                       </Link>
                     </div>
@@ -419,6 +423,21 @@ function AdminDashboard() {
                       </Link>
                     </div>
                   </div>
+
+                  {/* Monthly Collection Breakdown for this Committee */}
+                  {scheme.monthlyBreakdown && scheme.monthlyBreakdown.length > 0 && (
+                    <div className="p-3 bg-slate-50 dark:bg-slate-900/50 rounded-xl border border-border/60">
+                      <h4 className="text-xs font-bold text-muted-foreground uppercase tracking-wider mb-2">Monthly Collections Breakdown</h4>
+                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                        {scheme.monthlyBreakdown.slice(0, 8).map((mb: any, mIdx: number) => (
+                          <div key={mIdx} className="p-2 rounded-lg bg-background border text-xs">
+                            <span className="text-muted-foreground block text-[10px] font-semibold">{mb.month}</span>
+                            <span className="font-bold font-mono text-emerald-600">{formatCurrency(mb.amount)}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
 
                   {/* Latest Winner Card for this Committee */}
                   {scheme.latestWinnerName && (
@@ -556,6 +575,81 @@ function AdminDashboard() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Printable Pending Tokens & Members Report Section */}
+      <PendingReportCard />
     </div>
+  );
+}
+
+function PendingReportCard() {
+  const { data: pendingData, isLoading } = useQuery<{ success: boolean; pendingList: any[]; totalPending: number }>({
+    queryKey: ["dashboard-pending-report"],
+    queryFn: () => customFetch("/dashboard/pending-report"),
+  });
+
+  const pendingList = pendingData?.pendingList || [];
+
+  const handlePrint = () => {
+    window.print();
+  };
+
+  return (
+    <Card className="shadow-md border-rose-500/20">
+      <CardHeader className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 bg-rose-500/5">
+        <div>
+          <CardTitle className="text-lg font-bold text-rose-700 dark:text-rose-400 flex items-center gap-2">
+            <AlertCircle className="w-5 h-5 text-rose-600" />
+            Pending Members & Tokens Report
+          </CardTitle>
+          <CardDescription className="text-xs">
+            List of assigned tokens with pending installment payments ({pendingList.length} Records)
+          </CardDescription>
+        </div>
+        <Button onClick={handlePrint} size="sm" className="bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs gap-1.5 shadow-sm">
+          <Printer className="w-4 h-4" />
+          Print Pending List
+        </Button>
+      </CardHeader>
+      <CardContent className="p-4">
+        {isLoading ? (
+          <p className="text-xs text-muted-foreground">Loading pending report list...</p>
+        ) : pendingList.length === 0 ? (
+          <p className="text-xs text-muted-foreground">No pending tokens found.</p>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-xs border-collapse">
+              <thead>
+                <tr className="bg-muted text-muted-foreground text-left border-b">
+                  <th className="p-2 font-bold">Token #</th>
+                  <th className="p-2 font-bold">Bissi Scheme</th>
+                  <th className="p-2 font-bold">Member Name</th>
+                  <th className="p-2 font-bold">Mobile</th>
+                  <th className="p-2 font-bold">Ref No</th>
+                  <th className="p-2 font-bold text-right">Installment</th>
+                </tr>
+              </thead>
+              <tbody>
+                {pendingList.slice(0, 50).map((item: any, idx: number) => (
+                  <tr key={idx} className="border-b hover:bg-muted/50">
+                    <td className="p-2 font-mono font-bold text-indigo-600">#{item.tokenNumber}</td>
+                    <td className="p-2 font-semibold">{item.committeeName}</td>
+                    <td className="p-2 font-bold text-foreground">{item.customerName}</td>
+                    <td className="p-2 font-mono">{item.customerMobile || "N/A"}</td>
+                    <td className="p-2 font-mono text-muted-foreground">{item.referenceNumber || "—"}</td>
+                    <td className="p-2 text-right font-mono font-bold text-rose-600">₹{item.installmentAmount}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            {pendingList.length > 50 && (
+              <p className="text-[11px] text-muted-foreground mt-2 text-center">
+                Showing top 50 of {pendingList.length} pending members. Click <b>Print Pending List</b> to view/print the complete document.
+              </p>
+            )}
+          </div>
+        )}
+      </CardContent>
+    </Card>
   );
 }
