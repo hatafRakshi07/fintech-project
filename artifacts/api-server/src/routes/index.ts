@@ -1084,18 +1084,24 @@ router.get("/dashboard/scheme-boxes", async (req, res) => {
       const filled = Number(r.filledTokens || 0);
       const unregistered = Math.max(0, limit - filled);
       const installAmt = Number(r.installmentAmount || 3000);
+      const monthlyPool = limit * installAmt;
       const lw = latestWinnerMap[r.id];
       const pm = pendingMap[r.id] || {};
+      const mbList = monthlyMap[r.id] || [];
+      const latestMonthAmount = mbList[0]?.amount || 0;
+
       return {
         ...r,
         installmentAmount: installAmt,
+        monthlyPool: monthlyPool,
         collectedAmount: Number(r.collectedAmount || 0),
+        thisMonthCollected: latestMonthAmount,
         tokenCount: filled,
         filledTokens: filled,
         pendingTokens: unregistered,
         dueAmount: Number(pm.pendingAmount || 0),
         thisMonthPendingCount: pm.pendingCount || 0,
-        monthlyBreakdown: monthlyMap[r.id] || [],
+        monthlyBreakdown: mbList,
         latestWinnerName: lw?.winnerName || null,
         latestWinnerToken: lw?.winnerToken || null,
         latestReward: lw?.reward || null,

@@ -359,34 +359,32 @@ function AdminDashboard() {
                 <CardContent className="p-5 space-y-5">
                   {/* 4 Stat Boxes inside Scheme */}
                   <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-                    {/* Collected Amount */}
+                    {/* Monthly Pool Amount */}
                     <div className="p-4 rounded-xl border border-emerald-500/20 bg-emerald-500/5 space-y-1">
                       <div className="flex justify-between items-center text-xs font-bold text-emerald-600 dark:text-emerald-400">
-                        <span>Total Collected</span>
+                        <span>Monthly Pool</span>
                         <Wallet className="w-4 h-4" />
                       </div>
                       <div className="text-xl lg:text-2xl font-extrabold font-mono text-emerald-600 dark:text-emerald-400">
-                        {formatCurrency(scheme.collectedAmount)}
+                        {formatCurrency(scheme.monthlyPool || (scheme.memberLimit * scheme.installmentAmount))}
                       </div>
-                      <Link href={`/collections?committeeId=${scheme.id}`}>
-                        <span className="text-[11px] font-semibold text-emerald-600 hover:underline flex items-center gap-0.5 cursor-pointer pt-1">
-                          View transactions →
-                        </span>
-                      </Link>
+                      <span className="text-[10px] text-muted-foreground block font-medium">
+                        ₹{scheme.installmentAmount?.toLocaleString("en-IN")}/mo × {scheme.memberLimit} members
+                      </span>
                     </div>
 
-                    {/* Filled vs Pending Tokens */}
+                    {/* Filled vs Capacity Tokens */}
                     <div className="p-4 rounded-xl border border-indigo-500/20 bg-indigo-500/5 space-y-1">
                       <div className="flex justify-between items-center text-xs font-bold text-indigo-600 dark:text-indigo-400">
-                        <span>Tokens Fill / Pending</span>
+                        <span>Active Member Tokens</span>
                         <Ticket className="w-4 h-4" />
                       </div>
-                      <div className="text-lg font-extrabold font-mono text-indigo-600 dark:text-indigo-400">
-                        {scheme.filledTokens || scheme.tokenCount} Filled / {scheme.pendingTokens || 0} Pending
+                      <div className="text-xl lg:text-2xl font-extrabold font-mono text-indigo-600 dark:text-indigo-400">
+                        {scheme.filledTokens || scheme.tokenCount} / {scheme.memberLimit}
                       </div>
                       <Link href={`/committees/${scheme.id}`}>
-                        <span className="text-[11px] font-semibold text-indigo-600 hover:underline flex items-center gap-0.5 cursor-pointer pt-1">
-                          Manage tokens →
+                        <span className="text-[11px] font-semibold text-indigo-600 hover:underline flex items-center gap-0.5 cursor-pointer pt-0.5">
+                          Manage member tokens →
                         </span>
                       </Link>
                     </div>
@@ -401,24 +399,24 @@ function AdminDashboard() {
                         {formatCurrency(scheme.dueAmount || 0)}
                       </div>
                       <Link href={`/committees/${scheme.id}`}>
-                        <span className="text-[11px] font-semibold text-rose-600 hover:underline flex items-center gap-0.5 cursor-pointer pt-1">
-                          View pending →
+                        <span className="text-[11px] font-semibold text-rose-600 hover:underline flex items-center gap-0.5 cursor-pointer pt-0.5">
+                          {scheme.thisMonthPendingCount || 0} members pending →
                         </span>
                       </Link>
                     </div>
 
-                    {/* Member Limit / Total Winners */}
-                    <div className="p-4 rounded-xl border border-indigo-500/20 bg-indigo-50/50 dark:bg-indigo-950/20 space-y-1">
-                      <div className="flex justify-between items-center text-xs font-bold text-indigo-600 dark:text-indigo-400">
+                    {/* Total Winners */}
+                    <div className="p-4 rounded-xl border border-amber-500/20 bg-amber-50/50 dark:bg-amber-950/20 space-y-1">
+                      <div className="flex justify-between items-center text-xs font-bold text-amber-600 dark:text-amber-400">
                         <span>Winners Declared</span>
                         <Trophy className="w-4 h-4" />
                       </div>
-                      <div className="text-xl lg:text-2xl font-extrabold font-mono text-indigo-600 dark:text-indigo-400">
+                      <div className="text-xl lg:text-2xl font-extrabold font-mono text-amber-600 dark:text-amber-400">
                         {scheme.winnersCount || 0} Winners
                       </div>
                       <Link href="/lotteries">
-                        <span className="text-[11px] font-semibold text-indigo-600 hover:underline flex items-center gap-0.5 cursor-pointer pt-1">
-                          View winners history →
+                        <span className="text-[11px] font-semibold text-amber-600 hover:underline flex items-center gap-0.5 cursor-pointer pt-0.5">
+                          View draw history →
                         </span>
                       </Link>
                     </div>
