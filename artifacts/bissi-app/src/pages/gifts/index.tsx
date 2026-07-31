@@ -1,366 +1,324 @@
 import React, { useState } from "react";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { api } from "@/lib/api";
-import { safeArray } from "@/lib/utils";
-import { Button } from "@/components/ui/button";
+import { useQuery } from "@tanstack/react-query";
+import { customFetch } from "@workspace/api-client-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import {
-  Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
-} from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import {
-  Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger,
-} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Button } from "@/components/ui/button";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
-import { Gift, Package, Users, BarChart2, Plus, CheckCircle2, XCircle, RotateCcw } from "lucide-react";
-import { useToast } from "@/hooks/use-toast";
+import { Gift, Search, Trophy, Printer, Calendar, Users, Filter } from "lucide-react";
 
-const formatCurrency = (n: number) =>
-  new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 0 }).format(n);
-
-const statusColor: Record<string, "default" | "secondary" | "destructive" | "outline"> = {
-  available: "default",
-  reserved: "outline",
-  distributed: "secondary",
-  returned: "outline",
-  damaged: "destructive",
-  pending: "outline",
-  given: "default",
+type Winner = {
+  id: number;
+  committeeId: number;
+  committeeName: string;
+  winnerId: number;
+  winnerName: string;
+  winnerMobile?: string;
+  tokenNumber?: number;
+  drawDate: string;
+  giftName: string;
+  rewardType: "gift" | "cash";
+  status: string;
 };
 
-type GiftCategory = { id: number; name: string; description?: string; branchId: number };
-type GiftItem = { id: number; categoryId: number; name: string; description?: string; estimatedValue?: string; quantityTotal: number; quantityAvailable: number; quantityDistributed: number; status: string; categoryName?: string };
-type GiftDistribution = { id: number; giftId: number; customerId: number; distributionDate: string; status: string; notes?: string; giftName?: string; customerName?: string; quantity: number };
-type GiftSummary = { totalItems: number; totalDistributed: number; pendingDistribution: number; totalCategories: number };
+const COMMITTEES = [
+  { id: "all", name: "Sabhi Bissi" },
+  { id: "1", name: "Sawariya Seth Bissi" },
+  { id: "2", name: "Pyare Mohan Bissi" },
+  { id: "3", name: "Hare Ka Sahara Bissi" },
+  { id: "4", name: "Shree Krishna Bissi" },
+];
+
+const formatDate = (d: string) => {
+  if (!d) return "—";
+  return new Date(d).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
+};
 
 export default function GiftsPage() {
-  const { toast } = useToast();
-  const queryClient = useQueryClient();
-  const [activeTab, setActiveTab] = useState("inventory");
-  const [isAddItemOpen, setIsAddItemOpen] = useState(false);
-  const [isDistributeOpen, setIsDistributeOpen] = useState(false);
-  const [selectedGift, setSelectedGift] = useState<GiftItem | null>(null);
+  const [search, setSearch] = useState("");
+  const [committeeId, setCommitteeId] = useState("all");
+  const [rewardType, setRewardType] = useState("all");
+  const [page, setPage] = useState(0);
+  const PER_PAGE = 100;
 
-  // Form state
-  const [newItem, setNewItem] = useState({ categoryId: "", name: "", description: "", estimatedValue: "", quantityTotal: "1", branchId: "1" });
-  const [newDist, setNewDist] = useState({ giftId: "", customerId: "", distributionDate: new Date().toISOString().split("T")[0], notes: "", branchId: "1", quantity: "1" });
+  const params = new URLSearchParams();
+  if (committeeId !== "all") params.set("committeeId", committeeId);
+  if (rewardType !== "all") params.set("rewardType", rewardType);
+  if (search.trim()) params.set("search", search.trim());
+  params.set("limit", String(PER_PAGE));
+  params.set("offset", String(page * PER_PAGE));
 
-  const { data: summary } = useQuery<GiftSummary>({ queryKey: ["gifts", "summary"], queryFn: () => api.get("/gifts/summary") });
-  const { data: rawCategories } = useQuery<GiftCategory[]>({ queryKey: ["gifts", "categories"], queryFn: () => api.get("/gifts/categories") });
-  const categories = safeArray<GiftCategory>(rawCategories);
-
-  const { data: rawInventory, isLoading: loadingInventory } = useQuery<GiftItem[]>({ queryKey: ["gifts", "inventory"], queryFn: () => api.get("/gifts/inventory") });
-  const inventory = safeArray<GiftItem>(rawInventory);
-
-  const { data: rawDistributions, isLoading: loadingDist } = useQuery<GiftDistribution[]>({ queryKey: ["gifts", "distributions"], queryFn: () => api.get("/gifts/distributions") });
-  const distributions = safeArray<GiftDistribution>(rawDistributions);
-
-  const createItem = useMutation({
-    mutationFn: (data: typeof newItem) => api.post("/gifts/inventory", { ...data, categoryId: parseInt(data.categoryId), quantityTotal: parseInt(data.quantityTotal), branchId: parseInt(data.branchId) }),
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["gifts"] }); setIsAddItemOpen(false); toast({ title: "Gift item added" }); },
-    onError: (e: any) => toast({ title: "Error", description: e.message, variant: "destructive" }),
+  const { data, isLoading } = useQuery<{ success: boolean; winners: Winner[]; total: number }>({
+    queryKey: ["gifts-bissi-winners", committeeId, rewardType, search, page],
+    queryFn: () => customFetch(`/gifts/bissi-winners?${params.toString()}`),
+    staleTime: 30000,
   });
 
-  const createDist = useMutation({
-    mutationFn: (data: typeof newDist) => api.post("/gifts/distributions", { ...data, giftId: parseInt(data.giftId), customerId: parseInt(data.customerId), quantity: parseInt(data.quantity), branchId: parseInt(data.branchId) }),
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["gifts"] }); setIsDistributeOpen(false); toast({ title: "Gift distributed successfully" }); },
-    onError: (e: any) => toast({ title: "Error", description: e.message, variant: "destructive" }),
+  const winners = data?.winners || [];
+  const total = data?.total || 0;
+  const totalPages = Math.ceil(total / PER_PAGE);
+
+  // Group by month for display
+  const grouped: Record<string, Winner[]> = {};
+  winners.forEach(w => {
+    const monthKey = w.drawDate
+      ? new Date(w.drawDate).toLocaleDateString("en-IN", { month: "long", year: "numeric" })
+      : "Unknown Date";
+    if (!grouped[monthKey]) grouped[monthKey] = [];
+    grouped[monthKey].push(w);
   });
 
-  const updateStatus = useMutation({
-    mutationFn: ({ id, status, returnNotes }: { id: number; status: string; returnNotes?: string }) =>
-      api.patch(`/gifts/distributions/${id}/status`, { status, returnNotes }),
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["gifts"] }); toast({ title: "Status updated" }); },
-    onError: (e: any) => toast({ title: "Error", description: e.message, variant: "destructive" }),
-  });
+  // Stats
+  const giftCount = winners.filter(w => w.rewardType === "gift").length;
+  const cashCount = winners.filter(w => w.rewardType === "cash").length;
+
+  const handlePrint = () => {
+    const w = window.open("", "_blank");
+    if (!w) return;
+    const rows = winners.map(winner =>
+      `<tr>
+        <td>${formatDate(winner.drawDate)}</td>
+        <td>${winner.committeeName}</td>
+        <td>${winner.winnerName}</td>
+        <td>${winner.tokenNumber ? `#${winner.tokenNumber}` : "—"}</td>
+        <td>${winner.giftName || "—"}</td>
+        <td style="color:${winner.rewardType === 'gift' ? '#7c3aed' : '#059669'}">${winner.rewardType === "gift" ? "🎁 Gift" : "💵 Cash"}</td>
+      </tr>`
+    ).join("");
+
+    w.document.write(`<!DOCTYPE html>
+<html><head><title>Gift Winners Report</title>
+<style>
+  body { font-family: Arial; padding: 24px; font-size: 12px; }
+  h2 { color: #1e293b; margin-bottom: 4px; }
+  p { color: #64748b; margin-bottom: 16px; }
+  table { width: 100%; border-collapse: collapse; }
+  th { background: #f1f5f9; padding: 8px; text-align: left; border-bottom: 2px solid #e2e8f0; }
+  td { padding: 6px 8px; border-bottom: 1px solid #f1f5f9; }
+  tr:hover { background: #f8fafc; }
+  button { margin-bottom: 16px; padding: 8px 16px; background: #6366f1; color: white; border: none; border-radius: 6px; cursor: pointer; }
+  @media print { button { display: none; } }
+</style></head>
+<body>
+<h2>🎁 Gift & Cash Winners Report</h2>
+<p>${committeeId === "all" ? "All Bissi Schemes" : COMMITTEES.find(c => c.id === committeeId)?.name} | Total: ${total} records</p>
+<button onclick="window.print()">🖨️ Print</button>
+<table>
+  <thead><tr><th>Date</th><th>Bissi</th><th>Winner Name</th><th>Token</th><th>Gift / Amount</th><th>Type</th></tr></thead>
+  <tbody>${rows}</tbody>
+</table>
+</body></html>`);
+    w.document.close();
+  };
 
   return (
     <div className="space-y-6">
+      {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">Gift Management</h1>
-          <p className="text-muted-foreground">Manage gift inventory, distribution, and tracking</p>
+          <h1 className="text-2xl font-bold tracking-tight flex items-center gap-2">
+            <Gift className="w-6 h-6 text-purple-500" />
+            Gifts & Lottery Winners
+          </h1>
+          <p className="text-muted-foreground text-sm">
+            Date-wise list of all gift and cash winners from all Bissi schemes
+          </p>
         </div>
-        <div className="flex gap-2">
-          <Dialog open={isDistributeOpen} onOpenChange={setIsDistributeOpen}>
-            <DialogTrigger asChild>
-              <Button variant="outline"><Gift className="mr-2 h-4 w-4" />Distribute Gift</Button>
-            </DialogTrigger>
-            <DialogContent>
-              <DialogHeader><DialogTitle>Distribute Gift to Customer</DialogTitle></DialogHeader>
-              <div className="space-y-4 pt-2">
-                <div>
-                  <Label>Gift Item</Label>
-                  <Select value={newDist.giftId} onValueChange={(v) => setNewDist({ ...newDist, giftId: v })}>
-                    <SelectTrigger><SelectValue placeholder="Select gift" /></SelectTrigger>
-                    <SelectContent>{inventory.filter(i => i.quantityAvailable > 0).map(i => <SelectItem key={i.id} value={String(i.id)}>{i.name} ({i.quantityAvailable} available)</SelectItem>)}</SelectContent>
-                  </Select>
-                </div>
-                <div>
-                  <Label>Customer ID</Label>
-                  <Input type="number" placeholder="Customer ID" value={newDist.customerId} onChange={e => setNewDist({ ...newDist, customerId: e.target.value })} />
-                </div>
-                <div className="grid grid-cols-2 gap-2">
-                  <div>
-                    <Label>Quantity</Label>
-                    <Input type="number" min="1" value={newDist.quantity} onChange={e => setNewDist({ ...newDist, quantity: e.target.value })} />
-                  </div>
-                  <div>
-                    <Label>Date</Label>
-                    <Input type="date" value={newDist.distributionDate} onChange={e => setNewDist({ ...newDist, distributionDate: e.target.value })} />
-                  </div>
-                </div>
-                <div>
-                  <Label>Notes</Label>
-                  <Input placeholder="Optional notes" value={newDist.notes} onChange={e => setNewDist({ ...newDist, notes: e.target.value })} />
-                </div>
-                <Button className="w-full" onClick={() => createDist.mutate(newDist)} disabled={createDist.isPending}>
-                  {createDist.isPending ? "Distributing..." : "Confirm Distribution"}
-                </Button>
-              </div>
-            </DialogContent>
-          </Dialog>
-          <Dialog open={isAddItemOpen} onOpenChange={setIsAddItemOpen}>
-            <DialogTrigger asChild>
-              <Button><Plus className="mr-2 h-4 w-4" />Add Gift Item</Button>
-            </DialogTrigger>
-            <DialogContent>
-              <DialogHeader><DialogTitle>Add Gift to Inventory</DialogTitle></DialogHeader>
-              <div className="space-y-4 pt-2">
-                <div>
-                  <Label>Category</Label>
-                  <Select value={newItem.categoryId} onValueChange={v => setNewItem({ ...newItem, categoryId: v })}>
-                    <SelectTrigger><SelectValue placeholder="Select category" /></SelectTrigger>
-                    <SelectContent>{categories.map(c => <SelectItem key={c.id} value={String(c.id)}>{c.name}</SelectItem>)}</SelectContent>
-                  </Select>
-                </div>
-                <div>
-                  <Label>Gift Name</Label>
-                  <Input placeholder="e.g. Gold Necklace 5g" value={newItem.name} onChange={e => setNewItem({ ...newItem, name: e.target.value })} />
-                </div>
-                <div>
-                  <Label>Description</Label>
-                  <Input placeholder="Optional description" value={newItem.description} onChange={e => setNewItem({ ...newItem, description: e.target.value })} />
-                </div>
-                <div className="grid grid-cols-2 gap-2">
-                  <div>
-                    <Label>Estimated Value (₹)</Label>
-                    <Input type="number" placeholder="5000" value={newItem.estimatedValue} onChange={e => setNewItem({ ...newItem, estimatedValue: e.target.value })} />
-                  </div>
-                  <div>
-                    <Label>Quantity</Label>
-                    <Input type="number" min="1" value={newItem.quantityTotal} onChange={e => setNewItem({ ...newItem, quantityTotal: e.target.value })} />
-                  </div>
-                </div>
-                <Button className="w-full" onClick={() => createItem.mutate(newItem)} disabled={createItem.isPending}>
-                  {createItem.isPending ? "Adding..." : "Add to Inventory"}
-                </Button>
-              </div>
-            </DialogContent>
-          </Dialog>
-        </div>
+        <Button onClick={handlePrint} variant="outline" className="gap-2 text-purple-600 border-purple-500/30 hover:bg-purple-50">
+          <Printer className="w-4 h-4" />
+          Print Report
+        </Button>
       </div>
 
-      {/* KPI Cards */}
-      <div className="grid gap-4 md:grid-cols-4">
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium">Total Items</CardTitle>
-            <Package className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent><div className="text-2xl font-bold">{summary?.totalItems ?? 0}</div></CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium">Distributed</CardTitle>
-            <CheckCircle2 className="h-4 w-4 text-green-500" />
-          </CardHeader>
-          <CardContent><div className="text-2xl font-bold">{summary?.totalDistributed ?? 0}</div></CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium">Pending Distribution</CardTitle>
-            <Gift className="h-4 w-4 text-orange-500" />
-          </CardHeader>
-          <CardContent><div className="text-2xl font-bold">{summary?.pendingDistribution ?? 0}</div></CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium">Categories</CardTitle>
-            <BarChart2 className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent><div className="text-2xl font-bold">{summary?.totalCategories ?? 0}</div></CardContent>
-        </Card>
-      </div>
-
-      <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList>
-          <TabsTrigger value="inventory">Inventory</TabsTrigger>
-          <TabsTrigger value="distributions">Distributions</TabsTrigger>
-          <TabsTrigger value="categories">Categories</TabsTrigger>
-        </TabsList>
-
-        <TabsContent value="inventory" className="mt-4">
-          <Card>
-            <CardContent className="p-0 overflow-x-auto">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Name</TableHead>
-                    <TableHead>Category</TableHead>
-                    <TableHead>Value</TableHead>
-                    <TableHead>Total</TableHead>
-                    <TableHead>Available</TableHead>
-                    <TableHead>Distributed</TableHead>
-                    <TableHead>Status</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {loadingInventory ? (
-                    <TableRow><TableCell colSpan={7} className="text-center py-8 text-muted-foreground">Loading inventory...</TableCell></TableRow>
-                  ) : inventory.length === 0 ? (
-                    <TableRow><TableCell colSpan={7} className="text-center py-8 text-muted-foreground">No gift items. Add your first item.</TableCell></TableRow>
-                  ) : inventory.map(item => (
-                    <TableRow key={item.id}>
-                      <TableCell className="font-medium">{item.name}</TableCell>
-                      <TableCell>{item.categoryName ?? "—"}</TableCell>
-                      <TableCell>{item.estimatedValue ? formatCurrency(parseFloat(item.estimatedValue)) : "—"}</TableCell>
-                      <TableCell>{item.quantityTotal}</TableCell>
-                      <TableCell>
-                        <span className={item.quantityAvailable === 0 ? "text-destructive font-medium" : "text-green-600 font-medium"}>
-                          {item.quantityAvailable}
-                        </span>
-                      </TableCell>
-                      <TableCell>{item.quantityDistributed}</TableCell>
-                      <TableCell><Badge variant={statusColor[item.status] ?? "outline"}>{item.status}</Badge></TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        <TabsContent value="distributions" className="mt-4">
-          <Card>
-            <CardContent className="p-0 overflow-x-auto">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Gift</TableHead>
-                    <TableHead>Customer</TableHead>
-                    <TableHead>Date</TableHead>
-                    <TableHead>Qty</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead>Actions</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {loadingDist ? (
-                    <TableRow><TableCell colSpan={6} className="text-center py-8 text-muted-foreground">Loading...</TableCell></TableRow>
-                  ) : distributions.length === 0 ? (
-                    <TableRow><TableCell colSpan={6} className="text-center py-8 text-muted-foreground">No distributions recorded.</TableCell></TableRow>
-                  ) : distributions.map(d => (
-                    <TableRow key={d.id}>
-                      <TableCell className="font-medium">{d.giftName ?? `Gift #${d.giftId}`}</TableCell>
-                      <TableCell>{d.customerName ?? `Customer #${d.customerId}`}</TableCell>
-                      <TableCell>{d.distributionDate}</TableCell>
-                      <TableCell>{d.quantity}</TableCell>
-                      <TableCell><Badge variant={statusColor[d.status] ?? "outline"}>{d.status}</Badge></TableCell>
-                      <TableCell>
-                        <div className="flex gap-1">
-                          {d.status === "pending" && (
-                            <Button size="sm" variant="outline" onClick={() => updateStatus.mutate({ id: d.id, status: "given" })}>
-                              <CheckCircle2 className="h-3 w-3 mr-1" />Given
-                            </Button>
-                          )}
-                          {d.status === "given" && (
-                            <Button size="sm" variant="outline" onClick={() => updateStatus.mutate({ id: d.id, status: "returned" })}>
-                              <RotateCcw className="h-3 w-3 mr-1" />Return
-                            </Button>
-                          )}
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        <TabsContent value="categories" className="mt-4">
-          <GiftCategoriesTab categories={categories} />
-        </TabsContent>
-      </Tabs>
-    </div>
-  );
-}
-
-function GiftCategoriesTab({ categories }: { categories: GiftCategory[] }) {
-  const { toast } = useToast();
-  const queryClient = useQueryClient();
-  const [isOpen, setIsOpen] = useState(false);
-  const [name, setName] = useState("");
-  const [description, setDescription] = useState("");
-
-  const create = useMutation({
-    mutationFn: () => api.post("/gifts/categories", { name, description, branchId: 1 }),
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["gifts", "categories"] }); setIsOpen(false); setName(""); setDescription(""); toast({ title: "Category added" }); },
-    onError: (e: any) => toast({ title: "Error", description: e.message, variant: "destructive" }),
-  });
-
-  return (
-    <Card>
-      <CardHeader className="flex flex-row items-center justify-between">
-        <CardTitle>Gift Categories</CardTitle>
-        <Dialog open={isOpen} onOpenChange={setIsOpen}>
-          <DialogTrigger asChild>
-            <Button size="sm"><Plus className="h-4 w-4 mr-1" />Add Category</Button>
-          </DialogTrigger>
-          <DialogContent>
-            <DialogHeader><DialogTitle>Add Gift Category</DialogTitle></DialogHeader>
-            <div className="space-y-4 pt-2">
-              <div>
-                <Label>Category Name</Label>
-                <Input placeholder="e.g. Gold Jewellery" value={name} onChange={e => setName(e.target.value)} />
-              </div>
-              <div>
-                <Label>Description</Label>
-                <Input placeholder="Optional description" value={description} onChange={e => setDescription(e.target.value)} />
-              </div>
-              <Button className="w-full" onClick={() => create.mutate()} disabled={create.isPending || !name.trim()}>
-                {create.isPending ? "Adding..." : "Add Category"}
-              </Button>
+      {/* Stats */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+        <Card className="border-purple-500/20 bg-purple-500/5">
+          <CardContent className="p-4">
+            <div className="flex justify-between items-center text-xs font-bold text-purple-600 mb-1">
+              <span>Total Winners</span>
+              <Trophy className="w-4 h-4" />
             </div>
-          </DialogContent>
-        </Dialog>
-      </CardHeader>
-      <CardContent className="p-0 overflow-x-auto">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Name</TableHead>
-              <TableHead>Description</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {categories.length === 0 ? (
-              <TableRow><TableCell colSpan={2} className="text-center py-8 text-muted-foreground">No categories yet.</TableCell></TableRow>
-            ) : categories.map(c => (
-              <TableRow key={c.id}>
-                <TableCell className="font-medium">{c.name}</TableCell>
-                <TableCell className="text-muted-foreground">{c.description ?? "—"}</TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
-      </CardContent>
-    </Card>
+            <div className="text-2xl font-extrabold font-mono text-purple-600">{total.toLocaleString("en-IN")}</div>
+            <p className="text-[11px] text-muted-foreground mt-1">All records</p>
+          </CardContent>
+        </Card>
+        <Card className="border-violet-500/20 bg-violet-500/5">
+          <CardContent className="p-4">
+            <div className="flex justify-between items-center text-xs font-bold text-violet-600 mb-1">
+              <span>🎁 Gift Winners</span>
+              <Gift className="w-4 h-4" />
+            </div>
+            <div className="text-2xl font-extrabold font-mono text-violet-600">{giftCount.toLocaleString("en-IN")}</div>
+            <p className="text-[11px] text-muted-foreground mt-1">Current page</p>
+          </CardContent>
+        </Card>
+        <Card className="border-emerald-500/20 bg-emerald-500/5">
+          <CardContent className="p-4">
+            <div className="flex justify-between items-center text-xs font-bold text-emerald-600 mb-1">
+              <span>💵 Cash Winners</span>
+              <Users className="w-4 h-4" />
+            </div>
+            <div className="text-2xl font-extrabold font-mono text-emerald-600">{cashCount.toLocaleString("en-IN")}</div>
+            <p className="text-[11px] text-muted-foreground mt-1">Current page</p>
+          </CardContent>
+        </Card>
+        <Card className="border-indigo-500/20 bg-indigo-500/5">
+          <CardContent className="p-4">
+            <div className="flex justify-between items-center text-xs font-bold text-indigo-600 mb-1">
+              <span>Schemes</span>
+              <Calendar className="w-4 h-4" />
+            </div>
+            <div className="text-2xl font-extrabold font-mono text-indigo-600">4</div>
+            <p className="text-[11px] text-muted-foreground mt-1">Bissi schemes</p>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Filters */}
+      <Card>
+        <CardContent className="p-4">
+          <div className="flex flex-col sm:flex-row gap-3">
+            <div className="relative flex-1">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+              <Input
+                placeholder="Search winner name or gift..."
+                value={search}
+                onChange={e => { setSearch(e.target.value); setPage(0); }}
+                className="pl-9"
+              />
+            </div>
+            <Select value={committeeId} onValueChange={v => { setCommitteeId(v); setPage(0); }}>
+              <SelectTrigger className="w-full sm:w-52">
+                <Filter className="w-4 h-4 mr-2 text-muted-foreground" />
+                <SelectValue placeholder="Select Bissi" />
+              </SelectTrigger>
+              <SelectContent>
+                {COMMITTEES.map(c => (
+                  <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Select value={rewardType} onValueChange={v => { setRewardType(v); setPage(0); }}>
+              <SelectTrigger className="w-full sm:w-40">
+                <SelectValue placeholder="Type" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">🎁💵 Sab</SelectItem>
+                <SelectItem value="gift">🎁 Gift Only</SelectItem>
+                <SelectItem value="cash">💵 Cash Only</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Results - Grouped by Month */}
+      {isLoading ? (
+        <div className="h-48 flex items-center justify-center">
+          <div className="w-8 h-8 border-4 border-purple-500 border-t-transparent rounded-full animate-spin" />
+        </div>
+      ) : winners.length === 0 ? (
+        <Card>
+          <CardContent className="p-12 text-center text-muted-foreground">
+            <Gift className="w-12 h-12 mx-auto mb-3 opacity-30" />
+            <p className="font-semibold">Koi record nahi mila</p>
+            <p className="text-sm mt-1">Filter change karke try karo</p>
+          </CardContent>
+        </Card>
+      ) : (
+        <div className="space-y-6">
+          {Object.entries(grouped).map(([month, monthWinners]) => (
+            <div key={month}>
+              {/* Month Header */}
+              <div className="flex items-center gap-3 mb-3">
+                <div className="flex items-center gap-2 bg-slate-100 dark:bg-slate-800 px-3 py-1.5 rounded-full">
+                  <Calendar className="w-3.5 h-3.5 text-purple-500" />
+                  <span className="text-xs font-bold text-foreground">{month}</span>
+                  <Badge variant="outline" className="text-[10px] bg-purple-500/10 text-purple-600 border-purple-500/20 font-mono">
+                    {monthWinners.length} winners
+                  </Badge>
+                </div>
+                <div className="flex-1 h-px bg-border" />
+              </div>
+
+              {/* Cards */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
+                {monthWinners.map(w => (
+                  <div
+                    key={w.id}
+                    className={`p-3.5 rounded-xl border transition-shadow hover:shadow-md ${
+                      w.rewardType === "gift"
+                        ? "border-purple-500/20 bg-purple-500/5 hover:border-purple-500/40"
+                        : "border-emerald-500/20 bg-emerald-500/5 hover:border-emerald-500/40"
+                    }`}
+                  >
+                    <div className="flex items-start justify-between gap-2 mb-2">
+                      <span className="text-xs font-bold text-foreground leading-tight line-clamp-2">
+                        {w.winnerName}
+                      </span>
+                      <Badge
+                        className={`text-[10px] shrink-0 ${
+                          w.rewardType === "gift"
+                            ? "bg-purple-500/20 text-purple-600 border-purple-500/30"
+                            : "bg-emerald-500/20 text-emerald-600 border-emerald-500/30"
+                        }`}
+                        variant="outline"
+                      >
+                        {w.rewardType === "gift" ? "🎁 Gift" : "💵 Cash"}
+                      </Badge>
+                    </div>
+
+                    {/* Gift Name */}
+                    <div className={`text-sm font-bold mb-2 ${w.rewardType === "gift" ? "text-purple-600" : "text-emerald-600"}`}>
+                      {w.giftName || "—"}
+                    </div>
+
+                    <div className="space-y-1 text-[11px] text-muted-foreground">
+                      <div className="flex justify-between">
+                        <span>Bissi:</span>
+                        <span className="font-semibold text-foreground">{w.committeeName.replace(" Bissi", "")}</span>
+                      </div>
+                      {w.tokenNumber && (
+                        <div className="flex justify-between">
+                          <span>Token:</span>
+                          <span className="font-mono font-bold text-indigo-600">#{w.tokenNumber}</span>
+                        </div>
+                      )}
+                      <div className="flex justify-between">
+                        <span>Date:</span>
+                        <span className="font-semibold">{formatDate(w.drawDate)}</span>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ))}
+
+          {/* Pagination */}
+          {totalPages > 1 && (
+            <div className="flex items-center justify-between pt-2">
+              <p className="text-xs text-muted-foreground">
+                Showing {page * PER_PAGE + 1}–{Math.min((page + 1) * PER_PAGE, total)} of {total.toLocaleString("en-IN")}
+              </p>
+              <div className="flex gap-2">
+                <Button variant="outline" size="sm" disabled={page === 0} onClick={() => setPage(p => p - 1)}>
+                  ← Pehle
+                </Button>
+                <span className="text-xs px-2 py-1.5 bg-muted rounded font-mono">
+                  {page + 1} / {totalPages}
+                </span>
+                <Button variant="outline" size="sm" disabled={page >= totalPages - 1} onClick={() => setPage(p => p + 1)}>
+                  Agle →
+                </Button>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
   );
 }

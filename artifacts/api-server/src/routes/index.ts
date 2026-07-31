@@ -1299,6 +1299,75 @@ router.get("/dashboard/all", async (req, res) => {
 });
 
 // Gifts & Interests
+// NEW: Bissi gift winners from lotteries table - date-wise sorted
+router.get("/gifts/bissi-winners", async (req, res) => {
+  try {
+    const { committeeId, rewardType, search, limit = "200", offset = "0" } = req.query as any;
+    
+    const conditions: string[] = ["l.winner_id IS NOT NULL", "l.status = 'completed'"];
+    const params: any[] = [];
+    
+    if (committeeId && committeeId !== "all") {
+      params.push(parseInt(committeeId));
+      conditions.push(`l.committee_id = $${params.length}`);
+    }
+    if (rewardType && rewardType !== "all") {
+      params.push(rewardType);
+      conditions.push(`l.reward_type = $${params.length}`);
+    }
+    if (search) {
+      params.push(`%${search}%`);
+      conditions.push(`(cust.name ILIKE $${params.length} OR l.notes ILIKE $${params.length})`);
+    }
+    
+    const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(" AND ")}` : "";
+    
+    params.push(parseInt(limit));
+    params.push(parseInt(offset));
+    
+    const result = await pool.query(`
+      SELECT 
+        l.id,
+        l.committee_id as "committeeId",
+        c.name as "committeeName",
+        l.winner_id as "winnerId",
+        cust.name as "winnerName",
+        cust.mobile as "winnerMobile",
+        t.token_number as "tokenNumber",
+        l.draw_date as "drawDate",
+        l.notes as "giftName",
+        l.reward_type as "rewardType",
+        l.status
+      FROM lotteries l
+      JOIN committees c ON c.id = l.committee_id
+      JOIN customers cust ON cust.id = l.winner_id
+      LEFT JOIN tokens t ON t.customer_id = l.winner_id AND t.committee_id = l.committee_id
+      ${whereClause}
+      ORDER BY l.draw_date DESC, l.id DESC
+      LIMIT $${params.length - 1} OFFSET $${params.length}
+    `, params);
+    
+    // Count total
+    const countParams = params.slice(0, params.length - 2);
+    const countRes = await pool.query(`
+      SELECT COUNT(*)::int as total
+      FROM lotteries l
+      JOIN committees c ON c.id = l.committee_id
+      JOIN customers cust ON cust.id = l.winner_id
+      ${whereClause.replace(/\$${params.length - 1}|\$${params.length}/g, '')}
+    `, countParams);
+    
+    res.json({ 
+      success: true, 
+      winners: result.rows, 
+      total: countRes.rows[0]?.total || result.rows.length 
+    });
+  } catch (err: any) {
+    console.error("Error fetching bissi gift winners:", err);
+    res.status(500).json({ success: false, error: "Failed to fetch gift winners", winners: [], total: 0 });
+  }
+});
+
 router.get("/gifts/summary", async (req, res) => {
   try {
     const result = await queryWithRetry(
