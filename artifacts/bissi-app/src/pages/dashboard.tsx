@@ -341,16 +341,16 @@ function AdminDashboard() {
                   </div>
 
                   <div className="flex flex-wrap items-center gap-2">
+                    <Badge variant="outline" className="text-xs bg-purple-500/10 text-purple-600 border-purple-500/20 font-bold">
+                      📅 Month: {scheme.currentMonthName || "Jul 2026"}
+                    </Badge>
                     <Badge variant="secondary" className="text-xs bg-indigo-500/10 text-indigo-600 border-indigo-500/20 font-medium">
                       Filled Tokens: {scheme.filledTokens || scheme.tokenCount || 500} / {scheme.memberLimit || 500}
-                    </Badge>
-                    <Badge variant="secondary" className="text-xs bg-rose-500/10 text-rose-600 border-rose-500/20 font-medium">
-                      Pending Tokens: {scheme.pendingTokens || 0}
                     </Badge>
                     <Badge variant="secondary" className="text-xs bg-emerald-500/10 text-emerald-600 border-emerald-500/20 font-medium">
                       Installment: ₹{scheme.installmentAmount}/month
                     </Badge>
-                    <Badge variant="outline" className="text-xs bg-purple-500/10 text-purple-600 border-purple-500/20 font-medium">
+                    <Badge variant="outline" className="text-xs bg-indigo-500/10 text-indigo-600 border-indigo-500/20 font-medium">
                       Draw: {drawDateText}
                     </Badge>
                   </div>
@@ -359,21 +359,35 @@ function AdminDashboard() {
                 <CardContent className="p-5 space-y-5">
                   {/* 4 Stat Boxes inside Scheme */}
                   <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-                    {/* Monthly Pool Amount */}
+                    {/* 1. This Month Collected Amount */}
                     <div className="p-4 rounded-xl border border-emerald-500/20 bg-emerald-500/5 space-y-1">
                       <div className="flex justify-between items-center text-xs font-bold text-emerald-600 dark:text-emerald-400">
-                        <span>Monthly Pool</span>
+                        <span>This Month Collected (इस महीने आया)</span>
                         <Wallet className="w-4 h-4" />
                       </div>
                       <div className="text-xl lg:text-2xl font-extrabold font-mono text-emerald-600 dark:text-emerald-400">
-                        {formatCurrency(scheme.monthlyPool || (scheme.memberLimit * scheme.installmentAmount))}
+                        {formatCurrency(scheme.thisMonthCollected || 0)}
                       </div>
                       <span className="text-[10px] text-muted-foreground block font-medium">
-                        ₹{scheme.installmentAmount?.toLocaleString("en-IN")}/mo × {scheme.memberLimit} members
+                        Monthly Pool Target: {formatCurrency(scheme.monthlyPool || (scheme.memberLimit * scheme.installmentAmount))}
                       </span>
                     </div>
 
-                    {/* Filled vs Capacity Tokens */}
+                    {/* 2. Pending Tokens / Pending Amount */}
+                    <div className="p-4 rounded-xl border border-rose-500/20 bg-rose-500/5 space-y-1">
+                      <div className="flex justify-between items-center text-xs font-bold text-rose-600 dark:text-rose-400">
+                        <span>This Month Pending (बकाया)</span>
+                        <AlertCircle className="w-4 h-4" />
+                      </div>
+                      <div className="text-xl lg:text-2xl font-extrabold font-mono text-rose-600 dark:text-rose-400">
+                        {formatCurrency(scheme.dueAmount || 0)}
+                      </div>
+                      <span className="text-[11px] text-rose-600 font-bold block">
+                        🔴 {scheme.thisMonthPendingCount || 0} Member Tokens Unpaid
+                      </span>
+                    </div>
+
+                    {/* 3. Filled vs Capacity Tokens */}
                     <div className="p-4 rounded-xl border border-indigo-500/20 bg-indigo-500/5 space-y-1">
                       <div className="flex justify-between items-center text-xs font-bold text-indigo-600 dark:text-indigo-400">
                         <span>Active Member Tokens</span>
@@ -389,23 +403,7 @@ function AdminDashboard() {
                       </Link>
                     </div>
 
-                    {/* Due / Pending Amount */}
-                    <div className="p-4 rounded-xl border border-rose-500/20 bg-rose-500/5 space-y-1">
-                      <div className="flex justify-between items-center text-xs font-bold text-rose-600 dark:text-rose-400">
-                        <span>Due / Pending Amount</span>
-                        <AlertCircle className="w-4 h-4" />
-                      </div>
-                      <div className="text-xl lg:text-2xl font-extrabold font-mono text-rose-600 dark:text-rose-400">
-                        {formatCurrency(scheme.dueAmount || 0)}
-                      </div>
-                      <Link href={`/committees/${scheme.id}`}>
-                        <span className="text-[11px] font-semibold text-rose-600 hover:underline flex items-center gap-0.5 cursor-pointer pt-0.5">
-                          {scheme.thisMonthPendingCount || 0} members pending →
-                        </span>
-                      </Link>
-                    </div>
-
-                    {/* Total Winners */}
+                    {/* 4. Total Winners */}
                     <div className="p-4 rounded-xl border border-amber-500/20 bg-amber-50/50 dark:bg-amber-950/20 space-y-1">
                       <div className="flex justify-between items-center text-xs font-bold text-amber-600 dark:text-amber-400">
                         <span>Winners Declared</span>

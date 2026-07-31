@@ -1088,14 +1088,19 @@ router.get("/dashboard/scheme-boxes", async (req, res) => {
       const lw = latestWinnerMap[r.id];
       const pm = pendingMap[r.id] || {};
       const mbList = monthlyMap[r.id] || [];
-      const latestMonthAmount = mbList[0]?.amount || 0;
+      const latestMonth = mbList[0];
+      const currentMonthName = latestMonth ? latestMonth.month : new Date().toLocaleDateString("en-IN", { month: "short", year: "numeric" });
+      const thisMonthCollected = latestMonth ? Number(latestMonth.amount || 0) : 0;
+      const thisMonthReceipts = latestMonth ? Number(latestMonth.count || 0) : 0;
 
       return {
         ...r,
         installmentAmount: installAmt,
         monthlyPool: monthlyPool,
-        collectedAmount: Number(r.collectedAmount || 0),
-        thisMonthCollected: latestMonthAmount,
+        currentMonthName: currentMonthName,
+        thisMonthCollected: thisMonthCollected,
+        thisMonthReceipts: thisMonthReceipts,
+        lifetimeCollectedAmount: Number(r.collectedAmount || 0),
         tokenCount: filled,
         filledTokens: filled,
         pendingTokens: unregistered,
