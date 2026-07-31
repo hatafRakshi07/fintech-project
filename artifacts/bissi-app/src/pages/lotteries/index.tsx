@@ -493,6 +493,42 @@ function DrawHistoryModal({ historyGroup, onClose }: { historyGroup: { commName:
       return sortOrder === "desc" ? timeB - timeA : timeA - timeB;
     });
 
+  // Group duplicate winner entries for the same draw date
+  const groupedMap: Record<string, any> = {};
+  filteredDraws.forEach((d: any) => {
+    const normName = (d.winnerName || "pending").toLowerCase().trim();
+    const dateStr = d.drawDate ? new Date(d.drawDate).toISOString().split("T")[0] : "nodate";
+    const key = `${normName}_${dateStr}`;
+
+    if (!groupedMap[key]) {
+      groupedMap[key] = {
+        id: key,
+        drawDate: d.drawDate,
+        winnerName: d.winnerName,
+        tokens: [],
+        rewards: [],
+        prizeAmount: 0,
+        status: d.status,
+        rewardType: d.rewardType,
+        cashTaken: d.cashTaken,
+      };
+    }
+
+    if (d.winnerToken && !groupedMap[key].tokens.includes(d.winnerToken)) {
+      groupedMap[key].tokens.push(d.winnerToken);
+    }
+    const rw = d.notes?.includes("Winner Reward:") ? d.notes.replace("Winner Reward:", "").trim() : (d.giftName || d.notes || "");
+    if (rw && !groupedMap[key].rewards.includes(rw)) {
+      groupedMap[key].rewards.push(rw);
+    }
+    if (d.prizeAmount) {
+      groupedMap[key].prizeAmount += Number(d.prizeAmount);
+    }
+  });
+
+  const groupedDraws = Object.values(groupedMap);
+  groupedDraws.forEach((g: any) => g.tokens.sort((a: number, b: number) => a - b));
+
   return (
     <Dialog open={true} onOpenChange={(o) => !o && onClose()}>
       <DialogContent className="max-w-4xl max-h-[90vh] flex flex-col">
@@ -503,7 +539,7 @@ function DrawHistoryModal({ historyGroup, onClose }: { historyGroup: { commName:
               Draw History — {historyGroup.commName}
             </DialogTitle>
             <Badge variant="outline" className="text-xs bg-amber-500/10 text-amber-600 border-amber-500/30">
-              {filteredDraws.length} / {historyGroup.draws.length} Draws Listed
+              {groupedDraws.length} Unique Winners ({historyGroup.draws.length} Draws)
             </Badge>
           </div>
 
@@ -538,7 +574,7 @@ function DrawHistoryModal({ historyGroup, onClose }: { historyGroup: { commName:
         </DialogHeader>
 
         <div className="flex-1 overflow-y-auto min-h-[300px]">
-          {filteredDraws.length === 0 ? (
+          {groupedDraws.length === 0 ? (
             <div className="text-center py-12 text-sm text-muted-foreground">
               No draw history records found matching your filters.
             </div>
@@ -548,14 +584,14 @@ function DrawHistoryModal({ historyGroup, onClose }: { historyGroup: { commName:
                 <TableRow>
                   <TableHead>Date &amp; Time</TableHead>
                   <TableHead>Winner</TableHead>
-                  <TableHead>Token #</TableHead>
+                  <TableHead>Token Numbers (टोकन सं.)</TableHead>
                   <TableHead className="text-right">Prize Amount</TableHead>
-                  <TableHead>Reward</TableHead>
+                  <TableHead>Gift / Reward (क्या मिला)</TableHead>
                   <TableHead className="text-center">Status</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {filteredDraws.map((d: any) => (
+                {groupedDraws.map((d: any) => (
                   <TableRow key={d.id} className="hover:bg-muted/30">
                     <TableCell className="font-medium text-xs whitespace-nowrap">
                       {new Date(d.drawDate).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })}
@@ -571,12 +607,12 @@ function DrawHistoryModal({ historyGroup, onClose }: { historyGroup: { commName:
                       )}
                     </TableCell>
                     <TableCell className="font-mono text-xs font-bold text-primary">
-                      {d.winnerToken ? `#${d.winnerToken}` : "—"}
+                      {d.tokens.length > 0 ? d.tokens.map((t: number) => `#${t}`).join(", ") : "—"}
                     </TableCell>
                     <TableCell className="text-right text-xs font-mono font-bold text-emerald-600">
                       {d.prizeAmount ? formatCurrency(d.prizeAmount) : "—"}
                     </TableCell>
-                    <TableCell className="text-xs">
+                    <TableCell className="text-xs font-bold">
                       {d.rewardType === "cash" ? (
                         <span className="inline-flex items-center gap-1 text-emerald-600 font-bold bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-300">
                           <Banknote className="h-3.5 w-3.5" />
@@ -585,9 +621,7 @@ function DrawHistoryModal({ historyGroup, onClose }: { historyGroup: { commName:
                       ) : (
                         <span className="inline-flex items-center gap-1 text-purple-600 font-bold bg-purple-500/10 px-2 py-0.5 rounded border border-purple-300">
                           <Gift className="h-3.5 w-3.5 text-purple-600" />
-                          {d.notes?.includes("Winner Reward:")
-                            ? d.notes.replace("Winner Reward:", "").trim()
-                            : d.giftName || d.notes || "Gift Item"}
+                          {d.rewards.length > 0 ? d.rewards.join(", ") : "Gift Item"}
                         </span>
                       )}
                     </TableCell>

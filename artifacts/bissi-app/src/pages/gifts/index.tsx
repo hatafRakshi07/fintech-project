@@ -52,6 +52,56 @@ const formatGiftName = (name: string, rewardType: string) => {
   return cleaned.charAt(0).toUpperCase() + cleaned.slice(1);
 };
 
+type GroupedWinner = {
+  id: string;
+  winnerName: string;
+  winnerMobile?: string;
+  committeeId: number;
+  committeeName: string;
+  drawDate: string;
+  tokens: number[];
+  giftItems: string[];
+  rewardType: "gift" | "cash";
+  count: number;
+};
+
+const groupWinnersList = (items: Winner[]): GroupedWinner[] => {
+  const map: Record<string, GroupedWinner> = {};
+  items.forEach(w => {
+    const normName = (w.winnerName || "").trim().toLowerCase();
+    const dateStr = w.drawDate ? new Date(w.drawDate).toISOString().split("T")[0] : "nodate";
+    const key = `${normName}_${dateStr}_${w.committeeId}`;
+
+    if (!map[key]) {
+      map[key] = {
+        id: key,
+        winnerName: w.winnerName,
+        winnerMobile: w.winnerMobile,
+        committeeId: w.committeeId,
+        committeeName: w.committeeName,
+        drawDate: w.drawDate,
+        tokens: [],
+        giftItems: [],
+        rewardType: w.rewardType || "gift",
+        count: 0,
+      };
+    }
+
+    if (w.tokenNumber && !map[key].tokens.includes(w.tokenNumber)) {
+      map[key].tokens.push(w.tokenNumber);
+    }
+    const itemFormatted = formatGiftName(w.giftName, w.rewardType);
+    if (itemFormatted && !map[key].giftItems.includes(itemFormatted)) {
+      map[key].giftItems.push(itemFormatted);
+    }
+    map[key].count += 1;
+  });
+
+  const res = Object.values(map);
+  res.forEach(g => g.tokens.sort((a, b) => a - b));
+  return res;
+};
+
 export default function GiftsPage() {
   const [search, setSearch] = useState("");
   const [committeeId, setCommitteeId] = useState("all");
@@ -72,12 +122,15 @@ export default function GiftsPage() {
     staleTime: 30000,
   });
 
-  const winners = data?.winners || [];
+  const rawWinners = data?.winners || [];
   const total = data?.total || 0;
   const totalPages = Math.ceil(total / PER_PAGE);
 
+  // Group winners by same person + same draw date + committee
+  const winners = groupWinnersList(rawWinners);
+
   // Group by month for display
-  const grouped: Record<string, Winner[]> = {};
+  const grouped: Record<string, GroupedWinner[]> = {};
   winners.forEach(w => {
     const monthKey = w.drawDate
       ? new Date(w.drawDate).toLocaleDateString("en-IN", { month: "long", year: "numeric" })
@@ -94,12 +147,13 @@ export default function GiftsPage() {
     const w = window.open("", "_blank");
     if (!w) return;
     const rows = winners.map(winner => {
-      const gItem = formatGiftName(winner.giftName, winner.rewardType);
+      const gItem = winner.giftItems.join(", ") || "Gift Item";
+      const tokStr = winner.tokens.length > 0 ? winner.tokens.map(t => `#${t}`).join(", ") : "—";
       return `<tr>
         <td>${formatDate(winner.drawDate)}</td>
         <td>${winner.committeeName}</td>
         <td>${winner.winnerName}</td>
-        <td>${winner.tokenNumber ? `#${winner.tokenNumber}` : "—"}</td>
+        <td style="font-weight:bold;color:#4f46e5">${tokStr}</td>
         <td style="font-weight:bold;color:${winner.rewardType === 'gift' ? '#7c3aed' : '#059669'}">${gItem}</td>
         <td>${winner.rewardType === "gift" ? "🎁 Gift" : "💵 Cash"}</td>
       </tr>`;
@@ -120,10 +174,10 @@ export default function GiftsPage() {
 </style></head>
 <body>
 <h2>🎁 Gift & Cash Winners Report</h2>
-<p>${committeeId === "all" ? "All Bissi Schemes" : COMMITTEES.find(c => c.id === committeeId)?.name} | Total: ${total} records</p>
+<p>${committeeId === "all" ? "All Bissi Schemes" : COMMITTEES.find(c => c.id === committeeId)?.name} | Total Unique Winners: ${winners.length}</p>
 <button onclick="window.print()">🖨️ Print</button>
 <table>
-  <thead><tr><th>Date</th><th>Bissi</th><th>Winner Name</th><th>Token</th><th>Gift Item / Reward (क्या मिला)</th><th>Type</th></tr></thead>
+  <thead><tr><th>Date</th><th>Bissi</th><th>Winner Name</th><th>Token Numbers (टोकन सं.)</th><th>Gift Item / Reward (क्या मिला)</th><th>Type</th></tr></thead>
   <tbody>${rows}</tbody>
 </table>
 </body></html>`);
@@ -263,7 +317,9 @@ export default function GiftsPage() {
               {/* Cards */}
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
                 {monthWinners.map(w => {
-                  const giftDetail = formatGiftName(w.giftName, w.rewardType);
+                  const giftDetail = w.giftItems.length > 0 ? w.giftItems.join(", ") : "Gift Item";
+                  const tokensList = w.tokens.length > 0 ? w.tokens.map(t => `#${t}`).join(", ") : "—";
+
                   return (
                     <div
                       key={w.id}
@@ -274,9 +330,16 @@ export default function GiftsPage() {
                       }`}
                     >
                       <div className="flex items-start justify-between gap-2 mb-2">
-                        <span className="text-xs font-bold text-foreground leading-tight line-clamp-2">
-                          {w.winnerName}
-                        </span>
+                        <div>
+                          <span className="text-xs font-bold text-foreground leading-tight block">
+                            {w.winnerName}
+                          </span>
+                          {w.count > 1 && (
+                            <span className="text-[10px] font-semibold text-purple-600 font-mono">
+                              ({w.count} Wins)
+                            </span>
+                          )}
+                        </div>
                         <Badge
                           className={`text-[10px] shrink-0 ${
                             w.rewardType === "gift"
@@ -304,12 +367,10 @@ export default function GiftsPage() {
                           <span>Bissi:</span>
                           <span className="font-semibold text-foreground">{w.committeeName.replace(" Bissi", "")}</span>
                         </div>
-                        {w.tokenNumber && (
-                          <div className="flex justify-between">
-                            <span>Token:</span>
-                            <span className="font-mono font-bold text-indigo-600">#{w.tokenNumber}</span>
-                          </div>
-                        )}
+                        <div className="flex justify-between">
+                          <span>Token(s):</span>
+                          <span className="font-mono font-bold text-indigo-600">{tokensList}</span>
+                        </div>
                         <div className="flex justify-between">
                           <span>Date:</span>
                           <span className="font-semibold">{formatDate(w.drawDate)}</span>
