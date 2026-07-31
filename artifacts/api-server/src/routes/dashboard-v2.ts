@@ -3,11 +3,11 @@ import { pool, queryWithRetry } from "@workspace/db";
 
 const router = Router();
 
-const DEFAULT_BISSI_SCHEMES = [
-  { id: 4, name: "Shree Krishna Bissi", member_limit: 1111, installment_amount: 3000 },
-  { id: 1, name: "Sawariya Seth Bissi", member_limit: 500, installment_amount: 3000 },
-  { id: 2, name: "Pyare Mohan Bissi", member_limit: 500, installment_amount: 3000 },
-  { id: 3, name: "Hare Ka Sahara Bissi", member_limit: 500, installment_amount: 2500 },
+const DEFAULT_BISSI_COMMITTEES = [
+  { id: "11111111-1111-1111-1111-111111111111", name: "Hare Ka Sahara", total_members: 500, monthly_installment: 2500 },
+  { id: "22222222-2222-2222-2222-222222222222", name: "Shree Krishna Associates", total_members: 1111, monthly_installment: 3000 },
+  { id: "33333333-3333-3333-3333-333333333333", name: "Pyare Mohan", total_members: 500, monthly_installment: 3000 },
+  { id: "44444444-4444-4444-4444-444444444444", name: "Set Sanwariya", total_members: 500, monthly_installment: 3000 },
 ];
 
 /**
@@ -19,20 +19,20 @@ router.get("/summary", async (req, res) => {
     const result = await queryWithRetry(
       () => pool.query(`
         SELECT 
-          c.id as "schemeId",
+          c.id::text as "schemeId",
           c.name as "schemeName",
-          CONCAT('BISSI-', c.id) as "schemeCode",
-          c.installment_amount::numeric as "monthlyInstallment",
-          c.member_limit::int as "membersCount",
-          COALESCE(col.collected_amount, 0)::numeric as "collectedAmount"
+          c.code as "schemeCode",
+          c.monthly_installment::numeric as "monthlyInstallment",
+          c.total_members::int as "membersCount",
+          COALESCE(inst.collected_amount, 0)::numeric as "collectedAmount"
         FROM committees c
         LEFT JOIN (
-          SELECT committee_id, SUM(amount)::numeric as collected_amount
-          FROM collections
-          WHERE committee_id IS NOT NULL
-          GROUP BY committee_id
-        ) col ON c.id = col.committee_id
-        ORDER BY c.id ASC
+          SELECT cm.committee_id, SUM(i.paid_amount)::numeric as collected_amount
+          FROM installments i
+          JOIN committee_months cm ON cm.id = i.committee_month_id
+          GROUP BY cm.committee_id
+        ) inst ON c.id = inst.committee_id
+        ORDER BY c.created_at ASC
       `),
       { routeName: "GET /api/v2/dashboard/summary", retries: 2, delayMs: 500 }
     );
@@ -41,7 +41,7 @@ router.get("/summary", async (req, res) => {
       schemeId: r.schemeId,
       schemeName: r.schemeName,
       schemeCode: r.schemeCode,
-      monthlyInstallment: Number(r.monthlyInstallment || 500),
+      monthlyInstallment: Number(r.monthlyInstallment || 3000),
       boxes: {
         collectedAmount: Number(r.collectedAmount || 0),
         dueAmount: 0,
@@ -50,18 +50,18 @@ router.get("/summary", async (req, res) => {
       }
     }));
 
-    res.json({ success: true, data: dashboardData.length > 0 ? dashboardData : DEFAULT_BISSI_SCHEMES });
+    res.json({ success: true, data: dashboardData.length > 0 ? dashboardData : DEFAULT_BISSI_COMMITTEES });
   } catch (error) {
-    const fallbackData = DEFAULT_BISSI_SCHEMES.map(comm => ({
+    const fallbackData = DEFAULT_BISSI_COMMITTEES.map(comm => ({
       schemeId: comm.id,
       schemeName: comm.name,
-      schemeCode: `BISSI-${comm.id}`,
-      monthlyInstallment: 500,
+      schemeCode: comm.name.replace(/\s+/g, '-').toUpperCase(),
+      monthlyInstallment: comm.monthly_installment,
       boxes: {
-        collectedAmount: comm.id === 4 ? 1420500 : 650000,
+        collectedAmount: 0,
         dueAmount: 0,
         dueTokens: 0,
-        membersCount: comm.member_limit,
+        membersCount: comm.total_members,
       }
     }));
     res.json({ success: true, data: fallbackData });

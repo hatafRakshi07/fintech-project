@@ -1,17 +1,10 @@
 import { Router } from "express";
 import { db } from "@workspace/db";
-import { ledgerTransactions, customers, paymentReceipts, paymentItems } from "@workspace/db/schema";
+import { financialTransactions, customers } from "@workspace/db/schema";
 import { desc, eq, and, sql, gte, lte } from "drizzle-orm";
-import { requireAuth } from "../middleware/auth";
 
 const router = Router();
 
-// In a real app we'd use requireAuth, but we bypassed it for demo
-// router.use(requireAuth);
-
-/**
- * Helper to build common date filters
- */
 const buildDateFilter = (col: any, startDate?: string, endDate?: string) => {
   const conditions = [];
   if (startDate) conditions.push(gte(col, new Date(startDate)));
@@ -31,26 +24,25 @@ router.get("/sales", async (req, res) => {
   try {
     const { startDate, endDate } = req.query as { startDate?: string; endDate?: string };
     
-    // We can query ledgerTransactions where category in ('INSTALLMENT', 'REGISTRATION_FEE', 'PENALTY', 'MISC')
     const conditions = [
-      sql`${ledgerTransactions.category} IN ('INSTALLMENT', 'REGISTRATION_FEE', 'PENALTY', 'MISC')`,
-      ...buildDateFilter(ledgerTransactions.createdAt, startDate, endDate)
+      sql`${financialTransactions.category} IN ('INSTALLMENT', 'REGISTRATION_FEE', 'PENALTY', 'MISC')`,
+      ...buildDateFilter(financialTransactions.createdAt, startDate, endDate)
     ];
 
     const entries = await db.select({
-      id: ledgerTransactions.id,
-      date: ledgerTransactions.createdAt,
-      type: ledgerTransactions.type,
-      category: ledgerTransactions.category,
-      amount: ledgerTransactions.amount,
-      notes: ledgerTransactions.notes,
+      id: financialTransactions.id,
+      date: financialTransactions.createdAt,
+      type: financialTransactions.type,
+      category: financialTransactions.category,
+      amount: financialTransactions.amount,
+      notes: financialTransactions.notes,
       customerName: customers.name,
-      customerPhone: customers.phone
+      customerPhone: customers.mobile
     })
-    .from(ledgerTransactions)
-    .leftJoin(customers, eq(ledgerTransactions.customerId, customers.id))
+    .from(financialTransactions)
+    .leftJoin(customers, eq(financialTransactions.customerId, customers.id))
     .where(and(...conditions))
-    .orderBy(desc(ledgerTransactions.createdAt));
+    .orderBy(desc(financialTransactions.createdAt));
 
     res.json({ success: true, data: entries });
   } catch (error: any) {
@@ -68,24 +60,24 @@ router.get("/purchase", async (req, res) => {
     const { startDate, endDate } = req.query as { startDate?: string; endDate?: string };
     
     const conditions = [
-      sql`${ledgerTransactions.category} IN ('GIFT_PAYMENT', 'SETTLEMENT', 'REFUND')`,
-      ...buildDateFilter(ledgerTransactions.createdAt, startDate, endDate)
+      sql`${financialTransactions.category} IN ('GIFT_PAYMENT', 'SETTLEMENT', 'REFUND')`,
+      ...buildDateFilter(financialTransactions.createdAt, startDate, endDate)
     ];
 
     const entries = await db.select({
-      id: ledgerTransactions.id,
-      date: ledgerTransactions.createdAt,
-      type: ledgerTransactions.type,
-      category: ledgerTransactions.category,
-      amount: ledgerTransactions.amount,
-      notes: ledgerTransactions.notes,
+      id: financialTransactions.id,
+      date: financialTransactions.createdAt,
+      type: financialTransactions.type,
+      category: financialTransactions.category,
+      amount: financialTransactions.amount,
+      notes: financialTransactions.notes,
       customerName: customers.name,
-      customerPhone: customers.phone
+      customerPhone: customers.mobile
     })
-    .from(ledgerTransactions)
-    .leftJoin(customers, eq(ledgerTransactions.customerId, customers.id))
+    .from(financialTransactions)
+    .leftJoin(customers, eq(financialTransactions.customerId, customers.id))
     .where(and(...conditions))
-    .orderBy(desc(ledgerTransactions.createdAt));
+    .orderBy(desc(financialTransactions.createdAt));
 
     res.json({ success: true, data: entries });
   } catch (error: any) {
@@ -102,36 +94,33 @@ router.get("/cashbook", async (req, res) => {
   try {
     const { startDate, endDate } = req.query as { startDate?: string; endDate?: string };
     
-    // We fetch everything inside date range
-    const conditions = buildDateFilter(ledgerTransactions.createdAt, startDate, endDate);
+    const conditions = buildDateFilter(financialTransactions.createdAt, startDate, endDate);
 
     const entries = await db.select({
-      id: ledgerTransactions.id,
-      date: ledgerTransactions.createdAt,
-      type: ledgerTransactions.type,
-      category: ledgerTransactions.category,
-      amount: ledgerTransactions.amount,
-      notes: ledgerTransactions.notes,
+      id: financialTransactions.id,
+      date: financialTransactions.createdAt,
+      type: financialTransactions.type,
+      category: financialTransactions.category,
+      amount: financialTransactions.amount,
+      notes: financialTransactions.notes,
       customerName: customers.name
     })
-    .from(ledgerTransactions)
-    .leftJoin(customers, eq(ledgerTransactions.customerId, customers.id))
+    .from(financialTransactions)
+    .leftJoin(customers, eq(financialTransactions.customerId, customers.id))
     .where(conditions.length ? and(...conditions) : undefined)
-    .orderBy(ledgerTransactions.createdAt); // Order ascending for chronological cashbook!
+    .orderBy(financialTransactions.createdAt);
 
-    // Calculate running balance
     let balance = 0;
     const cashbook = entries.map(entry => {
       const amt = parseFloat(entry.amount as any);
-      if (entry.type === 'CREDIT') {
-        balance += amt; // Inflow
+      if (entry.type === 'CASH_IN') {
+        balance += amt;
       } else {
-        balance -= amt; // Outflow
+        balance -= amt;
       }
       return { ...entry, balance };
     });
 
-    // We can reverse it at the end to show newest on top
     res.json({ success: true, data: cashbook.reverse() });
   } catch (error: any) {
     console.error("Ledger cashbook error:", error);

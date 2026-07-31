@@ -2,26 +2,27 @@ import { Router } from "express";
 import { pool } from "@workspace/db";
 
 const router = Router();
+const DEFAULT_ORG_ID = "00000000-0000-0000-0000-000000000001";
 
-// 1. Get all schemes (Bissi) -> maps to committees
+// 1. Get all committees
 router.get("/schemes", async (req, res) => {
   try {
     const result = await pool.query(
-      `SELECT id::text, name, installment_amount::text as "installmentAmount" 
+      `SELECT id::text, name, monthly_installment::text as "installmentAmount" 
        FROM committees 
-       WHERE status = 'active'`
+       WHERE status = 'ACTIVE'`
     );
     res.json(result.rows);
   } catch (err: any) {
-    console.error("Error fetching schemes:", err);
-    res.status(500).json({ error: "Failed to fetch schemes: " + err.message });
+    console.error("Error fetching committees:", err);
+    res.status(500).json({ error: "Failed to fetch committees: " + err.message });
   }
 });
 
-// 2. Search customers by name, phone, or token number (filtered by selected schemeId if provided)
+// 2. Search customers by name, mobile, or display_token
 router.get("/customers/search", async (req, res) => {
   try {
-    const { query, schemeId } = req.query;
+    const { query } = req.query;
     if (!query || String(query).length < 1) {
       res.json([]);
       return;
@@ -30,39 +31,27 @@ router.get("/customers/search", async (req, res) => {
     const searchStr = `%${query}%`;
     const exactStr = String(query).trim();
 
-    let sql = `
+    const sql = `
       SELECT DISTINCT 
         c.id::text, 
         c.name, 
         c.mobile as "phone",
-        cm.token_number as "tokenNumber",
+        t.display_token as "tokenNumber",
         comm.name as "schemeName"
       FROM customers c
-      INNER JOIN committee_members cm ON c.id = cm.customer_id
-      LEFT JOIN committees comm ON comm.id = cm.committee_id
-      LEFT JOIN tokens t ON (c.id = t.customer_id AND cm.committee_id = t.committee_id)
+      LEFT JOIN tokens t ON t.customer_id = c.id
+      LEFT JOIN committees comm ON comm.id = t.committee_id
       WHERE (
         c.name ILIKE $1 
         OR c.mobile ILIKE $1 
-        OR cm.token_number ILIKE $1
-        OR cm.token_number = $2
-        OR t.token_number ILIKE $1
+        OR t.raw_token_number ILIKE $1
+        OR t.raw_token_number = $2
       )
+      AND c.deleted_at IS NULL
+      ORDER BY c.name ASC LIMIT 30
     `;
 
-    const params: any[] = [searchStr, exactStr];
-
-    if (schemeId && schemeId !== "all") {
-      const parsedSchemeId = parseInt(schemeId as string, 10);
-      if (!isNaN(parsedSchemeId)) {
-        params.push(parsedSchemeId);
-        sql += ` AND cm.committee_id = $${params.length}`;
-      }
-    }
-
-    sql += ` ORDER BY c.name ASC LIMIT 30`;
-
-    const result = await pool.query(sql, params);
+    const result = await pool.query(sql, [searchStr, exactStr]);
     res.json(result.rows);
   } catch (err: any) {
     console.error("Error searching customers:", err);
@@ -70,44 +59,27 @@ router.get("/customers/search", async (req, res) => {
   }
 });
 
-// 3. Get customer tokens/memberships for a specific scheme (or all schemes if schemeId omitted)
+// 3. Get customer tokens
 router.get("/tokens", async (req, res) => {
   try {
-    const { customerId, schemeId } = req.query;
+    const { customerId } = req.query;
     if (!customerId) {
       res.status(400).json({ error: "customerId is required" });
       return;
     }
 
-    const custId = parseInt(customerId as string, 10);
-    if (isNaN(custId)) {
-      res.status(400).json({ error: "Invalid customerId" });
-      return;
-    }
-
-    let query = `
+    const query = `
       SELECT 
-        cm.id::text as "membershipId",
-        cm.committee_id::text as "schemeId",
-        cm.customer_id::text as "customerId",
-        COALESCE(t.id, cm.id)::text as "tokenId",
-        COALESCE(cm.token_number, t.token_number, cm.id::text)::text as "tokenNumber",
-        COALESCE(cm.status, 'active')::text as "status"
-      FROM committee_members cm
-      LEFT JOIN tokens t ON cm.customer_id = t.customer_id AND cm.committee_id = t.committee_id
-      WHERE cm.customer_id = $1
+        t.id::text as "tokenId",
+        t.committee_id::text as "schemeId",
+        t.customer_id::text as "customerId",
+        t.display_token::text as "tokenNumber",
+        t.status::text as "status"
+      FROM tokens t
+      WHERE t.customer_id = $1::uuid AND t.deleted_at IS NULL
     `;
-    const params: any[] = [custId];
 
-    if (schemeId && schemeId !== "all") {
-      const commId = parseInt(schemeId as string, 10);
-      if (!isNaN(commId)) {
-        query += ` AND cm.committee_id = $2`;
-        params.push(commId);
-      }
-    }
-
-    const result = await pool.query(query, params);
+    const result = await pool.query(query, [customerId]);
     res.json(result.rows);
   } catch (err: any) {
     console.error("Error fetching tokens:", err);
@@ -115,9 +87,9 @@ router.get("/tokens", async (req, res) => {
   }
 });
 
-// 4. Submit split payment
+// 4. Submit installment payment
 router.post("/payments", async (req, res): Promise<void> => {
-  const { customerId, paymentMode, screenshotUrl, allocations, collectorId } = req.body;
+  const { customerId, paymentMode, allocations } = req.body;
 
   if (!customerId || !paymentMode || !allocations || allocations.length === 0) {
     res.status(400).json({ error: "Missing required fields" });
@@ -125,52 +97,37 @@ router.post("/payments", async (req, res): Promise<void> => {
   }
 
   try {
-    const custId = parseInt(customerId, 10);
-    const colId = collectorId ? parseInt(collectorId, 10) : 1;
-
-    if (isNaN(custId)) {
-      res.status(400).json({ error: "Invalid customer ID" });
-      return;
-    }
-
     const client = await pool.connect();
     try {
       await client.query("BEGIN");
 
-      const now = new Date();
-      const currentMonth = now.getMonth() + 1; // 1-12
-      const currentYear = now.getFullYear();
-
       for (const alloc of allocations) {
-        const tokenId = parseInt(alloc.tokenId, 10);
+        const tokenId = alloc.tokenId;
         const amount = parseFloat(alloc.amount);
-        if (isNaN(tokenId) || isNaN(amount) || amount <= 0) continue;
+        if (!tokenId || isNaN(amount) || amount <= 0) continue;
 
-        // Fetch token details to get committeeId and token number
+        // Fetch token and first open committee month
         const tokenRes = await client.query(
-          "SELECT committee_id, token_number FROM tokens WHERE id = $1",
+          "SELECT committee_id FROM tokens WHERE id = $1::uuid",
           [tokenId]
         );
         if (tokenRes.rows.length === 0) continue;
-        const { committee_id: committeeId, token_number: tokenNumber } = tokenRes.rows[0];
+        const committeeId = tokenRes.rows[0].committee_id;
 
-        // Insert into collections table
-        const notes = `Bissi payment via Collector for Token #${tokenNumber}`;
-        const receiptNo = `REC-COL-${Date.now().toString().slice(-4)}-${Math.floor(Math.random() * 1000)}`;
-
-        await client.query(
-          `INSERT INTO collections (
-            customer_id, collector_id, branch_id, committee_id, amount, payment_mode, receipt_number, notes, verification_status, collected_at, created_at
-          ) VALUES ($1, $2, 1, $3, $4, $5, $6, $7, 'verified', NOW(), NOW())`,
-          [custId, colId, committeeId, amount, paymentMode, receiptNo, notes]
+        const monthRes = await client.query(
+          "SELECT id FROM committee_months WHERE committee_id = $1::uuid ORDER BY month_number ASC LIMIT 1",
+          [committeeId]
         );
+        if (monthRes.rows.length === 0) continue;
+        const committeeMonthId = monthRes.rows[0].id;
 
-        // Insert into installments table
+        const receiptNo = `REC-COL-${Date.now().toString().slice(-6)}-${Math.floor(Math.random() * 1000)}`;
+
         await client.query(
           `INSERT INTO installments (
-            customer_id, collector_id, token_id, committee_id, month, year, amount, payment_date, payment_mode, receipt_number, remarks, created_at
-          ) VALUES ($1, $2, $3, $4, $5, $6, $7, NOW(), $8, $9, $10, NOW())`,
-          [custId, colId, tokenId, committeeId, currentMonth, currentYear, amount, paymentMode, receiptNo, notes]
+            organization_id, committee_month_id, token_id, receipt_number, expected_amount, paid_amount, payment_date, payment_mode
+          ) VALUES ($1::uuid, $2::uuid, $3::uuid, $4, $5, $6, CURRENT_DATE, $7::payment_mode_enum)`,
+          [DEFAULT_ORG_ID, committeeMonthId, tokenId, receiptNo, amount, amount, paymentMode.toUpperCase()]
         );
       }
 
