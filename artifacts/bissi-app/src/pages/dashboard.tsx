@@ -426,7 +426,6 @@ function AdminDashboard() {
 
                   {/* Monthly Collection Breakdown for this Committee */}
                   {scheme.monthlyBreakdown && scheme.monthlyBreakdown.length > 0 && (
-                    <div className="p-3 bg-slate-50 dark:bg-slate-900/50 rounded-xl border border-border/60">
                     <div className="p-4 bg-slate-50 dark:bg-slate-900/50 rounded-xl border border-border/60">
                       <div className="flex items-center justify-between mb-3">
                         <h4 className="text-xs font-bold text-muted-foreground uppercase tracking-wider">📅 Har Mahine Ka Total — {scheme.name}</h4>
