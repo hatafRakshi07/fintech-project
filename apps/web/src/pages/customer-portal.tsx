@@ -109,11 +109,13 @@ export default function CustomerPortalPage() {
   const loans = safeArray(customerData?.loans || customer.loans);
   const collections = safeArray(customerData?.collections || customer.collections);
   const gifts = safeArray(customerData?.gifts || customer.gifts);
-  const interestAccounts = safeArray(customerData?.interestAccounts);
+  const pendingBissi = safeArray(customerData?.pendingBissi);
 
   const totalPaidSum = collections.reduce((acc: number, c: any) => acc + Number(c.amount || 0), 0);
   const totalLoanOutstanding = loans.reduce((acc: number, l: any) => acc + Number(l.outstandingAmount || l.principalAmount || 0), 0);
   const activeLoansCount = loans.filter((l: any) => l.status === "active").length;
+  const pendingInstallmentsCount = pendingBissi.filter((p: any) => p.pendingThisMonth).length;
+  const pendingInstallmentsAmount = pendingBissi.filter((p: any) => p.pendingThisMonth).reduce((s: number, p: any) => s + Number(p.installmentAmount || 0), 0);
 
   // 1. LOGIN SCREEN (If not authenticated)
   if (!authCustomer) {
@@ -326,6 +328,20 @@ export default function CustomerPortalPage() {
             </Card>
           </div>
 
+          {/* Pending installment summary */}
+          {pendingInstallmentsCount > 0 && (
+            <Card className="p-4 border-rose-500/30 bg-rose-500/5 flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <AlertCircle className="h-5 w-5 text-rose-600" />
+                <div>
+                  <div className="text-sm font-bold text-rose-700 dark:text-rose-400">{pendingInstallmentsCount} Installment{pendingInstallmentsCount > 1 ? "s" : ""} Pending (This Month)</div>
+                  <div className="text-xs text-rose-600">Total Due: {formatCurrency(pendingInstallmentsAmount)}</div>
+                </div>
+              </div>
+              <Badge variant="destructive" className="font-mono text-xs">🔴 Bakaya</Badge>
+            </Card>
+          )}
+
           {/* Main Financial Tabs */}
           <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
             <TabsList className="grid w-full grid-cols-3 sm:grid-cols-6 h-12 bg-muted/60 p-1">
@@ -351,12 +367,26 @@ export default function CustomerPortalPage() {
 
             {/* 1. Bissi Tokens & Schemes */}
             <TabsContent value="overview" className="mt-6 space-y-4">
+              {/* Pending installments alert */}
+              {pendingInstallmentsCount > 0 && (
+                <div className="p-4 rounded-xl bg-rose-500/10 border border-rose-500/20 flex items-start gap-3">
+                  <AlertCircle className="h-5 w-5 text-rose-600 shrink-0 mt-0.5" />
+                  <div>
+                    <p className="font-bold text-sm text-rose-700 dark:text-rose-400">
+                      {pendingInstallmentsCount} Bissi Installment{pendingInstallmentsCount > 1 ? "s" : ""} Pending This Month
+                    </p>
+                    <p className="text-xs text-rose-600 mt-0.5">
+                      Total Due: <strong>{formatCurrency(pendingInstallmentsAmount)}</strong> — Please pay before the draw date.
+                    </p>
+                  </div>
+                </div>
+              )}
               <Card className="border-border shadow-md">
                 <CardHeader className="pb-3">
                   <CardTitle className="text-lg font-bold flex items-center justify-between">
                     <span className="flex items-center gap-2">
                       <Ticket className="h-5 w-5 text-primary" />
-                      My Bissi Tokens & Scheme Status
+                      My Bissi Tokens & Payment Status
                     </span>
                     <Badge variant="outline">{tokens.length} Registered Tokens</Badge>
                   </CardTitle>
@@ -368,28 +398,54 @@ export default function CustomerPortalPage() {
                     </div>
                   ) : (
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      {tokens.map((t: any) => (
-                        <Card key={t.id} className="p-4 border-border bg-card shadow-sm">
-                          <div className="flex justify-between items-start mb-2">
-                            <div>
-                              <Badge variant="outline" className="font-mono text-[10px] bg-primary/10 text-primary">
-                                TOKEN #{t.tokenNumber || t.id}
-                              </Badge>
-                              <h3 className="font-bold text-base mt-1 text-foreground">
-                                {t.committeeName || "General Bissi Scheme"}
-                              </h3>
+                      {tokens.map((t: any) => {
+                        const pendingInfo = pendingBissi.find((p: any) => p.committeeName === t.committeeName || p.committeeId === t.committeeId);
+                        const isPending = pendingInfo?.pendingThisMonth;
+                        // Count paid installments for this bissi
+                        const paidForBissi = collections.filter((c: any) => c.committeeName === t.committeeName || c.committeeId === t.committeeId?.toString());
+                        return (
+                          <Card key={t.id} className={`p-4 border shadow-sm ${isPending ? "border-rose-300 bg-rose-50/30 dark:bg-rose-950/10" : "border-emerald-300 bg-emerald-50/20 dark:bg-emerald-950/10"}`}>
+                            <div className="flex justify-between items-start mb-2">
+                              <div>
+                                <Badge variant="outline" className="font-mono text-[10px] bg-primary/10 text-primary">
+                                  TOKEN #{t.tokenNumber || t.id}
+                                </Badge>
+                                <h3 className="font-bold text-base mt-1 text-foreground">
+                                  {t.committeeName || "General Bissi Scheme"}
+                                </h3>
+                              </div>
+                              {isPending ? (
+                                <Badge variant="destructive" className="text-[10px]">🔴 This Month Pending</Badge>
+                              ) : (
+                                <Badge className="bg-emerald-600 text-[10px]">✓ Paid This Month</Badge>
+                              )}
                             </div>
-                            <Badge variant={t.status === "active" ? "default" : t.status === "lucky" ? "destructive" : "secondary"}>
-                              {t.status}
-                            </Badge>
-                          </div>
-                          <Separator className="my-2" />
-                          <div className="flex justify-between items-center text-xs text-muted-foreground pt-1">
-                            <span>Status: {t.status === "lucky" ? "🎉 Lucky Winner!" : "In Monthly Draw Pool"}</span>
-                            <span className="font-mono text-foreground font-semibold">Registered</span>
-                          </div>
-                        </Card>
-                      ))}
+                            <Separator className="my-2" />
+                            <div className="grid grid-cols-2 gap-2 text-xs mt-1">
+                              <div>
+                                <span className="text-muted-foreground block">Monthly Installment</span>
+                                <span className="font-bold font-mono text-foreground">{formatCurrency(Number(t.installmentAmount || 0))}</span>
+                              </div>
+                              <div>
+                                <span className="text-muted-foreground block">Paid Receipts</span>
+                                <span className="font-bold text-emerald-600">{paidForBissi.length} installments</span>
+                              </div>
+                              <div>
+                                <span className="text-muted-foreground block">Total Paid</span>
+                                <span className="font-bold font-mono text-emerald-600">
+                                  {formatCurrency(paidForBissi.reduce((s: number, c: any) => s + Number(c.amount || 0), 0))}
+                                </span>
+                              </div>
+                              {isPending && (
+                                <div>
+                                  <span className="text-muted-foreground block">This Month Due</span>
+                                  <span className="font-bold font-mono text-rose-600">{formatCurrency(Number(pendingInfo?.installmentAmount || t.installmentAmount || 0))}</span>
+                                </div>
+                              )}
+                            </div>
+                          </Card>
+                        );
+                      })}
                     </div>
                   )}
                 </CardContent>

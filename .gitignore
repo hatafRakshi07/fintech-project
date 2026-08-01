@@ -48,6 +48,11 @@ Thumbs.db
 .cache/
 .local/
 
+# Next.js build output and cache
+.next/
+**/.next/
+artifacts/**/.next/
+
 # Local database (PGlite binary data — machine-specific, not for VCS)
 pglite-data/
 

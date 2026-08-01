@@ -37,16 +37,7 @@ import {
   Filter,
   Printer
 } from "lucide-react";
-import {
-  LineChart,
-  Line,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  ResponsiveContainer
-} from "recharts";
-import { format } from "date-fns";
+
 
 const formatCurrency = (amount: number) => {
   return new Intl.NumberFormat('en-IN', {
@@ -176,12 +167,6 @@ function AdminDashboard() {
     queryFn: () => customFetch("/dashboard/scheme-boxes"),
   });
 
-  // Load Collection Trend Chart Data
-  const { data: trend } = useQuery<any[]>({
-    queryKey: ["collection-trend"],
-    queryFn: () => customFetch("/dashboard/collection-trend"),
-  });
-
   // Load Recent Activity (Collections Feed)
   const { data: activity } = useGetRecentActivity();
 
@@ -192,7 +177,6 @@ function AdminDashboard() {
   });
 
   const schemes = Array.isArray(schemeBoxesData?.schemes) ? schemeBoxesData.schemes : Array.isArray(schemeBoxesData?.data) ? schemeBoxesData.data : [];
-  const safeTrend = Array.isArray(trend) ? trend : [];
   const safeActivity = Array.isArray(activity) ? activity : [];
   const pendingKycCount = pendingKycData?.pendingCount || stats?.pendingKycCount || 0;
 
@@ -472,62 +456,9 @@ function AdminDashboard() {
         </div>
       </div>
 
-      {/* Grid: Live Collection Trend Chart & Recent Live Feed */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Collection Trend Chart */}
-        <Card className="col-span-1 lg:col-span-2 shadow-md">
-          <CardHeader>
-            <CardTitle className="text-lg font-bold flex items-center justify-between">
-              <span>Bissi Payment Collection Trend</span>
-              <Badge variant="outline" className="text-xs font-mono">Daily Receipts</Badge>
-            </CardTitle>
-            <CardDescription className="text-xs">
-              Daily installment payments collected across all 4 committees
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="h-64 w-full">
-              <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={safeTrend} margin={{ top: 5, right: 10, left: 10, bottom: 0 }}>
-                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e5e7eb" />
-                  <XAxis 
-                    dataKey="date" 
-                    tickFormatter={(val) => {
-                      try { return format(new Date(val), 'MMM dd'); } catch { return val; }
-                    }} 
-                    axisLine={false}
-                    tickLine={false}
-                    tick={{ fontSize: 11, fill: '#6b7280' }}
-                    dy={10}
-                  />
-                  <YAxis 
-                    axisLine={false}
-                    tickLine={false}
-                    tickFormatter={(val) => `₹${val/1000}k`}
-                    tick={{ fontSize: 11, fill: '#6b7280' }}
-                  />
-                  <Tooltip 
-                    formatter={(value: number) => [formatCurrency(value), 'Collections']}
-                    labelFormatter={(label) => {
-                      try { return format(new Date(label), 'MMM dd, yyyy'); } catch { return label; }
-                    }}
-                  />
-                  <Line 
-                    type="monotone" 
-                    dataKey="amount" 
-                    stroke="hsl(var(--primary))" 
-                    strokeWidth={3} 
-                    dot={false}
-                    activeDot={{ r: 6, fill: "hsl(var(--secondary))" }}
-                  />
-                </LineChart>
-              </ResponsiveContainer>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Live Recent Transactions Feed */}
-        <Card className="col-span-1 shadow-md">
+      {/* Recent Live Transactions Feed */}
+      <div>
+        <Card className="shadow-md">
           <CardHeader className="pb-3 flex flex-row items-center justify-between">
             <div>
               <CardTitle className="text-base font-bold">Recent Installment Receipts</CardTitle>

@@ -63,23 +63,46 @@ router.get("/collectors", async (req, res) => {
 router.get("/customers", async (req, res) => {
   const page = parseInt((req.query.page as string) || "1", 10);
   const limit = parseInt((req.query.limit as string) || "50", 10);
+  const committeeId = req.query.committeeId ? parseInt(req.query.committeeId as string, 10) : null;
   try {
     const offset = (page - 1) * limit;
     const search = ((req.query.search as string) || "").trim();
 
-    let countQuery = "SELECT COUNT(*) FROM customers";
-    let dataQuery = "SELECT id, name, mobile, reference_number, address, status, branch_id FROM customers LIMIT $1 OFFSET $2";
-    let params: any[] = [limit, offset];
+    let countQuery: string;
+    let dataQuery: string;
+    let params: any[];
 
-    if (search) {
+    if (committeeId) {
+      // Filter: only customers with active tokens in the given committee
+      const baseWhere = `
+        FROM customers cust
+        INNER JOIN tokens t ON t.customer_id = cust.id AND t.committee_id = $1
+      `;
+      if (search) {
+        countQuery = `SELECT COUNT(DISTINCT cust.id) ${baseWhere} WHERE (cust.name ILIKE $2 OR cust.mobile ILIKE $2 OR cust.reference_number ILIKE $2)`;
+        dataQuery = `SELECT DISTINCT cust.id, cust.name, cust.mobile, cust.reference_number, cust.address, cust.status, cust.branch_id ${baseWhere} WHERE (cust.name ILIKE $2 OR cust.mobile ILIKE $2 OR cust.reference_number ILIKE $2) LIMIT $3 OFFSET $4`;
+        params = [committeeId, `%${search}%`, limit, offset];
+      } else {
+        countQuery = `SELECT COUNT(DISTINCT cust.id) ${baseWhere}`;
+        dataQuery = `SELECT DISTINCT cust.id, cust.name, cust.mobile, cust.reference_number, cust.address, cust.status, cust.branch_id ${baseWhere} LIMIT $2 OFFSET $3`;
+        params = [committeeId, limit, offset];
+      }
+    } else if (search) {
       countQuery = "SELECT COUNT(*) FROM customers WHERE name ILIKE $1 OR mobile ILIKE $1 OR reference_number ILIKE $1";
       dataQuery = "SELECT id, name, mobile, reference_number, address, status, branch_id FROM customers WHERE name ILIKE $1 OR mobile ILIKE $1 OR reference_number ILIKE $1 LIMIT $2 OFFSET $3";
       params = [`%${search}%`, limit, offset];
+    } else {
+      countQuery = "SELECT COUNT(*) FROM customers";
+      dataQuery = "SELECT id, name, mobile, reference_number, address, status, branch_id FROM customers LIMIT $1 OFFSET $2";
+      params = [limit, offset];
     }
 
     const { countRes, dataRes } = await queryWithRetry(
       async () => {
-        const count = await pool.query(countQuery, search ? [`%${search}%`] : []);
+        const countParams = committeeId
+          ? (search ? [committeeId, `%${search}%`] : [committeeId])
+          : (search ? [`%${search}%`] : []);
+        const count = await pool.query(countQuery, countParams);
         const data = await pool.query(dataQuery, params);
         return { countRes: count, dataRes: data };
       },
@@ -99,6 +122,47 @@ router.get("/customers", async (req, res) => {
     const stats = getPoolStats();
     console.error(`Error fetching customers [Pool stats: total=${stats.total}, active=${stats.active}, idle=${stats.idle}, waiting=${stats.waiting}]:`, err);
     res.json({ success: true, customers: [], data: [], total: 0, page, limit });
+  }
+});
+
+// GET /customers/:id/bissi-pending — all active bissi memberships for a customer with current-month pending status
+router.get("/customers/:id/bissi-pending", async (req, res) => {
+  try {
+    const customerId = parseInt(req.params.id, 10);
+    if (isNaN(customerId)) {
+      res.status(400).json({ success: false, error: "Invalid customer ID" });
+      return;
+    }
+
+    const result = await pool.query(`
+      SELECT
+        t.id as "tokenId",
+        t.token_number as "tokenNumber",
+        t.committee_id as "committeeId",
+        comm.name as "committeeName",
+        comm.installment_amount as "installmentAmount",
+        t.status as "tokenStatus",
+        EXISTS (
+          SELECT 1 FROM collections col
+          WHERE col.customer_id = t.customer_id
+            AND col.committee_id = t.committee_id
+            AND col.collected_at >= DATE_TRUNC('month', NOW())
+        ) OR EXISTS (
+          SELECT 1 FROM installments i_paid
+          WHERE i_paid.customer_id = t.customer_id
+            AND i_paid.committee_id = t.committee_id
+            AND i_paid.payment_date >= DATE_TRUNC('month', NOW())
+        ) as "paidThisMonth"
+      FROM tokens t
+      JOIN committees comm ON comm.id = t.committee_id
+      WHERE t.customer_id = $1 AND t.status = 'active'
+      ORDER BY comm.id ASC
+    `, [customerId]);
+
+    res.json({ success: true, memberships: result.rows });
+  } catch (err: any) {
+    console.error("Error fetching bissi-pending:", err);
+    res.status(500).json({ success: false, error: err.message });
   }
 });
 
@@ -894,37 +958,77 @@ router.get("/collections", async (req, res) => {
   try {
     const limit = parseInt((req.query.limit as string) || "100", 10);
     const dateQuery = req.query.date;
-
-    let query = `
-      SELECT 
-        i.id::text as id, 
-        i.customer_id::text as "customerId",
-        i.committee_id::text as "committeeId",
-        i.collector_id::text as "collectorId",
-        i.amount::numeric as amount, 
-        i.payment_mode::text as "paymentMode", 
-        i.remarks as notes, 
-        i.receipt_number as "receiptNumber",
-        i.payment_date as "collectedAt",
-        i.created_at as "created_at",
-        'verified' as "verificationStatus",
-        cust.name as "customerName", 
-        cust.mobile as "customerMobile",
-        comm.name as "committeeName"
-      FROM installments i
-      JOIN customers cust ON cust.id = i.customer_id
-      JOIN committees comm ON comm.id = i.committee_id
-      WHERE 1=1
-    `;
+    const verificationStatusFilter = req.query.verificationStatus as string;
 
     const params: any[] = [];
+    let dateCondInst = "";
+    let dateCondCol = "";
     if (dateQuery) {
       params.push(dateQuery as string);
-      query += ` AND i.payment_date::date = $${params.length}::date`;
+      dateCondInst = ` AND i.payment_date::date = $${params.length}::date`;
+      dateCondCol = ` AND c.collected_at::date = $${params.length}::date`;
+    }
+
+    let verifCondCol = "";
+    if (verificationStatusFilter) {
+      params.push(verificationStatusFilter);
+      verifCondCol = ` AND c.verification_status = $${params.length}`;
     }
 
     params.push(limit);
-    query += ` ORDER BY i.created_at DESC LIMIT $${params.length}`;
+    const limitParam = `$${params.length}`;
+
+    // Combine installments (historical) + collections (new via app)
+    const query = `
+      SELECT * FROM (
+        SELECT 
+          i.id::text as id,
+          i.customer_id::text as "customerId",
+          i.committee_id::text as "committeeId",
+          NULL::text as "collectorId",
+          i.paid_amount::numeric as amount,
+          COALESCE(i.payment_mode::text, 'cash') as "paymentMode",
+          i.remarks as notes,
+          i.receipt_number as "receiptNumber",
+          i.payment_date as "collectedAt",
+          i.created_at as "created_at",
+          'verified' as "verificationStatus",
+          'installment' as "sourceTable",
+          cust.name as "customerName",
+          cust.mobile as "customerMobile",
+          comm.name as "committeeName"
+        FROM installments i
+        JOIN customers cust ON cust.id = i.customer_id
+        JOIN committees comm ON comm.id = i.committee_id
+        WHERE 1=1 ${dateCondInst}
+        ${verificationStatusFilter === 'pending' ? 'AND FALSE' : ''}
+
+        UNION ALL
+
+        SELECT 
+          c.id::text as id,
+          c.customer_id::text as "customerId",
+          c.committee_id::text as "committeeId",
+          c.collector_id::text as "collectorId",
+          c.amount::numeric as amount,
+          COALESCE(c.payment_mode::text, 'cash') as "paymentMode",
+          c.notes as notes,
+          c.receipt_number as "receiptNumber",
+          c.collected_at as "collectedAt",
+          c.created_at as "created_at",
+          COALESCE(c.verification_status, 'verified') as "verificationStatus",
+          'collection' as "sourceTable",
+          cust.name as "customerName",
+          cust.mobile as "customerMobile",
+          COALESCE(comm.name, 'General Bissi') as "committeeName"
+        FROM collections c
+        JOIN customers cust ON cust.id = c.customer_id
+        LEFT JOIN committees comm ON comm.id = c.committee_id
+        WHERE 1=1 ${dateCondCol} ${verifCondCol}
+      ) combined
+      ORDER BY "collectedAt" DESC NULLS LAST
+      LIMIT ${limitParam}
+    `;
 
     const result = await pool.query(query, params);
     const formatted = result.rows.map((r: any) => {
@@ -933,7 +1037,6 @@ router.get("/collections", async (req, res) => {
         ...r,
         amount: Number(r.amount),
         paymentMode: (r.paymentMode || 'cash').toLowerCase(),
-        verificationStatus: 'verified',
         collectedAt: dt,
         paymentDate: dt,
         createdAt: dt,
@@ -1115,6 +1218,7 @@ const handleVerifyCollection = async (req: any, res: any) => {
     const cleanStatus = ["verified", "rejected", "pending"].includes(rawStatus) ? rawStatus : "verified";
     const cleanNotes = verificationNotes || verification_notes || notes || null;
 
+    // Try updating collections table first
     const result = await pool.query(`
       UPDATE collections
       SET verification_status = $1, 
@@ -1124,18 +1228,20 @@ const handleVerifyCollection = async (req: any, res: any) => {
       RETURNING *
     `, [cleanStatus, cleanNotes, collectionId]);
 
-    if (result.rows.length === 0) {
-      res.status(404).json({ success: false, error: "Collection receipt record not found" });
+    if (result.rows.length > 0) {
+      const updated = result.rows[0];
+      res.json({ success: true, message: `Collection receipt marked as ${cleanStatus}!`, collection: updated, data: updated });
       return;
     }
 
-    const updated = result.rows[0];
-    res.json({
-      success: true,
-      message: `Collection receipt marked as ${cleanStatus}!`,
-      collection: updated,
-      data: updated
-    });
+    // Fallback: check if ID exists in installments table (historical data is always considered verified)
+    const instCheck = await pool.query(`SELECT id FROM installments WHERE id = $1 LIMIT 1`, [collectionId]);
+    if (instCheck.rows.length > 0) {
+      res.json({ success: true, message: "Payment record verified (imported historical data).", collection: { id: collectionId, verificationStatus: "verified" } });
+      return;
+    }
+
+    res.status(404).json({ success: false, error: "Collection receipt record not found" });
   } catch (err: any) {
     console.error("Error verifying collection:", err);
     res.status(500).json({ success: false, error: "Failed to update verification: " + err.message });
@@ -1411,7 +1517,7 @@ router.get("/dashboard/scheme-boxes", async (req, res) => {
       latestWinnerMap[r.committeeId] = r;
     }
 
-    // Pending tokens: members who haven't paid this month
+    // Pending tokens: members who haven't paid this month (check both collections & installments)
     const pendingTokensRes = await pool.query(`
       SELECT 
         t.committee_id,
@@ -1425,6 +1531,12 @@ router.get("/dashboard/scheme-boxes", async (req, res) => {
         WHERE col.committee_id = t.committee_id
           AND col.collected_at >= DATE_TRUNC('month', NOW())
           AND col.customer_id IS NOT NULL
+        UNION
+        SELECT DISTINCT i_paid.customer_id
+        FROM installments i_paid
+        WHERE i_paid.committee_id = t.committee_id
+          AND i_paid.payment_date >= DATE_TRUNC('month', NOW())
+          AND i_paid.customer_id IS NOT NULL
       )
       GROUP BY t.committee_id, c2.installment_amount
     `);
@@ -1492,10 +1604,14 @@ router.get("/dashboard/pending-report", async (req, res) => {
       commCondition = ` AND t.committee_id = $${params.length}`;
     }
 
-    let monthSubquery = `AND col.collected_at >= DATE_TRUNC('month', NOW())`;
+    // Default: check current month; if month specified, filter by that month label
+    let colMonthFilter = `AND col.collected_at >= DATE_TRUNC('month', NOW())`;
+    let instMonthFilter = `AND i_paid.payment_date >= DATE_TRUNC('month', NOW())`;
     if (month && month !== "all") {
       params.push(`%${month}%`);
-      monthSubquery = `AND (col.notes ILIKE $${params.length} OR TO_CHAR(col.collected_at, 'Mon-YY') ILIKE $${params.length} OR TO_CHAR(col.collected_at, 'Mon YYYY') ILIKE $${params.length})`;
+      const pidx = params.length;
+      colMonthFilter = `AND (TO_CHAR(col.collected_at, 'Mon-YY') ILIKE $${pidx} OR TO_CHAR(col.collected_at, 'Mon YYYY') ILIKE $${pidx})`;
+      instMonthFilter = `AND (TO_CHAR(i_paid.payment_date, 'Mon-YY') ILIKE $${pidx} OR TO_CHAR(i_paid.payment_date, 'Mon YYYY') ILIKE $${pidx})`;
     }
 
     const result = await pool.query(`
@@ -1516,8 +1632,14 @@ router.get("/dashboard/pending-report", async (req, res) => {
           SELECT DISTINCT col.customer_id
           FROM collections col
           WHERE col.committee_id = t.committee_id
-            ${monthSubquery}
+            ${colMonthFilter}
             AND col.customer_id IS NOT NULL
+          UNION
+          SELECT DISTINCT i_paid.customer_id
+          FROM installments i_paid
+          WHERE i_paid.committee_id = t.committee_id
+            ${instMonthFilter}
+            AND i_paid.customer_id IS NOT NULL
         )
       ORDER BY c.id ASC, 
                CASE WHEN t.token_number ~ '^[0-9]+$' THEN CAST(t.token_number AS integer) ELSE 99999 END ASC
@@ -2186,6 +2308,170 @@ router.use("/recovery", (_req, res) => {
 // REAL AADHAAR KYC & NOTIFICATION SYSTEM
 // ==========================================
 
+// ── Customer 360 Profile Lookup (by mobile + optional name match) ────────────
+router.get("/profile/kyc-lookup", async (req, res) => {
+  try {
+    const mobile = ((req.query.mobile as string) || "").trim().replace(/\D/g, "");
+    const name = ((req.query.name as string) || "").trim();
+
+    if (!mobile || mobile.length < 10) {
+      res.status(400).json({ success: false, error: "Valid 10-digit mobile number required" });
+      return;
+    }
+
+    let custRes = await pool.query(
+      `SELECT id, name, mobile, reference_number, address, status FROM customers WHERE mobile = $1 AND deleted_at IS NULL LIMIT 5`,
+      [mobile]
+    );
+    if (custRes.rows.length === 0) {
+      custRes = await pool.query(
+        `SELECT id, name, mobile, reference_number, address, status FROM customers WHERE mobile ILIKE $1 AND deleted_at IS NULL LIMIT 5`,
+        [`%${mobile}%`]
+      );
+    }
+    if (custRes.rows.length === 0) {
+      res.status(404).json({ success: false, error: "No customer found with this mobile number" });
+      return;
+    }
+
+    let customer = custRes.rows[0];
+    if (name && custRes.rows.length > 1) {
+      const normalized = name.toLowerCase().split(" ")[0];
+      const best = custRes.rows.find(r => r.name?.toLowerCase().includes(normalized));
+      if (best) customer = best;
+    }
+    const customerId = customer.id;
+
+    const [tokensRes, installmentsRes, collectionsRes, loansRes, giftsRes, kycRes, pendingBissiRes] = await Promise.all([
+      pool.query(`
+        SELECT t.id, t.token_number as "tokenNumber", t.status,
+               comm.name as "committeeName", comm.installment_amount as "installmentAmount", comm.id as "committeeId"
+        FROM tokens t JOIN committees comm ON comm.id = t.committee_id
+        WHERE t.customer_id = $1 AND t.deleted_at IS NULL ORDER BY comm.id ASC`, [customerId]),
+
+      pool.query(`
+        SELECT i.id, i.paid_amount as amount, i.payment_date as "collectedAt", i.payment_mode as "paymentMode",
+               i.receipt_number as "receiptNumber", comm.name as "committeeName"
+        FROM installments i JOIN committees comm ON comm.id = i.committee_id
+        WHERE i.customer_id = $1 AND i.deleted_at IS NULL ORDER BY i.payment_date DESC LIMIT 200`, [customerId]),
+
+      pool.query(`
+        SELECT c.id, c.amount, c.collected_at as "collectedAt", c.payment_mode as "paymentMode",
+               c.receipt_number as "receiptNumber", c.notes, COALESCE(comm.name, 'General') as "committeeName"
+        FROM collections c LEFT JOIN committees comm ON comm.id = c.committee_id
+        WHERE c.customer_id = $1 ORDER BY c.collected_at DESC LIMIT 200`, [customerId]),
+
+      pool.query(`
+        SELECT id, principal_amount as "principalAmount", COALESCE(outstanding_amount, principal_amount) as "outstandingAmount",
+               interest_rate as "interestRate", COALESCE(emi_amount, 0) as "emiAmount", purpose, status
+        FROM loans WHERE customer_id = $1 AND deleted_at IS NULL ORDER BY id DESC`, [customerId]),
+
+      pool.query(`
+        SELECT g.id, g.status, g.distribution_date as "distributionDate", gi.name as "giftName"
+        FROM gift_distributions g LEFT JOIN gift_items gi ON gi.id = g.gift_item_id
+        WHERE g.customer_id = $1 ORDER BY g.id DESC`, [customerId]).catch(() => ({ rows: [] as any[] })),
+
+      pool.query(`SELECT status FROM kyc_verifications WHERE customer_id = $1 ORDER BY id DESC LIMIT 1`, [customerId]),
+
+      pool.query(`
+        SELECT t.token_number as "tokenNumber", comm.name as "committeeName", comm.installment_amount as "installmentAmount",
+          NOT (
+            EXISTS (SELECT 1 FROM collections col WHERE col.customer_id = $1 AND col.committee_id = t.committee_id AND col.collected_at >= DATE_TRUNC('month', NOW()))
+            OR EXISTS (SELECT 1 FROM installments i2 WHERE i2.customer_id = $1 AND i2.committee_id = t.committee_id AND i2.payment_date >= DATE_TRUNC('month', NOW()))
+          ) as "pendingThisMonth"
+        FROM tokens t JOIN committees comm ON comm.id = t.committee_id
+        WHERE t.customer_id = $1 AND t.status = 'active'`, [customerId]),
+    ]);
+
+    const allPayments = [
+      ...installmentsRes.rows.map(r => ({ ...r, source: 'installment' })),
+      ...collectionsRes.rows.map(r => ({ ...r, source: 'collection' })),
+    ].sort((a, b) => new Date(b.collectedAt || 0).getTime() - new Date(a.collectedAt || 0).getTime());
+
+    const totalPaid = allPayments.reduce((s, p) => s + Number(p.amount || 0), 0);
+
+    res.json({
+      success: true,
+      customer: {
+        id: customer.id, name: customer.name, mobile: customer.mobile,
+        referenceNumber: customer.reference_number, address: customer.address,
+        status: customer.status, branchName: "Shree Krishna Associate",
+        totalPaid, totalTokens: tokensRes.rows.length,
+        totalLoans: loansRes.rows.filter((l: any) => l.status === 'active').length,
+        kycStatus: kycRes.rows[0]?.status || 'not_submitted',
+      },
+      tokens: tokensRes.rows,
+      collections: allPayments,
+      loans: loansRes.rows,
+      gifts: giftsRes.rows,
+      pendingBissi: pendingBissiRes.rows,
+    });
+  } catch (err: any) {
+    console.error("Error in /profile/kyc-lookup:", err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// ── Customer Dues (for collector) ───────────────────────────────────────────
+router.get("/customers/:id/dues", async (req, res) => {
+  try {
+    const customerId = parseInt(req.params.id, 10);
+    if (isNaN(customerId)) { res.status(400).json({ success: false, error: "Invalid customer ID" }); return; }
+
+    const [customerRes, bissiDuesRes, loanDuesRes] = await Promise.all([
+      pool.query(`SELECT id, name, mobile, reference_number FROM customers WHERE id = $1 LIMIT 1`, [customerId]),
+      pool.query(`
+        SELECT t.token_number as "tokenNumber", comm.name as "committeeName",
+               comm.id as "committeeId", comm.installment_amount::numeric as "dueAmount", 'bissi' as "dueType"
+        FROM tokens t JOIN committees comm ON comm.id = t.committee_id
+        WHERE t.customer_id = $1 AND t.status = 'active'
+          AND NOT (
+            EXISTS (SELECT 1 FROM collections col WHERE col.customer_id = $1 AND col.committee_id = t.committee_id AND col.collected_at >= DATE_TRUNC('month', NOW()))
+            OR EXISTS (SELECT 1 FROM installments i2 WHERE i2.customer_id = $1 AND i2.committee_id = t.committee_id AND i2.payment_date >= DATE_TRUNC('month', NOW()))
+          )`, [customerId]),
+      pool.query(`
+        SELECT id as "loanId", COALESCE(outstanding_amount, principal_amount)::numeric as "dueAmount",
+               COALESCE(emi_amount, 0)::numeric as "emiAmount", purpose, 'loan' as "dueType"
+        FROM loans WHERE customer_id = $1 AND status = 'active' AND deleted_at IS NULL`, [customerId]),
+    ]);
+
+    if (customerRes.rows.length === 0) { res.status(404).json({ success: false, error: "Customer not found" }); return; }
+
+    const customer = customerRes.rows[0];
+    const allDues = [...bissiDuesRes.rows, ...loanDuesRes.rows];
+    const totalDue = allDues.reduce((s, d) => s + Number(d.dueAmount || 0), 0);
+
+    res.json({
+      success: true,
+      customer: { ...customer, referenceNumber: customer.reference_number },
+      dues: allDues,
+      totalDue,
+    });
+  } catch (err: any) {
+    console.error("Error fetching customer dues:", err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// ── Collector KYC: lookup customer by name/mobile and submit KYC on behalf ──
+router.get("/collector/customer-lookup", async (req, res) => {
+  try {
+    const search = ((req.query.search as string) || "").trim();
+    if (!search) { res.json({ success: true, customers: [] }); return; }
+
+    const result = await pool.query(`
+      SELECT id, name, mobile, reference_number as "referenceNumber", address
+      FROM customers
+      WHERE (mobile ILIKE $1 OR name ILIKE $1 OR reference_number ILIKE $1) AND deleted_at IS NULL
+      LIMIT 10
+    `, [`%${search}%`]);
+
+    res.json({ success: true, customers: result.rows });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
 // 1. Submit Aadhaar KYC (for Customers, Collectors, or Admins on behalf of a customer)
 router.post("/kyc/submit", async (req, res) => {
   try {
@@ -2271,14 +2557,21 @@ router.get("/kyc/pending", async (_req, res) => {
 router.post("/kyc/:id/review", async (req, res) => {
   try {
     const kycId = parseInt(req.params.id, 10);
-    const { action, reason } = req.body;
-    const status = action === "approve" ? "approved" : "rejected";
+    const { action, reason, status: bodyStatus, rejectionReason } = req.body;
+    // Accept both `action` ("approve"/"reject") and `status` ("approved"/"rejected")
+    let cleanStatus: string;
+    if (bodyStatus && ["approved", "rejected"].includes(bodyStatus)) {
+      cleanStatus = bodyStatus;
+    } else {
+      cleanStatus = action === "approve" ? "approved" : "rejected";
+    }
+    const cleanReason = rejectionReason || reason || null;
 
     const result = await pool.query(`
       UPDATE kyc_verifications 
       SET status = $1, rejection_reason = $2, reviewed_at = NOW()
       WHERE id = $3 RETURNING *
-    `, [status, reason || null, kycId]);
+    `, [cleanStatus, cleanReason, kycId]);
 
     if (result.rows.length === 0) {
       res.status(404).json({ success: false, error: "KYC submission record not found" });
@@ -2293,15 +2586,15 @@ router.post("/kyc/:id/review", async (req, res) => {
        VALUES ($1, $2, $3, 'kyc', $4, 'kyc', false, NOW())`,
       [
         updated.customer_id || updated.user_id || 1,
-        status === "approved" ? "Aadhaar KYC Approved 🎉" : "Aadhaar KYC Verification Rejected",
-        status === "approved" 
+        cleanStatus === "approved" ? "Aadhaar KYC Approved 🎉" : "Aadhaar KYC Verification Rejected",
+        cleanStatus === "approved" 
           ? "Your Aadhaar Card KYC has been verified successfully!"
-          : `Your Aadhaar Card KYC was rejected. Reason: ${reason || "Invalid document"}`,
+          : `Your Aadhaar Card KYC was rejected. Reason: ${cleanReason || "Invalid document"}`,
         updated.id
       ]
     );
 
-    res.json({ success: true, message: `KYC ${status} successfully!`, kyc: updated });
+    res.json({ success: true, message: `KYC ${cleanStatus} successfully!`, kyc: updated });
   } catch (err: any) {
     res.status(500).json({ success: false, error: "Failed to review KYC: " + err.message });
   }
