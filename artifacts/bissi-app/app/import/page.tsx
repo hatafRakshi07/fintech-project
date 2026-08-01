@@ -2,7 +2,7 @@
 
 import React from "react";
 import { Shell } from "@/components/layout/Shell";
-import ImportPage from "@/pages/import";
+import ImportPage from "@/views/import";
 
 export default function Page() {
   return (

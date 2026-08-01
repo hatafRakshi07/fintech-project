@@ -1,0 +1,453 @@
+'use client';
+
+import React from "react";
+import { useParams, Link } from "@/lib/router-adapter";
+import {
+  useGetLoan,
+  useGetLoanEmiSchedule,
+  useUpdateLoan,
+  useListCollections,
+  getListLoansQueryKey,
+} from "@workspace/api-client-react";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Progress } from "@/components/ui/progress";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
+import {
+  ArrowLeft,
+  Wallet,
+  CreditCard,
+  TrendingDown,
+  CheckCircle2,
+  Clock,
+  AlertTriangle,
+  Banknote,
+  Smartphone,
+  Building2,
+  IndianRupee,
+  Calendar,
+  TrendingUp,
+  Receipt,
+} from "lucide-react";
+import { useQueryClient } from "@tanstack/react-query";
+import { useToast } from "@/hooks/use-toast";
+import { useRole } from "@/hooks/use-role";
+
+const fmt = (n: number) =>
+  new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 0 }).format(n);
+
+const fmtDateTime = (iso: string) =>
+  new Date(iso).toLocaleString("en-IN", {
+    day: "2-digit", month: "short", year: "numeric",
+    hour: "2-digit", minute: "2-digit", hour12: true,
+  });
+
+const fmtDate = (iso: string) =>
+  new Date(iso).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
+
+const statusBadge: Record<string, "default" | "secondary" | "destructive" | "outline"> = {
+  pending: "outline",
+  approved: "secondary",
+  active: "default",
+  closed: "secondary",
+  rejected: "destructive",
+  overdue: "destructive",
+};
+
+const emiStatusIcon: Record<string, React.ReactNode> = {
+  paid: <CheckCircle2 className="h-4 w-4 text-emerald-600" />,
+  pending: <Clock className="h-4 w-4 text-muted-foreground" />,
+  overdue: <AlertTriangle className="h-4 w-4 text-destructive" />,
+  partial: <TrendingDown className="h-4 w-4 text-orange-500" />,
+};
+
+const modeIcon: Record<string, React.ReactNode> = {
+  cash: <Banknote className="h-3 w-3" />,
+  upi: <Smartphone className="h-3 w-3" />,
+  bank: <Building2 className="h-3 w-3" />,
+  card: <CreditCard className="h-3 w-3" />,
+};
+
+export default function LoanDetailPage() {
+  const params = useParams<{ id: string }>();
+  const id = parseInt(params.id ?? "0", 10);
+
+  const { data: loan, isLoading } = useGetLoan(id);
+  const { data: emiSchedule } = useGetLoanEmiSchedule(id);
+  const { data: collections } = useListCollections({ loanId: id, limit: 200 });
+  const updateLoan = useUpdateLoan();
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+
+  const handleApprove = () => {
+    updateLoan.mutate(
+      { id, data: { status: "active", disbursedAt: new Date().toISOString() } },
+      {
+        onSuccess: () => {
+          toast({ title: "Loan approved and disbursed" });
+          queryClient.invalidateQueries({ queryKey: getListLoansQueryKey() });
+        },
+      }
+    );
+  };
+
+  const handleReject = () => {
+    updateLoan.mutate(
+      { id, data: { status: "rejected" } },
+      {
+        onSuccess: () => {
+          toast({ title: "Loan rejected" });
+          queryClient.invalidateQueries({ queryKey: getListLoansQueryKey() });
+        },
+      }
+    );
+  };
+
+  const { role, user, isCustomer } = useRole();
+
+  if (isLoading) return <div className="p-8 text-muted-foreground animate-pulse">Loading loan details…</div>;
+  if (!loan) return <div className="p-8">Loan not found.</div>;
+
+  if (isCustomer && loan.customerId !== user?.customerId) {
+    return <div className="p-8 text-destructive font-medium">Access Denied: You do not have permission to view this loan.</div>;
+  }
+
+  const paidInstallments = emiSchedule?.filter((e) => e.status === "paid").length ?? 0;
+  const totalInstallments = emiSchedule?.length ?? loan.tenure;
+
+  const totalAmount = loan.totalAmount ?? 0;
+  const paidAmount = loan.paidAmount ?? 0;
+  const outstanding = loan.outstandingAmount ?? (totalAmount - paidAmount);
+  const progressPct = totalAmount > 0 ? Math.min(100, Math.round((paidAmount / totalAmount) * 100)) : 0;
+
+  // Last payment info
+  const sortedPayments = [...(collections?.data ?? [])].sort(
+    (a, b) => new Date(b.collectedAt).getTime() - new Date(a.collectedAt).getTime()
+  );
+  const lastPayment = sortedPayments[0];
+
+  // Next overdue EMI
+  const nextOverdue = emiSchedule?.find((e) => e.status === "overdue");
+  const nextPending = emiSchedule?.find((e) => e.status === "pending");
+
+  return (
+    <div className="space-y-4 sm:space-y-6">
+      {/* ── Header ── */}
+      <div className="flex flex-col sm:flex-row sm:items-start gap-3">
+        <div className="flex items-start gap-3 flex-1 min-w-0">
+          <Link href="/loans">
+            <Button variant="outline" size="icon" className="shrink-0 mt-0.5"><ArrowLeft className="h-4 w-4" /></Button>
+          </Link>
+          <div className="min-w-0">
+            <div className="flex flex-wrap items-center gap-2">
+              <h1 className="text-xl sm:text-2xl font-bold tracking-tight">Loan #{loan.id}</h1>
+              <Badge variant={statusBadge[loan.status] ?? "secondary"} className="capitalize">{loan.status}</Badge>
+            </div>
+            <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground mt-0.5">
+              <Link href={`/customers/${loan.customerId}`}>
+                <span className="hover:underline cursor-pointer text-primary font-medium">
+                  {loan.customerName ?? `Customer #${loan.customerId}`}
+                </span>
+              </Link>
+              {loan.customerMobile && <span className="text-xs">· {loan.customerMobile}</span>}
+              {loan.branchName && <span className="text-xs">· {loan.branchName}</span>}
+            </div>
+          </div>
+        </div>
+
+        {!isCustomer && loan.status === "pending" && (
+          <div className="flex gap-2 shrink-0">
+            <AlertDialog>
+              <AlertDialogTrigger asChild>
+                <Button size="sm" disabled={updateLoan.isPending}>Approve & Disburse</Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Approve Loan?</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    This will mark the loan as active and record today as the disbursement date.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>Cancel</AlertDialogCancel>
+                  <AlertDialogAction onClick={handleApprove}>Approve</AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
+            <Button variant="outline" size="sm" onClick={handleReject} disabled={updateLoan.isPending}>Reject</Button>
+          </div>
+        )}
+      </div>
+
+      {/* ── Payment Summary Banner ── */}
+      <div className="rounded-xl border bg-gradient-to-br from-primary/5 via-background to-emerald-50/30 dark:to-emerald-950/20 p-4 sm:p-6 space-y-4">
+        <div className="flex items-center gap-2 mb-1">
+          <IndianRupee className="h-4 w-4 text-primary" />
+          <span className="font-semibold text-sm text-muted-foreground uppercase tracking-wide">Payment Summary</span>
+        </div>
+
+        {/* 3 big numbers */}
+        <div className="grid grid-cols-3 gap-3 sm:gap-6">
+          <div>
+            <p className="text-[10px] sm:text-xs text-muted-foreground mb-0.5">Total Loan</p>
+            <p className="text-base sm:text-2xl font-bold text-foreground">{fmt(totalAmount || loan.principalAmount)}</p>
+          </div>
+          <div>
+            <p className="text-[10px] sm:text-xs text-muted-foreground mb-0.5">Amount Received</p>
+            <p className="text-base sm:text-2xl font-bold text-emerald-600">{fmt(paidAmount)}</p>
+          </div>
+          <div>
+            <p className="text-[10px] sm:text-xs text-muted-foreground mb-0.5">Balance Remaining</p>
+            <p className={`text-base sm:text-2xl font-bold ${outstanding > 0 ? "text-destructive" : "text-emerald-600"}`}>
+              {fmt(outstanding)}
+            </p>
+          </div>
+        </div>
+
+        {/* Progress bar */}
+        <div className="space-y-1.5">
+          <div className="flex justify-between text-xs text-muted-foreground">
+            <span>Repayment Progress</span>
+            <span className="font-semibold text-foreground">{progressPct}% paid</span>
+          </div>
+          <Progress value={progressPct} className="h-3" />
+          <div className="flex justify-between text-[10px] text-muted-foreground">
+            <span>{paidInstallments} of {totalInstallments} EMIs paid</span>
+            <span>{totalInstallments - paidInstallments} remaining</span>
+          </div>
+        </div>
+
+        {/* Meta row */}
+        <div className="flex flex-wrap gap-3 sm:gap-6 pt-1 border-t border-border/50">
+          {loan.disbursedAt && (
+            <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+              <Calendar className="h-3.5 w-3.5 text-primary" />
+              <span>Disbursed <span className="text-foreground font-medium">{fmtDate(loan.disbursedAt)}</span></span>
+            </div>
+          )}
+          {lastPayment && (
+            <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+              <Receipt className="h-3.5 w-3.5 text-emerald-600" />
+              <span>Last payment <span className="text-foreground font-medium">{fmtDate(lastPayment.collectedAt)}</span> — <span className="font-semibold text-emerald-600">{fmt(lastPayment.amount)}</span></span>
+            </div>
+          )}
+          {nextOverdue && (
+            <div className="flex items-center gap-1.5 text-xs text-destructive">
+              <AlertTriangle className="h-3.5 w-3.5" />
+              <span>Overdue EMI #{nextOverdue.installmentNumber} — due {fmtDate(nextOverdue.dueDate)}</span>
+            </div>
+          )}
+          {!nextOverdue && nextPending && (
+            <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+              <Clock className="h-3.5 w-3.5 text-orange-500" />
+              <span>Next EMI <span className="text-foreground font-medium">{fmtDate(nextPending.dueDate)}</span> — {fmt(nextPending.emiAmount)}</span>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* ── Metric Cards ── */}
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2 sm:gap-4">
+        {[
+          { label: "Principal", value: fmt(loan.principalAmount), icon: Wallet, color: "" },
+          { label: "Monthly EMI", value: loan.emiAmount ? fmt(loan.emiAmount) : "—", icon: CreditCard, color: "" },
+          { label: "Total Amount", value: loan.totalAmount ? fmt(loan.totalAmount) : "—", icon: TrendingDown, color: "" },
+          { label: "Amount Paid", value: fmt(paidAmount), icon: CheckCircle2, color: "text-emerald-600" },
+          { label: "Outstanding", value: outstanding > 0 ? fmt(outstanding) : "Fully Paid", icon: AlertTriangle, color: outstanding > 0 ? "text-destructive" : "text-emerald-600" },
+          { label: "Progress", value: `${paidInstallments}/${totalInstallments} EMIs`, icon: TrendingUp, color: "" },
+        ].map(({ label, value, icon: Icon, color }) => (
+          <Card key={label} className="overflow-hidden">
+            <CardHeader className="p-2.5 pb-1">
+              <CardTitle className="text-[10px] sm:text-xs text-muted-foreground flex items-center gap-1">
+                <Icon className="h-3 w-3" /> {label}
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="p-2.5 pt-0">
+              <div className={`text-xs sm:text-sm font-bold ${color}`}>{value}</div>
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+
+      {/* ── Loan Details ── */}
+      <Card>
+        <CardContent className="pt-4">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4 text-sm">
+            <div><p className="text-muted-foreground text-xs">Interest Rate</p><p className="font-semibold">{loan.interestRate}% p.a.</p></div>
+            <div><p className="text-muted-foreground text-xs">Interest Type</p><p className="font-semibold capitalize">{loan.interestType}</p></div>
+            <div><p className="text-muted-foreground text-xs">Tenure</p><p className="font-semibold">{loan.tenure} months</p></div>
+            <div>
+              <p className="text-muted-foreground text-xs">Disbursed On</p>
+              <p className="font-semibold">
+                {loan.disbursedAt ? fmtDate(loan.disbursedAt) : "Not disbursed"}
+              </p>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* ── Tabs: EMI Schedule + Payment History ── */}
+      <Tabs defaultValue="payments">
+        <TabsList className="w-full sm:w-auto">
+          <TabsTrigger value="payments" className="flex-1 sm:flex-none">
+            Payments ({collections?.total ?? 0})
+          </TabsTrigger>
+          <TabsTrigger value="emi" className="flex-1 sm:flex-none">EMI Schedule</TabsTrigger>
+        </TabsList>
+
+        {/* Payment History */}
+        <TabsContent value="payments" className="mt-4 space-y-3">
+          {/* Mobile card list */}
+          <div className="sm:hidden space-y-2">
+            {!sortedPayments.length ? (
+              <p className="text-center py-8 text-muted-foreground text-sm">No payments recorded</p>
+            ) : sortedPayments.map((col) => (
+              <Card key={col.id} className="p-3">
+                <div className="flex items-start justify-between gap-2">
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2">
+                      <Badge variant="outline" className="gap-1 text-xs">
+                        {modeIcon[col.paymentMode]}{col.paymentMode.toUpperCase()}
+                      </Badge>
+                      {col.receiptNumber && (
+                        <span className="font-mono text-[10px] text-muted-foreground">{col.receiptNumber}</span>
+                      )}
+                    </div>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      {col.collectorName ?? "—"} · {fmtDateTime(col.collectedAt)}
+                    </p>
+                  </div>
+                  <span className="text-base font-bold text-emerald-600 shrink-0">{fmt(col.amount)}</span>
+                </div>
+              </Card>
+            ))}
+          </div>
+
+          {/* Desktop table */}
+          <Card className="hidden sm:block">
+            <CardContent className="p-0 overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead className="pl-4">Receipt</TableHead>
+                    <TableHead>Collector</TableHead>
+                    <TableHead className="text-center">Mode</TableHead>
+                    <TableHead className="text-right">Amount</TableHead>
+                    <TableHead className="pr-4">Date & Time</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {!sortedPayments.length ? (
+                    <TableRow><TableCell colSpan={5} className="text-center py-8 text-muted-foreground">No payments recorded</TableCell></TableRow>
+                  ) : sortedPayments.map((col) => (
+                    <TableRow key={col.id} className="hover:bg-muted/50">
+                      <TableCell className="pl-4 font-mono text-xs text-muted-foreground">{col.receiptNumber ?? "—"}</TableCell>
+                      <TableCell className="text-sm">{col.collectorName ?? "—"}</TableCell>
+                      <TableCell className="text-center">
+                        <Badge variant="outline" className="gap-1 text-xs">{modeIcon[col.paymentMode]}{col.paymentMode.toUpperCase()}</Badge>
+                      </TableCell>
+                      <TableCell className="text-right font-semibold text-emerald-600">{fmt(col.amount)}</TableCell>
+                      <TableCell className="pr-4 text-sm text-muted-foreground">{fmtDateTime(col.collectedAt)}</TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* EMI Schedule */}
+        <TabsContent value="emi" className="mt-4">
+          {/* Mobile cards */}
+          <div className="sm:hidden space-y-2">
+            {!emiSchedule?.length ? (
+              <p className="text-center py-8 text-muted-foreground text-sm">
+                {loan.status === "pending" ? "EMI schedule generated after loan approval." : "No EMI schedule."}
+              </p>
+            ) : emiSchedule.map((emi) => (
+              <Card key={emi.installmentNumber} className={`p-3 ${emi.status === "overdue" ? "border-destructive/40 bg-destructive/5" : ""}`}>
+                <div className="flex items-center justify-between gap-2">
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs text-muted-foreground font-mono">EMI #{emi.installmentNumber}</span>
+                      <span className="flex items-center gap-1 text-xs capitalize">
+                        {emiStatusIcon[emi.status]} {emi.status}
+                      </span>
+                    </div>
+                    <p className="text-xs text-muted-foreground mt-0.5">Due: {fmtDate(emi.dueDate)}</p>
+                    <p className="text-xs text-muted-foreground">Principal: {fmt(emi.principalComponent)} · Interest: {fmt(emi.interestComponent)}</p>
+                  </div>
+                  <div className="text-right shrink-0">
+                    <p className="font-bold text-sm">{fmt(emi.emiAmount)}</p>
+                    {emi.paidAmount ? <p className="text-xs text-emerald-600">Paid: {fmt(emi.paidAmount)}</p> : null}
+                  </div>
+                </div>
+              </Card>
+            ))}
+          </div>
+
+          {/* Desktop table */}
+          <Card className="hidden sm:block">
+            <CardContent className="p-0 overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead className="pl-4 text-center">#</TableHead>
+                    <TableHead>Due Date</TableHead>
+                    <TableHead className="text-right">EMI Amount</TableHead>
+                    <TableHead className="text-right">Principal</TableHead>
+                    <TableHead className="text-right">Interest</TableHead>
+                    <TableHead className="text-right">Paid</TableHead>
+                    <TableHead className="text-center pr-4">Status</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {!emiSchedule?.length ? (
+                    <TableRow><TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
+                      {loan.status === "pending" ? "EMI schedule will be generated after loan approval." : "No EMI schedule available."}
+                    </TableCell></TableRow>
+                  ) : emiSchedule.map((emi) => (
+                    <TableRow key={emi.installmentNumber} className={emi.status === "overdue" ? "bg-destructive/5" : "hover:bg-muted/50"}>
+                      <TableCell className="pl-4 text-center text-muted-foreground text-sm">{emi.installmentNumber}</TableCell>
+                      <TableCell className="text-sm">{fmtDate(emi.dueDate)}</TableCell>
+                      <TableCell className="text-right font-medium">{fmt(emi.emiAmount)}</TableCell>
+                      <TableCell className="text-right text-muted-foreground text-sm">{fmt(emi.principalComponent)}</TableCell>
+                      <TableCell className="text-right text-muted-foreground text-sm">{fmt(emi.interestComponent)}</TableCell>
+                      <TableCell className="text-right">{emi.paidAmount ? fmt(emi.paidAmount) : "—"}</TableCell>
+                      <TableCell className="text-center pr-4">
+                        <span className="flex items-center justify-center gap-1">
+                          {emiStatusIcon[emi.status]}
+                          <span className="text-xs capitalize">{emi.status}</span>
+                        </span>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </CardContent>
+          </Card>
+        </TabsContent>
+      </Tabs>
+    </div>
+  );
+}

@@ -1,8 +1,10 @@
-'use client';
-
 import React from "react";
 import { Shell } from "@/components/layout/Shell";
-import CollectorDetailPage from "@/pages/collectors/[id]";
+import CollectorDetailPage from "@/views/collectors/[id]";
+
+export function generateStaticParams() {
+  return [{ id: "1" }];
+}
 
 export default function Page() {
   return (

@@ -8,7 +8,7 @@ import { useRole, type UserRole } from "@/hooks/use-role";
 import { SplashScreen } from "@/components/SplashScreen";
 
 // Register localStorage auth token getter for all API requests
-setAuthTokenGetter(() => localStorage.getItem("auth_token"));
+setAuthTokenGetter(() => typeof window !== "undefined" ? localStorage.getItem("auth_token") : null);
 
 // Pages
 import DashboardPage from "@/pages/dashboard";
@@ -46,6 +46,7 @@ import DailyDiaryDashboardPage from "@/pages/daily-diary";
 import DailyDiaryDetailPage from "@/pages/daily-diary/[id]";
 import DailyDiaryReportsPage from "@/pages/daily-diary/reports";
 import NotFound from "@/pages/not-found";
+
 
 import { Shell } from "@/components/layout/Shell";
 
@@ -319,12 +320,18 @@ function AppRoutes() {
 }
 
 function App() {
-  const [showSplash, setShowSplash] = useState(
-    () => !sessionStorage.getItem("ska_splash_done")
-  );
+  const [showSplash, setShowSplash] = useState(true);
+
+  React.useEffect(() => {
+    if (typeof window !== "undefined" && sessionStorage.getItem("ska_splash_done")) {
+      setShowSplash(false);
+    }
+  }, []);
 
   function handleSplashDone() {
-    sessionStorage.setItem("ska_splash_done", "1");
+    if (typeof window !== "undefined") {
+      sessionStorage.setItem("ska_splash_done", "1");
+    }
     setShowSplash(false);
   }
 

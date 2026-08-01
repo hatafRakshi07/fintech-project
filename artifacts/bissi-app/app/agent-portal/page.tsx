@@ -2,7 +2,7 @@
 
 import React from "react";
 import { Shell } from "@/components/layout/Shell";
-import AgentPortalPage from "@/pages/agent-portal";
+import AgentPortalPage from "@/views/agent-portal";
 
 export default function Page() {
   return (

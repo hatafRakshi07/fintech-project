@@ -2,7 +2,7 @@
 
 import React from "react";
 import { Shell } from "@/components/layout/Shell";
-import PurchaseLedgerPage from "@/pages/ledgers/purchase";
+import PurchaseLedgerPage from "@/views/ledgers/purchase";
 
 export default function Page() {
   return (

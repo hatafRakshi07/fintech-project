@@ -12,6 +12,7 @@ import { Progress } from "@/components/ui/progress";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Input } from "@/components/ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { 
   useGetDashboardStats, 
   useGetRecentActivity
@@ -37,16 +38,7 @@ import {
   Filter,
   Printer
 } from "lucide-react";
-import {
-  LineChart,
-  Line,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  ResponsiveContainer
-} from "recharts";
-import { format } from "date-fns";
+
 
 const formatCurrency = (amount: number) => {
   return new Intl.NumberFormat('en-IN', {
@@ -176,12 +168,6 @@ function AdminDashboard() {
     queryFn: () => customFetch("/dashboard/scheme-boxes"),
   });
 
-  // Load Collection Trend Chart Data
-  const { data: trend } = useQuery<any[]>({
-    queryKey: ["collection-trend"],
-    queryFn: () => customFetch("/dashboard/collection-trend"),
-  });
-
   // Load Recent Activity (Collections Feed)
   const { data: activity } = useGetRecentActivity();
 
@@ -192,7 +178,6 @@ function AdminDashboard() {
   });
 
   const schemes = Array.isArray(schemeBoxesData?.schemes) ? schemeBoxesData.schemes : Array.isArray(schemeBoxesData?.data) ? schemeBoxesData.data : [];
-  const safeTrend = Array.isArray(trend) ? trend : [];
   const safeActivity = Array.isArray(activity) ? activity : [];
   const pendingKycCount = pendingKycData?.pendingCount || stats?.pendingKycCount || 0;
 
@@ -329,205 +314,20 @@ function AdminDashboard() {
         </div>
 
         <div className="space-y-6">
-          {schemes.map((scheme: any, idx: number) => {
-            const tagLabel = `BISSI-${idx + 1}`;
-            const drawDateText = scheme.id === 1 ? "5th Date" : scheme.id === 2 ? "15th Date" : scheme.id === 3 ? "20th Date" : "10th Date (Lottery)";
-
-            return (
-              <Card key={scheme.id} className="border-border shadow-md overflow-hidden bg-card">
-                {/* Box Header */}
-                <CardHeader className="p-4 bg-muted/40 border-b flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
-                  <div className="flex items-center gap-3">
-                    <h3 className="text-lg font-bold text-foreground">{scheme.name}</h3>
-                    <Badge variant="outline" className="font-mono text-[10px] uppercase font-bold bg-primary/10 text-primary border-primary/20">
-                      {tagLabel}
-                    </Badge>
-                  </div>
-
-                  <div className="flex flex-wrap items-center gap-2">
-                    <Badge variant="outline" className="text-xs bg-purple-500/10 text-purple-600 border-purple-500/20 font-bold">
-                      📅 Month: {scheme.currentMonthName || "Jul 2026"}
-                    </Badge>
-                    <Badge variant="secondary" className="text-xs bg-indigo-500/10 text-indigo-600 border-indigo-500/20 font-medium">
-                      Filled Tokens: {scheme.filledTokens || scheme.tokenCount || 500} / {scheme.memberLimit || 500}
-                    </Badge>
-                    <Badge variant="secondary" className="text-xs bg-emerald-500/10 text-emerald-600 border-emerald-500/20 font-medium">
-                      Installment: ₹{scheme.installmentAmount}/month
-                    </Badge>
-                    <Badge variant="outline" className="text-xs bg-indigo-500/10 text-indigo-600 border-indigo-500/20 font-medium">
-                      Draw: {drawDateText}
-                    </Badge>
-                  </div>
-                </CardHeader>
-
-                <CardContent className="p-5 space-y-5">
-                  {/* 4 Stat Boxes inside Scheme */}
-                  <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-                    {/* 1. This Month Collected Amount */}
-                    <div className="p-4 rounded-xl border border-emerald-500/20 bg-emerald-500/5 space-y-1">
-                      <div className="flex justify-between items-center text-xs font-bold text-emerald-600 dark:text-emerald-400">
-                        <span>This Month Collected (इस महीने आया)</span>
-                        <Wallet className="w-4 h-4" />
-                      </div>
-                      <div className="text-xl lg:text-2xl font-extrabold font-mono text-emerald-600 dark:text-emerald-400">
-                        {formatCurrency(scheme.thisMonthCollected || 0)}
-                      </div>
-                      <span className="text-[10px] text-muted-foreground block font-medium">
-                        Monthly Pool Target: {formatCurrency(scheme.monthlyPool || (scheme.memberLimit * scheme.installmentAmount))}
-                      </span>
-                    </div>
-
-                    {/* 2. Pending Tokens / Pending Amount (Clickable) */}
-                    <div 
-                      onClick={() => setSelectedPendingScheme(scheme)}
-                      className="p-4 rounded-xl border border-rose-500/20 bg-rose-500/5 space-y-1 cursor-pointer hover:border-rose-500/50 transition-colors"
-                    >
-                      <div className="flex justify-between items-center text-xs font-bold text-rose-600 dark:text-rose-400">
-                        <span>This Month Pending (बकाया)</span>
-                        <AlertCircle className="w-4 h-4" />
-                      </div>
-                      <div className="text-xl lg:text-2xl font-extrabold font-mono text-rose-600 dark:text-rose-400">
-                        {formatCurrency(scheme.dueAmount || 0)}
-                      </div>
-                      <span className="text-[11px] text-rose-600 font-bold block hover:underline">
-                        🔴 {scheme.thisMonthPendingCount || 0} Tokens Unpaid →
-                      </span>
-                    </div>
-
-                    {/* 3. Filled vs Capacity Tokens */}
-                    <div className="p-4 rounded-xl border border-indigo-500/20 bg-indigo-500/5 space-y-1">
-                      <div className="flex justify-between items-center text-xs font-bold text-indigo-600 dark:text-indigo-400">
-                        <span>Active Member Tokens</span>
-                        <Ticket className="w-4 h-4" />
-                      </div>
-                      <div className="text-xl lg:text-2xl font-extrabold font-mono text-indigo-600 dark:text-indigo-400">
-                        {scheme.filledTokens || scheme.tokenCount} / {scheme.memberLimit}
-                      </div>
-                      <Link href={`/committees/${scheme.id}`}>
-                        <span className="text-[11px] font-semibold text-indigo-600 hover:underline flex items-center gap-0.5 cursor-pointer pt-0.5">
-                          Manage member tokens →
-                        </span>
-                      </Link>
-                    </div>
-
-                    {/* 4. Pending Tokens List Popup Trigger */}
-                    <div 
-                      onClick={() => setSelectedPendingScheme(scheme)}
-                      className="p-4 rounded-xl border border-rose-500/20 bg-rose-50/50 dark:bg-rose-950/20 space-y-1 cursor-pointer hover:border-rose-500/50 transition-colors"
-                    >
-                      <div className="flex justify-between items-center text-xs font-bold text-rose-600 dark:text-rose-400">
-                        <span>Pending Tokens List</span>
-                        <AlertCircle className="w-4 h-4" />
-                      </div>
-                      <div className="text-xl lg:text-2xl font-extrabold font-mono text-rose-600 dark:text-rose-400">
-                        {scheme.thisMonthPendingCount || 0} Pending
-                      </div>
-                      <span className="text-[11px] font-semibold text-rose-600 hover:underline flex items-center gap-0.5 cursor-pointer pt-0.5">
-                        📋 View Complete Pending List →
-                      </span>
-                    </div>
-                  </div>
-
-                  {/* Monthly Collection Breakdown for this Committee */}
-                  {scheme.monthlyBreakdown && scheme.monthlyBreakdown.length > 0 && (
-                    <div className="p-4 bg-slate-50 dark:bg-slate-900/50 rounded-xl border border-border/60">
-                      <div className="flex items-center justify-between mb-3">
-                        <h4 className="text-xs font-bold text-muted-foreground uppercase tracking-wider">📅 Har Mahine Ka Total — {scheme.name}</h4>
-                        <div className="flex items-center gap-2">
-                          <span className="text-[10px] text-muted-foreground">{scheme.monthlyBreakdown.length} months</span>
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            className="h-7 text-xs gap-1 text-rose-600 border-rose-500/30 hover:bg-rose-50 dark:hover:bg-rose-950/30"
-                            onClick={() => {
-                              const w = window.open('', '_blank');
-                              if (!w) return;
-                              const rows = (scheme.monthlyBreakdown || []).map((mb: any) =>
-                                `<tr><td style="padding:6px 12px;border-bottom:1px solid #eee">${mb.month}</td><td style="padding:6px 12px;border-bottom:1px solid #eee;text-align:right;font-weight:bold;color:#059669">${new Intl.NumberFormat('en-IN',{style:'currency',currency:'INR',maximumFractionDigits:0}).format(mb.amount)}</td><td style="padding:6px 12px;border-bottom:1px solid #eee;text-align:center">${mb.count || ''}</td></tr>`
-                              ).join('');
-                              w.document.write(`<!DOCTYPE html><html><head><title>Pending List - ${scheme.name}</title><style>body{font-family:Arial;padding:24px}h2{color:#1e293b}table{width:100%;border-collapse:collapse}th{background:#f1f5f9;padding:8px 12px;text-align:left}@media print{button{display:none}}</style></head><body><h2>📋 Monthly Collection Report — ${scheme.name}</h2><p>Installment: ₹${scheme.installmentAmount}/month | Members: ${scheme.filledTokens}/${scheme.memberLimit}</p><button onclick="window.print()" style="margin-bottom:16px;padding:8px 16px;background:#6366f1;color:white;border:none;border-radius:6px;cursor:pointer">🖨️ Print</button><table><thead><tr><th>Month</th><th style="text-align:right">Amount Collected</th><th style="text-align:center">Receipts</th></tr></thead><tbody>${rows}</tbody></table><p style="margin-top:16px;color:#666">This Month Pending: ₹${new Intl.NumberFormat('en-IN').format(scheme.dueAmount||0)} (${scheme.thisMonthPendingCount||0} members)</p></body></html>`);
-                              w.document.close();
-                            }}
-                          >
-                            <Printer className="w-3 h-3" />
-                            Print / Pending List
-                          </Button>
-                        </div>
-                      </div>
-                      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2">
-                        {scheme.monthlyBreakdown.slice(0, 12).map((mb: any, mIdx: number) => (
-                          <div key={mIdx} className="p-2.5 rounded-lg bg-background border text-center hover:border-emerald-500/40 transition-colors">
-                            <span className="text-muted-foreground block text-[10px] font-semibold mb-1">{mb.month}</span>
-                            <span className="font-bold font-mono text-emerald-600 text-xs">{formatCurrency(mb.amount)}</span>
-                            {mb.count && <span className="text-[9px] text-muted-foreground block mt-0.5">{mb.count} receipts</span>}
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
-            );
-          })}
+          {schemes.map((scheme: any, idx: number) => (
+            <SchemeCard
+              key={scheme.id}
+              scheme={scheme}
+              idx={idx}
+              onOpenPending={setSelectedPendingScheme}
+            />
+          ))}
         </div>
       </div>
 
-      {/* Grid: Live Collection Trend Chart & Recent Live Feed */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Collection Trend Chart */}
-        <Card className="col-span-1 lg:col-span-2 shadow-md">
-          <CardHeader>
-            <CardTitle className="text-lg font-bold flex items-center justify-between">
-              <span>Bissi Payment Collection Trend</span>
-              <Badge variant="outline" className="text-xs font-mono">Daily Receipts</Badge>
-            </CardTitle>
-            <CardDescription className="text-xs">
-              Daily installment payments collected across all 4 committees
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="h-64 w-full">
-              <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={safeTrend} margin={{ top: 5, right: 10, left: 10, bottom: 0 }}>
-                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e5e7eb" />
-                  <XAxis 
-                    dataKey="date" 
-                    tickFormatter={(val) => {
-                      try { return format(new Date(val), 'MMM dd'); } catch { return val; }
-                    }} 
-                    axisLine={false}
-                    tickLine={false}
-                    tick={{ fontSize: 11, fill: '#6b7280' }}
-                    dy={10}
-                  />
-                  <YAxis 
-                    axisLine={false}
-                    tickLine={false}
-                    tickFormatter={(val) => `₹${val/1000}k`}
-                    tick={{ fontSize: 11, fill: '#6b7280' }}
-                  />
-                  <Tooltip 
-                    formatter={(value: number) => [formatCurrency(value), 'Collections']}
-                    labelFormatter={(label) => {
-                      try { return format(new Date(label), 'MMM dd, yyyy'); } catch { return label; }
-                    }}
-                  />
-                  <Line 
-                    type="monotone" 
-                    dataKey="amount" 
-                    stroke="hsl(var(--primary))" 
-                    strokeWidth={3} 
-                    dot={false}
-                    activeDot={{ r: 6, fill: "hsl(var(--secondary))" }}
-                  />
-                </LineChart>
-              </ResponsiveContainer>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Live Recent Transactions Feed */}
-        <Card className="col-span-1 shadow-md">
+      {/* Recent Live Transactions Feed */}
+      <div>
+        <Card className="shadow-md">
           <CardHeader className="pb-3 flex flex-row items-center justify-between">
             <div>
               <CardTitle className="text-base font-bold">Recent Installment Receipts</CardTitle>
@@ -583,6 +383,193 @@ function AdminDashboard() {
         />
       )}
     </div>
+  );
+}
+
+// ── Per-scheme card with month selector ──────────────────────────────────────
+function SchemeCard({ scheme, idx, onOpenPending }: { scheme: any; idx: number; onOpenPending: (s: any) => void }) {
+  const months: Array<{ label: string; amount: number; count: number }> = Array.isArray(scheme.monthlyBreakdown) ? scheme.monthlyBreakdown : [];
+  // "current" = the most recent month (index 0 in monthlyBreakdown, which is DESC order)
+  const currentMonthLabel = scheme.currentMonthName || (months[0]?.month) || "";
+  const [selectedMonth, setSelectedMonth] = useState<string>(currentMonthLabel);
+
+  const isCurrentMonth = !selectedMonth || selectedMonth === currentMonthLabel;
+
+  // Stats for the selected month
+  const monthData = months.find(m => m.label === selectedMonth || m.month === selectedMonth);
+  const displayCollected = isCurrentMonth
+    ? (scheme.thisMonthCollected || 0)
+    : (monthData?.amount || 0);
+  const displayReceipts = isCurrentMonth
+    ? (scheme.thisMonthReceipts || monthData?.count || 0)
+    : (monthData?.count || 0);
+  const monthlyPool = Number(scheme.memberLimit || 500) * Number(scheme.installmentAmount || 3000);
+  const displayPendingAmt = isCurrentMonth
+    ? (scheme.dueAmount || 0)
+    : Math.max(0, monthlyPool - displayCollected);
+  const displayPendingCount = isCurrentMonth
+    ? (scheme.thisMonthPendingCount || 0)
+    : Math.max(0, Number(scheme.memberLimit || 500) - Math.round(displayCollected / Number(scheme.installmentAmount || 3000)));
+
+  const tagLabel = `BISSI-${idx + 1}`;
+  const drawDateText = scheme.id === 1 ? "5th Date" : scheme.id === 2 ? "15th Date" : scheme.id === 3 ? "20th Date" : "10th Date (Lottery)";
+
+  const handlePrintReport = () => {
+    const w = window.open('', '_blank');
+    if (!w) return;
+    const rows = months.map((mb: any) =>
+      `<tr>
+        <td style="padding:6px 12px;border-bottom:1px solid #eee">${mb.month || mb.label}</td>
+        <td style="padding:6px 12px;border-bottom:1px solid #eee;text-align:right;font-weight:bold;color:#059669">${new Intl.NumberFormat('en-IN',{style:'currency',currency:'INR',maximumFractionDigits:0}).format(mb.amount)}</td>
+        <td style="padding:6px 12px;border-bottom:1px solid #eee;text-align:center">${mb.count || ''}</td>
+      </tr>`
+    ).join('');
+    w.document.write(`<!DOCTYPE html><html><head><title>Report - ${scheme.name}</title>
+    <style>body{font-family:Arial;padding:24px}h2{color:#1e293b}table{width:100%;border-collapse:collapse}th{background:#f1f5f9;padding:8px 12px;text-align:left}@media print{button{display:none}}</style>
+    </head><body>
+    <h2>📋 Monthly Collection Report — ${scheme.name}</h2>
+    <p>Installment: ₹${scheme.installmentAmount}/month | Members: ${scheme.filledTokens}/${scheme.memberLimit}</p>
+    <button onclick="window.print()" style="margin-bottom:16px;padding:8px 16px;background:#6366f1;color:white;border:none;border-radius:6px;cursor:pointer">🖨️ Print</button>
+    <table><thead><tr><th>Month</th><th style="text-align:right">Amount Collected</th><th style="text-align:center">Receipts</th></tr></thead>
+    <tbody>${rows}</tbody></table>
+    <p style="margin-top:16px;color:#666">Current Pending: ₹${new Intl.NumberFormat('en-IN').format(scheme.dueAmount||0)} (${scheme.thisMonthPendingCount||0} unpaid tokens)</p>
+    </body></html>`);
+    w.document.close();
+  };
+
+  return (
+    <Card className="border-border shadow-md overflow-hidden bg-card">
+      {/* Header */}
+      <CardHeader className="p-4 bg-muted/40 border-b">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+          <div className="flex items-center gap-3 flex-wrap">
+            <h3 className="text-lg font-bold text-foreground">{scheme.name}</h3>
+            <Badge variant="outline" className="font-mono text-[10px] uppercase font-bold bg-primary/10 text-primary border-primary/20">
+              {tagLabel}
+            </Badge>
+            <Badge variant="secondary" className="text-xs bg-emerald-500/10 text-emerald-600 border-emerald-500/20">
+              Installment: ₹{scheme.installmentAmount}/month
+            </Badge>
+            <Badge variant="outline" className="text-xs bg-indigo-500/10 text-indigo-600 border-indigo-500/20">
+              Tokens: {scheme.filledTokens || scheme.tokenCount}/{scheme.memberLimit}
+            </Badge>
+            <Badge variant="outline" className="text-xs bg-purple-500/10 text-purple-600 border-purple-500/20">
+              Draw: {drawDateText}
+            </Badge>
+          </div>
+
+          <div className="flex items-center gap-2 shrink-0">
+            {/* Month Selector */}
+            <Select value={selectedMonth} onValueChange={setSelectedMonth}>
+              <SelectTrigger className="h-8 text-xs w-36 bg-background border-primary/30 font-semibold">
+                <Calendar className="w-3 h-3 mr-1 text-primary" />
+                <SelectValue placeholder="Select Month" />
+              </SelectTrigger>
+              <SelectContent>
+                {months.map((mb: any, i: number) => (
+                  <SelectItem key={i} value={mb.month || mb.label} className="text-xs">
+                    {mb.month || mb.label}
+                    {(mb.month === currentMonthLabel || mb.label === currentMonthLabel) && " (Current)"}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+
+            {/* Print Report */}
+            <Button
+              size="sm"
+              variant="outline"
+              className="h-8 text-xs gap-1 text-rose-600 border-rose-500/30 hover:bg-rose-50 dark:hover:bg-rose-950/20"
+              onClick={handlePrintReport}
+            >
+              <Printer className="w-3 h-3" />
+              Print
+            </Button>
+          </div>
+        </div>
+      </CardHeader>
+
+      <CardContent className="p-5">
+        {/* 4 Stat Boxes */}
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+          {/* 1. Collected */}
+          <div className="p-4 rounded-xl border border-emerald-500/20 bg-emerald-500/5 space-y-1">
+            <div className="flex justify-between items-center text-xs font-bold text-emerald-600 dark:text-emerald-400">
+              <span>{isCurrentMonth ? "इस महीने आया" : `${selectedMonth} Collected`}</span>
+              <Wallet className="w-4 h-4" />
+            </div>
+            <div className="text-xl lg:text-2xl font-extrabold font-mono text-emerald-600 dark:text-emerald-400">
+              {formatCurrency(displayCollected)}
+            </div>
+            <span className="text-[10px] text-muted-foreground block font-medium">
+              {displayReceipts > 0 ? `${displayReceipts} receipts` : ""} · Pool: {formatCurrency(monthlyPool)}
+            </span>
+          </div>
+
+          {/* 2. Pending */}
+          <div
+            onClick={() => isCurrentMonth && onOpenPending(scheme)}
+            className={`p-4 rounded-xl border border-rose-500/20 bg-rose-500/5 space-y-1 ${isCurrentMonth ? "cursor-pointer hover:border-rose-500/50" : "cursor-default"} transition-colors`}
+          >
+            <div className="flex justify-between items-center text-xs font-bold text-rose-600 dark:text-rose-400">
+              <span>{isCurrentMonth ? "बकाया (Pending)" : `${selectedMonth} Pending`}</span>
+              <AlertCircle className="w-4 h-4" />
+            </div>
+            <div className="text-xl lg:text-2xl font-extrabold font-mono text-rose-600 dark:text-rose-400">
+              {formatCurrency(displayPendingAmt)}
+            </div>
+            {isCurrentMonth ? (
+              <span className="text-[11px] text-rose-600 font-bold block hover:underline">
+                🔴 {displayPendingCount} Tokens Unpaid →
+              </span>
+            ) : (
+              <span className="text-[10px] text-muted-foreground block">
+                ~{displayPendingCount} tokens unpaid (estimated)
+              </span>
+            )}
+          </div>
+
+          {/* 3. Active Tokens */}
+          <div className="p-4 rounded-xl border border-indigo-500/20 bg-indigo-500/5 space-y-1">
+            <div className="flex justify-between items-center text-xs font-bold text-indigo-600 dark:text-indigo-400">
+              <span>Active Member Tokens</span>
+              <Ticket className="w-4 h-4" />
+            </div>
+            <div className="text-xl lg:text-2xl font-extrabold font-mono text-indigo-600 dark:text-indigo-400">
+              {scheme.filledTokens || scheme.tokenCount} / {scheme.memberLimit}
+            </div>
+            <Link href={`/committees/${scheme.id}`}>
+              <span className="text-[11px] font-semibold text-indigo-600 hover:underline flex items-center gap-0.5 cursor-pointer pt-0.5">
+                Manage member tokens →
+              </span>
+            </Link>
+          </div>
+
+          {/* 4. Pending List */}
+          <div
+            onClick={() => isCurrentMonth && onOpenPending(scheme)}
+            className={`p-4 rounded-xl border border-rose-500/20 bg-rose-50/50 dark:bg-rose-950/20 space-y-1 ${isCurrentMonth ? "cursor-pointer hover:border-rose-500/50" : "cursor-default"} transition-colors`}
+          >
+            <div className="flex justify-between items-center text-xs font-bold text-rose-600 dark:text-rose-400">
+              <span>Pending Tokens List</span>
+              <AlertCircle className="w-4 h-4" />
+            </div>
+            <div className="text-xl lg:text-2xl font-extrabold font-mono text-rose-600 dark:text-rose-400">
+              {displayPendingCount} Pending
+            </div>
+            {isCurrentMonth ? (
+              <span className="text-[11px] font-semibold text-rose-600 hover:underline flex items-center gap-0.5 cursor-pointer pt-0.5">
+                📋 View Complete Pending List →
+              </span>
+            ) : (
+              <span className="text-[10px] text-muted-foreground block">
+                Select current month to view list
+              </span>
+            )}
+          </div>
+        </div>
+      </CardContent>
+    </Card>
   );
 }
 

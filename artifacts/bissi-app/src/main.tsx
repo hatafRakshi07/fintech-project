@@ -11,12 +11,13 @@ import { setBaseUrl } from "@workspace/api-client-react";
 // Set default API base URL for customFetch calls
 setBaseUrl("/api");
 
-// Ensure demo token & user are pre-set so no login screen is required
-if (!localStorage.getItem("auth_token")) {
-  localStorage.setItem("auth_token", "demo-presentation-token");
-}
-if (!localStorage.getItem("collector_token")) {
-  localStorage.setItem("collector_token", "demo-presentation-token");
+if (typeof window !== "undefined") {
+  if (!localStorage.getItem("auth_token")) {
+    localStorage.setItem("auth_token", "demo-presentation-token");
+  }
+  if (!localStorage.getItem("collector_token")) {
+    localStorage.setItem("collector_token", "demo-presentation-token");
+  }
 }
 
 createRoot(document.getElementById('root')!).render(

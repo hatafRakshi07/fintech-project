@@ -2,7 +2,7 @@
 
 import React from "react";
 import { Shell } from "@/components/layout/Shell";
-import LotteriesPage from "@/pages/lotteries";
+import LotteriesPage from "@/views/lotteries";
 
 export default function Page() {
   return (
