@@ -295,9 +295,13 @@ function AppRoutes() {
 }
 
 function App() {
-  const [showSplash, setShowSplash] = useState(
-    () => typeof window !== "undefined" ? !sessionStorage.getItem("ska_splash_done") : false
-  );
+  const [showSplash, setShowSplash] = useState(true);
+
+  React.useEffect(() => {
+    if (typeof window !== "undefined" && sessionStorage.getItem("ska_splash_done")) {
+      setShowSplash(false);
+    }
+  }, []);
 
   function handleSplashDone() {
     if (typeof window !== "undefined") {
