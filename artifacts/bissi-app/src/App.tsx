@@ -11,7 +11,7 @@ import { SplashScreen } from "@/components/SplashScreen";
 setAuthTokenGetter(() => localStorage.getItem("auth_token"));
 
 // Pages
-import DashboardPage from "@/pages/dashboard-v2";
+import DashboardPage from "@/pages/dashboard";
 import CustomersPage from "@/pages/customers";
 import CustomerDetailPage from "@/pages/customers/[id]";
 import BranchesPage from "@/pages/branches";
