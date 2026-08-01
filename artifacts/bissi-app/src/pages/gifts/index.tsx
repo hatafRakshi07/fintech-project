@@ -12,7 +12,7 @@ import {
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
-import { Gift, Search, Trophy, Printer, Calendar, Users, Filter, Download, Table as TableIcon, List } from "lucide-react";
+import { Gift, Search, Trophy, Printer, Calendar, Users, Filter, Download, Table as TableIcon, List, Plus } from "lucide-react";
 
 type Winner = {
   id: number;
@@ -96,7 +96,7 @@ function RecordGiftModal({
     setIsSubmitting(true);
     try {
       const selectedMember = members.find(m => String(m.tokenId) === String(tokenId));
-      const res = await customFetch("/gifts/record", {
+      const res: any = await customFetch("/gifts/record", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
