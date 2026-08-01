@@ -212,8 +212,8 @@ export default function CollectionsPage() {
                             <SelectTrigger><SelectValue placeholder="Select customer" /></SelectTrigger>
                           </FormControl>
                           <SelectContent>
-                            {customers?.data?.map((c) => (
-                              <SelectItem key={c.id} value={c.id.toString()}>{c.name} ({c.referenceNumber})</SelectItem>
+                            {customersList.map((c: any) => (
+                              <SelectItem key={c.id} value={c.id.toString()}>{c.name} ({c.referenceNumber || c.mobile || c.id})</SelectItem>
                             ))}
                           </SelectContent>
                         </Select>
@@ -265,7 +265,7 @@ export default function CollectionsPage() {
                           </FormControl>
                           <SelectContent>
                             <SelectItem value="0">None</SelectItem>
-                            {committees?.map((c) => (
+                            {committeesList.map((c: any) => (
                               <SelectItem key={c.id} value={c.id.toString()}>{c.name}</SelectItem>
                             ))}
                           </SelectContent>
@@ -285,7 +285,7 @@ export default function CollectionsPage() {
                           </FormControl>
                           <SelectContent>
                             <SelectItem value="0">None</SelectItem>
-                            {collectors?.map((c) => (
+                            {collectorsList.map((c: any) => (
                               <SelectItem key={c.id} value={c.id.toString()}>{c.name}</SelectItem>
                             ))}
                           </SelectContent>
@@ -329,7 +329,7 @@ export default function CollectionsPage() {
                           className="h-6 text-xs px-2"
                           onClick={() => {
                             const customerId = form.getValues("customerId");
-                            const cust = customers?.data?.find(c => c.id === Number(customerId));
+                            const cust = customersList.find((c: any) => c.id === Number(customerId));
                             if (cust) {
                               form.setValue("billingName", cust.name);
                               form.setValue("billingPhone", cust.mobile);

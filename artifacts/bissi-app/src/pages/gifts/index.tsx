@@ -5,10 +5,14 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import {
+  Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
+} from "@/components/ui/table";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
-import { Gift, Search, Trophy, Printer, Calendar, Users, Filter } from "lucide-react";
+import { Gift, Search, Trophy, Printer, Calendar, Users, Filter, Download, Table as TableIcon, List } from "lucide-react";
 
 type Winner = {
   id: number;
@@ -17,7 +21,7 @@ type Winner = {
   winnerId: number;
   winnerName: string;
   winnerMobile?: string;
-  tokenNumber?: number;
+  tokenNumber?: string;
   drawDate: string;
   giftName: string;
   rewardType: "gift" | "cash";
@@ -26,10 +30,10 @@ type Winner = {
 
 const COMMITTEES = [
   { id: "all", name: "Sabhi Bissi" },
-  { id: "1", name: "Sawariya Seth Bissi" },
-  { id: "2", name: "Pyare Mohan Bissi" },
-  { id: "3", name: "Hare Ka Sahara Bissi" },
-  { id: "4", name: "Shree Krishna Bissi" },
+  { id: "1", name: "Sawariya Seth Bissi (5th Date)" },
+  { id: "4", name: "Shree Krishna Associate Bissi (10th Date)" },
+  { id: "2", name: "Pyare Mohan Bissi (15th Date)" },
+  { id: "3", name: "Hare Ka Sahara Bissi (20th Date)" },
 ];
 
 const formatDate = (d: string) => {
@@ -52,61 +56,172 @@ const formatGiftName = (name: string, rewardType: string) => {
   return cleaned.charAt(0).toUpperCase() + cleaned.slice(1);
 };
 
-type GroupedWinner = {
-  id: string;
-  winnerName: string;
-  winnerMobile?: string;
-  committeeId: number;
-  committeeName: string;
-  drawDate: string;
-  tokens: number[];
-  giftItems: string[];
-  rewardType: "gift" | "cash";
-  count: number;
-};
+// ---------------------------------------------------------------------------
+// Gift Matrix Component (Token-Wise Gift Sheet)
+// ---------------------------------------------------------------------------
+function GiftMatrixView({ selectedCommitteeId }: { selectedCommitteeId: string }) {
+  const commId = selectedCommitteeId === "all" ? "1" : selectedCommitteeId;
+  const [matrixSearch, setMatrixSearch] = useState("");
 
-const groupWinnersList = (items: Winner[]): GroupedWinner[] => {
-  const map: Record<string, GroupedWinner> = {};
-  items.forEach(w => {
-    const normName = (w.winnerName || "").trim().toLowerCase();
-    const dateStr = w.drawDate ? new Date(w.drawDate).toISOString().split("T")[0] : "nodate";
-    const key = `${normName}_${dateStr}_${w.committeeId}`;
-
-    if (!map[key]) {
-      map[key] = {
-        id: key,
-        winnerName: w.winnerName,
-        winnerMobile: w.winnerMobile,
-        committeeId: w.committeeId,
-        committeeName: w.committeeName,
-        drawDate: w.drawDate,
-        tokens: [],
-        giftItems: [],
-        rewardType: w.rewardType || "gift",
-        count: 0,
-      };
-    }
-
-    if (w.tokenNumber && !map[key].tokens.includes(w.tokenNumber)) {
-      map[key].tokens.push(w.tokenNumber);
-    }
-    const itemFormatted = formatGiftName(w.giftName, w.rewardType);
-    if (itemFormatted && !map[key].giftItems.includes(itemFormatted)) {
-      map[key].giftItems.push(itemFormatted);
-    }
-    map[key].count += 1;
+  const { data, isLoading } = useQuery<any>({
+    queryKey: ["committee-gift-matrix", commId, matrixSearch],
+    queryFn: () => customFetch(`/committees/${commId}/gift-matrix${matrixSearch ? `?search=${encodeURIComponent(matrixSearch)}` : ""}`),
+    staleTime: 30000,
   });
 
-  const res = Object.values(map);
-  res.forEach(g => g.tokens.sort((a, b) => a - b));
-  return res;
-};
+  if (isLoading) {
+    return (
+      <Card>
+        <CardContent className="p-12 text-center text-muted-foreground">
+          <div className="w-8 h-8 border-4 border-purple-500 border-t-transparent rounded-full animate-spin mx-auto mb-3" />
+          <p>Loading Gift Sheet Matrix…</p>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  if (!data || !data.success) {
+    return (
+      <Card>
+        <CardContent className="p-12 text-center text-muted-foreground">
+          Gift matrix record fail to load.
+        </CardContent>
+      </Card>
+    );
+  }
+
+  const months: string[] = data.months || [];
+  const members: any[] = data.members || [];
+
+  const handleExportCSV = () => {
+    const headers = ["Token No", "Customer Name", "Mobile", ...months, "Total Gifts"];
+    const rows = members.map(m => [
+      m.tokenNumber,
+      `"${m.customerName}"`,
+      m.customerMobile || "",
+      ...m.monthlyGifts.map((mg: any) => mg.gift ? `"${mg.gift}"` : ""),
+      m.giftCount
+    ]);
+
+    const csvContent = "data:text/csv;charset=utf-8,\uFEFF" + [headers.join(","), ...rows.map(e => e.join(","))].join("\n");
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement("a");
+    link.setAttribute("href", encodedUri);
+    link.setAttribute("download", `${data.committee?.name || "Gift_Sheet"}_Matrix.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  return (
+    <div className="space-y-4">
+      {/* Top bar for Matrix */}
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+        <div className="relative flex-1 w-full sm:max-w-xs">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+          <Input
+            placeholder="Search token, name..."
+            value={matrixSearch}
+            onChange={e => setMatrixSearch(e.target.value)}
+            className="pl-9 h-9 text-xs"
+          />
+        </div>
+        <Button onClick={handleExportCSV} variant="outline" size="sm" className="gap-2 text-xs h-9 text-purple-600 border-purple-200">
+          <Download className="w-3.5 h-3.5" />
+          Export Gift Sheet CSV
+        </Button>
+      </div>
+
+      {/* Excel Sheet Matrix Table */}
+      <Card className="border shadow-sm">
+        <CardContent className="p-0 overflow-x-auto">
+          <div className="min-w-max">
+            <Table>
+              <TableHeader>
+                <TableRow className="bg-purple-500/10 hover:bg-purple-500/10">
+                  <TableHead className="pl-4 sticky left-0 bg-purple-50/90 dark:bg-slate-900/90 z-20 font-bold text-[11px] text-purple-900 dark:text-purple-300">
+                    Token #
+                  </TableHead>
+                  <TableHead className="sticky left-[70px] bg-purple-50/90 dark:bg-slate-900/90 z-20 min-w-[180px] font-bold text-[11px] text-purple-900 dark:text-purple-300">
+                    Customer Name
+                  </TableHead>
+                  <TableHead className="min-w-[110px] font-bold text-[11px] text-purple-900 dark:text-purple-300">
+                    Mobile
+                  </TableHead>
+                  {months.map(m => (
+                    <TableHead key={m} className="text-center min-w-[110px] font-bold text-[11px] text-purple-900 dark:text-purple-300 px-2">
+                      {m}
+                    </TableHead>
+                  ))}
+                  <TableHead className="text-center min-w-[70px] font-bold text-[11px] bg-purple-500/20 text-purple-900 dark:text-purple-300 pr-4">
+                    Gifts Won
+                  </TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {members.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={months.length + 4} className="text-center py-12 text-muted-foreground">
+                      No gift records found.
+                    </TableCell>
+                  </TableRow>
+                ) : (
+                  members.map((m: any) => (
+                    <TableRow key={m.tokenId} className="hover:bg-purple-500/5 transition-colors text-xs">
+                      <TableCell className="pl-4 sticky left-0 bg-card z-10 font-mono font-bold text-purple-600">
+                        #{m.tokenNumber}
+                      </TableCell>
+                      <TableCell className="sticky left-[70px] bg-card z-10 font-semibold text-foreground truncate max-w-[180px]">
+                        {m.customerName}
+                      </TableCell>
+                      <TableCell className="font-mono text-muted-foreground text-[11px]">
+                        {m.customerMobile || "—"}
+                      </TableCell>
+                      {m.monthlyGifts.map((mg: any, idx: number) => (
+                        <TableCell key={idx} className="text-center px-1 py-1.5">
+                          {mg.gift ? (
+                            <Badge
+                              className={`text-[10px] font-medium px-2 py-0.5 whitespace-nowrap shadow-none ${
+                                mg.isCash
+                                  ? "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border-emerald-500/30"
+                                  : "bg-purple-500/15 text-purple-700 dark:text-purple-300 border-purple-500/30"
+                              }`}
+                            >
+                              {mg.isCash ? "💵 " : "🎁 "}
+                              {mg.gift}
+                            </Badge>
+                          ) : (
+                            <span className="text-muted-foreground/30 text-[11px]">—</span>
+                          )}
+                        </TableCell>
+                      ))}
+                      <TableCell className="text-center font-bold text-purple-600 bg-purple-500/5 pr-4">
+                        {m.giftCount > 0 ? (
+                          <Badge variant="secondary" className="bg-purple-500/20 text-purple-700 dark:text-purple-300 font-bold">
+                            {m.giftCount}
+                          </Badge>
+                        ) : (
+                          <span className="text-muted-foreground/40">0</span>
+                        )}
+                      </TableCell>
+                    </TableRow>
+                  ))
+                )}
+              </TableBody>
+            </Table>
+          </div>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
 
 export default function GiftsPage() {
   const [search, setSearch] = useState("");
   const [committeeId, setCommitteeId] = useState("all");
   const [rewardType, setRewardType] = useState("all");
   const [page, setPage] = useState(0);
+  const [activeTab, setActiveTab] = useState("list");
   const PER_PAGE = 100;
 
   const params = new URLSearchParams();
@@ -124,19 +239,17 @@ export default function GiftsPage() {
 
   const winners = data?.winners || [];
   const total = data?.total || 0;
-  const totalPages = Math.ceil(total / PER_PAGE);
 
   // Group by month for display
   const grouped: Record<string, Winner[]> = {};
   winners.forEach(w => {
     const monthKey = w.drawDate
       ? new Date(w.drawDate).toLocaleDateString("en-IN", { month: "long", year: "numeric" })
-      : "Unknown Date";
+      : "Gift / Reward Records";
     if (!grouped[monthKey]) grouped[monthKey] = [];
     grouped[monthKey].push(w);
   });
 
-  // Stats
   const giftCount = winners.filter(w => w.rewardType === "gift").length;
   const cashCount = winners.filter(w => w.rewardType === "cash").length;
 
@@ -188,10 +301,10 @@ export default function GiftsPage() {
         <div>
           <h1 className="text-2xl font-bold tracking-tight flex items-center gap-2">
             <Gift className="w-6 h-6 text-purple-500" />
-            Gifts & Lottery Winners
+            Gifts & Reward Sheets (उपहार रिकॉर्ड)
           </h1>
           <p className="text-muted-foreground text-sm">
-            Date-wise list of all gift and cash winners from all Bissi schemes
+            Complete records of all physical gifts and cash claimed across all 4 Bissi schemes
           </p>
         </div>
         <Button onClick={handlePrint} variant="outline" className="gap-2 text-purple-600 border-purple-500/30 hover:bg-purple-50">
@@ -205,195 +318,174 @@ export default function GiftsPage() {
         <Card className="border-purple-500/20 bg-purple-500/5">
           <CardContent className="p-4">
             <div className="flex justify-between items-center text-xs font-bold text-purple-600 mb-1">
-              <span>Total Winners</span>
+              <span>Total Gift Records</span>
               <Trophy className="w-4 h-4" />
             </div>
             <div className="text-2xl font-extrabold font-mono text-purple-600">{total.toLocaleString("en-IN")}</div>
-            <p className="text-[11px] text-muted-foreground mt-1">All records</p>
+            <p className="text-[11px] text-muted-foreground mt-1">All schemes combined</p>
           </CardContent>
         </Card>
         <Card className="border-violet-500/20 bg-violet-500/5">
           <CardContent className="p-4">
             <div className="flex justify-between items-center text-xs font-bold text-violet-600 mb-1">
-              <span>🎁 Gift Winners</span>
+              <span>🎁 Gift Items</span>
               <Gift className="w-4 h-4" />
             </div>
             <div className="text-2xl font-extrabold font-mono text-violet-600">{giftCount.toLocaleString("en-IN")}</div>
-            <p className="text-[11px] text-muted-foreground mt-1">Current page</p>
+            <p className="text-[11px] text-muted-foreground mt-1">Physical gifts</p>
           </CardContent>
         </Card>
         <Card className="border-emerald-500/20 bg-emerald-500/5">
           <CardContent className="p-4">
             <div className="flex justify-between items-center text-xs font-bold text-emerald-600 mb-1">
-              <span>💵 Cash Winners</span>
+              <span>💵 Cash Claims</span>
               <Users className="w-4 h-4" />
             </div>
             <div className="text-2xl font-extrabold font-mono text-emerald-600">{cashCount.toLocaleString("en-IN")}</div>
-            <p className="text-[11px] text-muted-foreground mt-1">Current page</p>
+            <p className="text-[11px] text-muted-foreground mt-1">Cash in lieu of gift</p>
           </CardContent>
         </Card>
         <Card className="border-indigo-500/20 bg-indigo-500/5">
           <CardContent className="p-4">
             <div className="flex justify-between items-center text-xs font-bold text-indigo-600 mb-1">
-              <span>Schemes</span>
+              <span>Bissi Schemes</span>
               <Calendar className="w-4 h-4" />
             </div>
             <div className="text-2xl font-extrabold font-mono text-indigo-600">4</div>
-            <p className="text-[11px] text-muted-foreground mt-1">Bissi schemes</p>
+            <p className="text-[11px] text-muted-foreground mt-1">Active schemes</p>
           </CardContent>
         </Card>
       </div>
 
-      {/* Filters */}
-      <Card>
-        <CardContent className="p-4">
-          <div className="flex flex-col sm:flex-row gap-3">
-            <div className="relative flex-1">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-              <Input
-                placeholder="Search winner name or gift..."
-                value={search}
-                onChange={e => { setSearch(e.target.value); setPage(0); }}
-                className="pl-9"
-              />
-            </div>
-            <Select value={committeeId} onValueChange={v => { setCommitteeId(v); setPage(0); }}>
-              <SelectTrigger className="w-full sm:w-52">
-                <Filter className="w-4 h-4 mr-2 text-muted-foreground" />
-                <SelectValue placeholder="Select Bissi" />
-              </SelectTrigger>
-              <SelectContent>
-                {COMMITTEES.map(c => (
-                  <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <Select value={rewardType} onValueChange={v => { setRewardType(v); setPage(0); }}>
-              <SelectTrigger className="w-full sm:w-40">
-                <SelectValue placeholder="Type" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">🎁💵 Sab</SelectItem>
-                <SelectItem value="gift">🎁 Gift Only</SelectItem>
-                <SelectItem value="cash">💵 Cash Only</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-        </CardContent>
-      </Card>
+      {/* Main Tabs View Switcher */}
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 pb-2">
+          <TabsList className="bg-muted/60 p-1">
+            <TabsTrigger value="list" className="px-4 font-semibold gap-2">
+              <List className="w-4 h-4" /> Date-Wise Winners List
+            </TabsTrigger>
+            <TabsTrigger value="matrix" className="px-4 font-semibold gap-2">
+              <TableIcon className="w-4 h-4 text-purple-600" /> Token Gift Sheet Matrix (Excel View)
+            </TabsTrigger>
+          </TabsList>
 
-      {/* Results - Grouped by Month */}
-      {isLoading ? (
-        <div className="h-48 flex items-center justify-center">
-          <div className="w-8 h-8 border-4 border-purple-500 border-t-transparent rounded-full animate-spin" />
+          <Select value={committeeId} onValueChange={v => { setCommitteeId(v); setPage(0); }}>
+            <SelectTrigger className="w-full sm:w-64">
+              <Filter className="w-4 h-4 mr-2 text-muted-foreground" />
+              <SelectValue placeholder="Select Bissi" />
+            </SelectTrigger>
+            <SelectContent>
+              {COMMITTEES.map(c => (
+                <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
-      ) : winners.length === 0 ? (
-        <Card>
-          <CardContent className="p-12 text-center text-muted-foreground">
-            <Gift className="w-12 h-12 mx-auto mb-3 opacity-30" />
-            <p className="font-semibold">Koi record nahi mila</p>
-            <p className="text-sm mt-1">Filter change karke try karo</p>
-          </CardContent>
-        </Card>
-      ) : (
-        <div className="space-y-6">
-          {Object.entries(grouped).map(([month, monthWinners]) => (
-            <div key={month}>
-              {/* Month Header */}
-              <div className="flex items-center gap-3 mb-3">
-                <div className="flex items-center gap-2 bg-slate-100 dark:bg-slate-800 px-3 py-1.5 rounded-full">
-                  <Calendar className="w-3.5 h-3.5 text-purple-500" />
-                  <span className="text-xs font-bold text-foreground">{month}</span>
-                  <Badge variant="outline" className="text-[10px] bg-purple-500/10 text-purple-600 border-purple-500/20 font-mono">
-                    {monthWinners.length} winners
-                  </Badge>
+
+        {/* LIST VIEW TAB */}
+        <TabsContent value="list" className="mt-4 space-y-4">
+          <Card>
+            <CardContent className="p-4">
+              <div className="flex flex-col sm:flex-row gap-3">
+                <div className="relative flex-1">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                  <Input
+                    placeholder="Search winner name or gift item..."
+                    value={search}
+                    onChange={e => { setSearch(e.target.value); setPage(0); }}
+                    className="pl-9"
+                  />
                 </div>
-                <div className="flex-1 h-px bg-border" />
+                <Select value={rewardType} onValueChange={v => { setRewardType(v); setPage(0); }}>
+                  <SelectTrigger className="w-full sm:w-44">
+                    <SelectValue placeholder="Type" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">🎁💵 All Rewards</SelectItem>
+                    <SelectItem value="gift">🎁 Gift Items Only</SelectItem>
+                    <SelectItem value="cash">💵 Cash Only</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
+            </CardContent>
+          </Card>
 
-              {/* Cards */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
-                {monthWinners.map(w => {
-                  const giftDetail = formatGiftName(w.giftName, w.rewardType);
-                  const tokStr = w.tokenNumber ? `#${w.tokenNumber}` : "—";
-
-                  return (
-                    <div
-                      key={w.id}
-                      className={`p-4 rounded-xl border transition-shadow hover:shadow-md ${
-                        w.rewardType === "gift"
-                          ? "border-purple-500/20 bg-purple-500/5 hover:border-purple-500/40"
-                          : "border-emerald-500/20 bg-emerald-500/5 hover:border-emerald-500/40"
-                      }`}
-                    >
-                      <div className="flex items-start justify-between gap-2 mb-2">
-                        <span className="text-xs font-bold text-foreground leading-tight block">
-                          {w.winnerName}
-                        </span>
-                        <Badge
-                          className={`text-[10px] shrink-0 ${
-                            w.rewardType === "gift"
-                              ? "bg-purple-500/20 text-purple-600 border-purple-500/30"
-                              : "bg-emerald-500/20 text-emerald-600 border-emerald-500/30"
-                          }`}
-                          variant="outline"
-                        >
-                          {w.rewardType === "gift" ? "🎁 Gift" : "💵 Cash"}
-                        </Badge>
-                      </div>
-
-                      {/* Gift Item / Reward Details */}
-                      <div className="my-2.5 p-2 rounded-lg bg-background/80 border border-border/50">
-                        <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider block">
-                          Gift Item / Reward (क्या मिला):
-                        </span>
-                        <span className={`text-sm font-extrabold block mt-0.5 ${w.rewardType === "gift" ? "text-purple-600" : "text-emerald-600"}`}>
-                          {giftDetail}
-                        </span>
-                      </div>
-
-                      <div className="space-y-1 text-[11px] text-muted-foreground">
-                        <div className="flex justify-between">
-                          <span>Bissi:</span>
-                          <span className="font-semibold text-foreground">{w.committeeName.replace(" Bissi", "")}</span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span>Winning Token:</span>
-                          <span className="font-mono font-bold text-indigo-600">{tokStr}</span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span>Date:</span>
-                          <span className="font-semibold">{formatDate(w.drawDate)}</span>
-                        </div>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
+          {isLoading ? (
+            <div className="h-48 flex items-center justify-center">
+              <div className="w-8 h-8 border-4 border-purple-500 border-t-transparent rounded-full animate-spin" />
             </div>
-          ))}
-
-          {/* Pagination */}
-          {totalPages > 1 && (
-            <div className="flex items-center justify-between pt-2">
-              <p className="text-xs text-muted-foreground">
-                Showing {page * PER_PAGE + 1}–{Math.min((page + 1) * PER_PAGE, total)} of {total.toLocaleString("en-IN")}
-              </p>
-              <div className="flex gap-2">
-                <Button variant="outline" size="sm" disabled={page === 0} onClick={() => setPage(p => p - 1)}>
-                  ← Pehle
-                </Button>
-                <span className="text-xs px-2 py-1.5 bg-muted rounded font-mono">
-                  {page + 1} / {totalPages}
-                </span>
-                <Button variant="outline" size="sm" disabled={page >= totalPages - 1} onClick={() => setPage(p => p + 1)}>
-                  Agle →
-                </Button>
-              </div>
+          ) : winners.length === 0 ? (
+            <Card>
+              <CardContent className="p-12 text-center text-muted-foreground">
+                <Gift className="w-12 h-12 mx-auto mb-3 opacity-30" />
+                <p className="font-semibold">No gift records found</p>
+              </CardContent>
+            </Card>
+          ) : (
+            <div className="space-y-6">
+              {Object.entries(grouped).map(([month, monthWinners]) => (
+                <Card key={month} className="border shadow-sm overflow-hidden">
+                  <CardHeader className="bg-purple-500/5 p-4 border-b">
+                    <CardTitle className="text-sm font-bold text-purple-900 dark:text-purple-300 flex items-center justify-between">
+                      <span>{month}</span>
+                      <Badge variant="outline" className="bg-card text-purple-600 border-purple-300">
+                        {monthWinners.length} Records
+                      </Badge>
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="p-0">
+                    <Table>
+                      <TableHeader>
+                        <TableRow className="bg-muted/30">
+                          <TableHead className="pl-4 w-24">Token #</TableHead>
+                          <TableHead>Winner Customer Name</TableHead>
+                          <TableHead>Bissi Scheme</TableHead>
+                          <TableHead>Gift / Cash Claim (क्या मिला)</TableHead>
+                          <TableHead className="pr-4 text-right">Type</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {monthWinners.map(w => (
+                          <TableRow key={w.id} className="hover:bg-muted/40">
+                            <TableCell className="pl-4 font-mono font-bold text-purple-600">
+                              #{w.tokenNumber || "—"}
+                            </TableCell>
+                            <TableCell>
+                              <div className="font-semibold text-foreground">{w.winnerName}</div>
+                              {w.winnerMobile && <div className="text-[11px] text-muted-foreground font-mono">{w.winnerMobile}</div>}
+                            </TableCell>
+                            <TableCell className="text-xs text-muted-foreground">{w.committeeName}</TableCell>
+                            <TableCell>
+                              <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-bold border ${
+                                w.rewardType === "cash"
+                                  ? "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border-emerald-500/30"
+                                  : "bg-purple-500/15 text-purple-700 dark:text-purple-300 border-purple-500/30"
+                              }`}>
+                                {w.rewardType === "cash" ? "💵 " : "🎁 "}
+                                {formatGiftName(w.giftName, w.rewardType)}
+                              </span>
+                            </TableCell>
+                            <TableCell className="pr-4 text-right">
+                              <Badge variant="outline" className="capitalize text-[10px]">
+                                {w.rewardType}
+                              </Badge>
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </CardContent>
+                </Card>
+              ))}
             </div>
           )}
-        </div>
-      )}
+        </TabsContent>
+
+        {/* MATRIX VIEW TAB */}
+        <TabsContent value="matrix" className="mt-4">
+          <GiftMatrixView selectedCommitteeId={committeeId} />
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }
