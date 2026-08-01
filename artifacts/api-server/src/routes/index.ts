@@ -1363,7 +1363,7 @@ router.get("/dashboard/stats", async (req, res) => {
           (SELECT COALESCE(SUM(amount), 0)::numeric FROM collections) as "totalCollectionAmount",
           (SELECT COUNT(*)::int FROM tokens) as "totalTokens",
           (SELECT COUNT(*)::int FROM lotteries WHERE status = 'completed' AND winner_id IS NOT NULL) as "totalWinners",
-          (SELECT COUNT(*)::int FROM kyc_verifications WHERE status = 'pending') as "pendingKycCount"
+          0 as "pendingKycCount"
       `),
       { routeName: "GET /dashboard/stats", retries: 2, delayMs: 500 }
     );
@@ -1517,27 +1517,27 @@ router.get("/dashboard/scheme-boxes", async (req, res) => {
       latestWinnerMap[r.committeeId] = r;
     }
 
-    // Pending tokens: members who haven't paid this month (check both collections & installments)
+    // Pending tokens: members who haven't paid this month — fast LEFT JOIN approach
     const pendingTokensRes = await pool.query(`
+      WITH paid_this_month AS (
+        SELECT DISTINCT customer_id, committee_id
+        FROM collections
+        WHERE collected_at >= DATE_TRUNC('month', NOW())
+          AND customer_id IS NOT NULL AND committee_id IS NOT NULL
+        UNION
+        SELECT DISTINCT customer_id, committee_id
+        FROM installments
+        WHERE payment_date >= DATE_TRUNC('month', NOW())
+          AND customer_id IS NOT NULL AND committee_id IS NOT NULL
+      )
       SELECT 
         t.committee_id,
         COUNT(*)::int as pending_count,
         (COUNT(*) * c2.installment_amount)::numeric as pending_amount
       FROM tokens t
       JOIN committees c2 ON c2.id = t.committee_id
-      WHERE t.customer_id NOT IN (
-        SELECT DISTINCT col.customer_id
-        FROM collections col
-        WHERE col.committee_id = t.committee_id
-          AND col.collected_at >= DATE_TRUNC('month', NOW())
-          AND col.customer_id IS NOT NULL
-        UNION
-        SELECT DISTINCT i_paid.customer_id
-        FROM installments i_paid
-        WHERE i_paid.committee_id = t.committee_id
-          AND i_paid.payment_date >= DATE_TRUNC('month', NOW())
-          AND i_paid.customer_id IS NOT NULL
-      )
+      LEFT JOIN paid_this_month p ON p.customer_id = t.customer_id AND p.committee_id = t.committee_id
+      WHERE p.customer_id IS NULL
       GROUP BY t.committee_id, c2.installment_amount
     `);
     const pendingMap: Record<number, any> = {};
@@ -1615,6 +1615,21 @@ router.get("/dashboard/pending-report", async (req, res) => {
     }
 
     const result = await pool.query(`
+      WITH paid AS (
+        SELECT DISTINCT col.customer_id, col.committee_id
+        FROM collections col
+        WHERE col.customer_id IS NOT NULL AND col.committee_id IS NOT NULL
+          AND ${month && month !== "all"
+            ? `(TO_CHAR(col.collected_at, 'Mon-YY') ILIKE $${params.length + 1} OR TO_CHAR(col.collected_at, 'Mon YYYY') ILIKE $${params.length + 1})`
+            : `col.collected_at >= DATE_TRUNC('month', NOW())`}
+        UNION
+        SELECT DISTINCT i_paid.customer_id, i_paid.committee_id
+        FROM installments i_paid
+        WHERE i_paid.customer_id IS NOT NULL AND i_paid.committee_id IS NOT NULL
+          AND ${month && month !== "all"
+            ? `(TO_CHAR(i_paid.payment_date, 'Mon-YY') ILIKE $${params.length + 1} OR TO_CHAR(i_paid.payment_date, 'Mon YYYY') ILIKE $${params.length + 1})`
+            : `i_paid.payment_date >= DATE_TRUNC('month', NOW())`}
+      )
       SELECT 
         t.token_number as "tokenNumber",
         t.committee_id as "committeeId",
@@ -1627,24 +1642,13 @@ router.get("/dashboard/pending-report", async (req, res) => {
       FROM tokens t
       JOIN committees c ON c.id = t.committee_id
       JOIN customers cust ON cust.id = t.customer_id
+      LEFT JOIN paid p ON p.customer_id = t.customer_id AND p.committee_id = t.committee_id
       WHERE t.status = 'active' ${commCondition}
-        AND t.customer_id NOT IN (
-          SELECT DISTINCT col.customer_id
-          FROM collections col
-          WHERE col.committee_id = t.committee_id
-            ${colMonthFilter}
-            AND col.customer_id IS NOT NULL
-          UNION
-          SELECT DISTINCT i_paid.customer_id
-          FROM installments i_paid
-          WHERE i_paid.committee_id = t.committee_id
-            ${instMonthFilter}
-            AND i_paid.customer_id IS NOT NULL
-        )
+        AND p.customer_id IS NULL
       ORDER BY c.id ASC, 
                CASE WHEN t.token_number ~ '^[0-9]+$' THEN CAST(t.token_number AS integer) ELSE 99999 END ASC
       LIMIT 3000
-    `, params);
+    `, month && month !== "all" ? [...params, `%${month}%`] : params);
 
     res.json({ success: true, pendingList: result.rows, totalPending: result.rows.length });
   } catch (err: any) {
@@ -2477,6 +2481,25 @@ router.post("/kyc/submit", async (req, res) => {
   try {
     const { customerId, userMobile, userName, userRole, aadhaarNumber, aadhaarFrontUrl, aadhaarBackUrl } = req.body;
 
+    // Auto-create table if it doesn't exist
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS kyc_verifications (
+        id SERIAL PRIMARY KEY,
+        customer_id INTEGER,
+        user_id INTEGER,
+        user_role TEXT DEFAULT 'customer',
+        user_name TEXT,
+        user_mobile TEXT,
+        aadhaar_number TEXT,
+        aadhaar_front_url TEXT,
+        aadhaar_back_url TEXT,
+        status TEXT DEFAULT 'pending',
+        rejection_reason TEXT,
+        submitted_at TIMESTAMPTZ DEFAULT NOW(),
+        reviewed_at TIMESTAMPTZ
+      )
+    `);
+
     let query = "";
     let params: any[] = [];
 
@@ -2521,6 +2544,24 @@ router.post("/kyc/submit", async (req, res) => {
 // 2. Fetch Pending KYC submissions for Admin Review
 router.get("/kyc/pending", async (_req, res) => {
   try {
+    // Auto-create table if it doesn't exist yet
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS kyc_verifications (
+        id SERIAL PRIMARY KEY,
+        customer_id INTEGER,
+        user_id INTEGER,
+        user_role TEXT DEFAULT 'customer',
+        user_name TEXT,
+        user_mobile TEXT,
+        aadhaar_number TEXT,
+        aadhaar_front_url TEXT,
+        aadhaar_back_url TEXT,
+        status TEXT DEFAULT 'pending',
+        rejection_reason TEXT,
+        submitted_at TIMESTAMPTZ DEFAULT NOW(),
+        reviewed_at TIMESTAMPTZ
+      )
+    `);
     const result = await queryWithRetry(
       () => pool.query(`
         SELECT 
