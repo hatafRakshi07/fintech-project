@@ -89,7 +89,7 @@ function CollectorDashboard() {
 
 // ── Admin dashboard ────────────────────────────────────────────────────────────
 function AdminDashboard() {
-  const [pendingModal, setPendingModal] = useState<any>(null);
+  const [pendingModal, setPendingModal] = useState<{ scheme: any; month: string } | null>(null);
   const { data: statsData } = useGetDashboardStats();
   const stats = (statsData as any) || {};
   const { data: schemeBoxesData, isLoading } = useQuery<any>({
@@ -195,7 +195,7 @@ function AdminDashboard() {
         ) : (
           <div className="space-y-6">
             {schemes.map((scheme: any, idx: number) => (
-              <SchemeCard key={`scheme-${scheme.id || idx}`} scheme={scheme} idx={idx} onOpenPending={setPendingModal} />
+              <SchemeCard key={`scheme-${scheme.id || idx}`} scheme={scheme} idx={idx} onOpenPending={(s, month) => setPendingModal({ scheme: s, month })} />
             ))}
           </div>
         )}
@@ -236,41 +236,55 @@ function AdminDashboard() {
         </CardContent>
       </Card>
 
-      {pendingModal && <PendingTokensModal scheme={pendingModal} onClose={() => setPendingModal(null)} />}
+      {pendingModal && <PendingTokensModal scheme={pendingModal.scheme} month={pendingModal.month} onClose={() => setPendingModal(null)} />}
     </div>
   );
 }
 
 // ── Per-scheme card with month dropdown ───────────────────────────────────────
-function SchemeCard({ scheme, idx, onOpenPending }: { scheme: any; idx: number; onOpenPending: (s: any) => void }) {
+function SchemeCard({ scheme, idx, onOpenPending }: {
+  scheme: any;
+  idx: number;
+  onOpenPending: (s: any, month: string) => void;
+}) {
   const rawMonths: any[] = Array.isArray(scheme.monthlyBreakdown) ? scheme.monthlyBreakdown : [];
-  // Normalize months - ensure each entry has a `month` string field
-  const months = rawMonths.map(m => ({
-    month: String(m.month || m.label || m.name || ""),
-    amount: Number(m.amount || 0),
-    count: Number(m.count || 0),
-  })).filter(m => m.month);
+  const months = rawMonths
+    .map(m => ({ month: String(m.month || m.label || m.name || ""), amount: Number(m.amount || 0), count: Number(m.count || 0) }))
+    .filter(m => m.month);
 
-  const currentMonthLabel = scheme.currentMonthName || months[0]?.month || "";
-  const [selectedMonth, setSelectedMonth] = useState(currentMonthLabel);
-
-  const isCurrentMonth = selectedMonth === currentMonthLabel || selectedMonth === "";
-  const monthData = months.find(m => m.month === selectedMonth);
+  // Default to first month in list (most recent with data)
+  const defaultMonth = months[0]?.month || "";
+  const [selectedMonth, setSelectedMonth] = useState(defaultMonth);
 
   const memberLimit = Number(scheme.memberLimit || 500);
   const installmentAmt = Number(scheme.installmentAmount || 3000);
   const monthlyPool = memberLimit * installmentAmt;
 
-  const displayCollected = isCurrentMonth ? Number(scheme.thisMonthCollected || 0) : (monthData?.amount || 0);
-  const displayReceipts = isCurrentMonth
+  // Current calendar month for determining if we have live pending data
+  const now = new Date();
+  const calCurrentMonth = now.toLocaleString("en-US", { month: "short" }) + " " + now.getFullYear(); // "Aug 2026"
+
+  // Check if selected month = the month the API computed pending counts for
+  // API pending is for DATE_TRUNC('month', NOW()) = current calendar month
+  const apiPendingMonth = scheme.currentMonthName || "";
+  const showLivePending = selectedMonth === apiPendingMonth || selectedMonth === calCurrentMonth || !selectedMonth;
+
+  const monthData = months.find(m => m.month === selectedMonth);
+  const displayCollected = showLivePending
+    ? Number(scheme.thisMonthCollected || 0)
+    : (monthData?.amount || 0);
+  const displayReceipts = showLivePending
     ? Number(scheme.thisMonthReceipts || monthData?.count || 0)
     : (monthData?.count || 0);
-  const displayPendingAmt = isCurrentMonth
-    ? Number(scheme.dueAmount || 0)
-    : Math.max(0, monthlyPool - displayCollected);
-  const displayPendingCount = isCurrentMonth
-    ? Number(scheme.thisMonthPendingCount || 0)
-    : Math.max(0, memberLimit - Math.round(displayCollected / (installmentAmt || 1)));
+
+  // Always compute pending from actual or estimated data
+  const livePendingAmt = Number(scheme.dueAmount || 0);
+  const livePendingCount = Number(scheme.thisMonthPendingCount || 0);
+  const estPendingAmt = Math.max(0, monthlyPool - displayCollected);
+  const estPendingCount = Math.max(0, memberLimit - Math.round(displayCollected / (installmentAmt || 1)));
+
+  const displayPendingAmt = showLivePending ? livePendingAmt : estPendingAmt;
+  const displayPendingCount = showLivePending ? livePendingCount : estPendingCount;
 
   const drawText = scheme.id === 1 ? "5th Date" : scheme.id === 2 ? "15th Date" : scheme.id === 3 ? "20th Date" : "10th Date";
 
@@ -289,38 +303,27 @@ function SchemeCard({ scheme, idx, onOpenPending }: { scheme: any; idx: number; 
     <style>body{font-family:Arial;padding:24px;font-size:13px}h2{color:#1e293b}table{width:100%;border-collapse:collapse}th{background:#f1f5f9;padding:8px 14px;text-align:left;border-bottom:2px solid #e2e8f0}p{color:#64748b}button{margin-bottom:16px;padding:8px 20px;background:#6366f1;color:white;border:none;border-radius:6px;cursor:pointer;font-weight:700}@media print{button{display:none}}</style></head>
     <body>
     <h2>📋 Monthly Collection Report — ${scheme.name}</h2>
-    <p>Monthly Pool Target: ₹${monthlyPool.toLocaleString("en-IN")} | Installment: ₹${installmentAmt}/member | Members: ${scheme.filledTokens || scheme.tokenCount}/${memberLimit}</p>
+    <p>Monthly Pool: ₹${monthlyPool.toLocaleString("en-IN")} | Installment: ₹${installmentAmt}/member | Members: ${scheme.filledTokens || scheme.tokenCount}/${memberLimit}</p>
     <button onclick="window.print()">🖨️ Print / Save PDF</button>
-    <table><thead><tr><th>Month</th><th style="text-align:right">Collected</th><th style="text-align:center">Receipts</th><th style="text-align:right">Pending Amount</th></tr></thead>
+    <table><thead><tr><th>Month</th><th style="text-align:right">Collected</th><th style="text-align:center">Receipts</th><th style="text-align:right">Pending (Est.)</th></tr></thead>
     <tbody>${rows}</tbody></table>
-    <p style="margin-top:16px">Current Month Pending: ${displayPendingCount} tokens unpaid | ₹${displayPendingAmt.toLocaleString("en-IN")}</p>
+    <p style="margin-top:16px;color:#e11d48">Current Pending: ${livePendingCount} tokens | ₹${livePendingAmt.toLocaleString("en-IN")} (Live Data)</p>
     </body></html>`);
     w.document.close();
   };
 
   return (
     <Card className="border-border shadow-md overflow-hidden bg-card">
-      {/* ── Scheme header ── */}
+      {/* Header */}
       <CardHeader className="p-4 bg-muted/40 border-b">
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
-          {/* Left: name + badges */}
           <div className="flex items-center gap-2 flex-wrap">
             <h3 className="text-lg font-bold text-foreground">{scheme.name}</h3>
-            <Badge variant="outline" className="font-mono text-[10px] uppercase font-bold bg-primary/10 text-primary border-primary/20">
-              BISSI-{idx + 1}
-            </Badge>
-            <Badge variant="secondary" className="text-xs bg-emerald-500/10 text-emerald-600 border-emerald-500/20">
-              ₹{installmentAmt.toLocaleString("en-IN")}/month
-            </Badge>
-            <Badge variant="outline" className="text-xs bg-indigo-500/10 text-indigo-600 border-indigo-500/20">
-              Tokens: {scheme.filledTokens || scheme.tokenCount || 0}/{memberLimit}
-            </Badge>
-            <Badge variant="outline" className="text-xs bg-purple-500/10 text-purple-600 border-purple-500/20">
-              Draw: {drawText}
-            </Badge>
+            <Badge variant="outline" className="font-mono text-[10px] uppercase font-bold bg-primary/10 text-primary border-primary/20">BISSI-{idx + 1}</Badge>
+            <Badge variant="secondary" className="text-xs bg-emerald-500/10 text-emerald-600 border-emerald-500/20">₹{installmentAmt.toLocaleString("en-IN")}/month</Badge>
+            <Badge variant="outline" className="text-xs bg-indigo-500/10 text-indigo-600 border-indigo-500/20">Tokens: {scheme.filledTokens || scheme.tokenCount || 0}/{memberLimit}</Badge>
+            <Badge variant="outline" className="text-xs bg-purple-500/10 text-purple-600 border-purple-500/20">Draw: {drawText}</Badge>
           </div>
-
-          {/* Right: month selector + print */}
           <div className="flex items-center gap-2 shrink-0">
             {months.length > 0 && (
               <div className="flex items-center gap-1.5 bg-background border border-primary/30 rounded-lg px-2 py-1">
@@ -329,12 +332,10 @@ function SchemeCard({ scheme, idx, onOpenPending }: { scheme: any; idx: number; 
                   value={selectedMonth}
                   onChange={e => setSelectedMonth(e.target.value)}
                   className="bg-transparent text-xs font-semibold text-foreground focus:outline-none cursor-pointer"
-                  style={{ minWidth: 100 }}
+                  style={{ minWidth: 90 }}
                 >
                   {months.map((mb, i) => (
-                    <option key={i} value={mb.month}>
-                      {mb.month}{mb.month === currentMonthLabel ? " ✓" : ""}
-                    </option>
+                    <option key={i} value={mb.month}>{mb.month}</option>
                   ))}
                 </select>
               </div>
@@ -352,76 +353,55 @@ function SchemeCard({ scheme, idx, onOpenPending }: { scheme: any; idx: number; 
         </div>
       </CardHeader>
 
-      {/* ── 4 Stat boxes ── */}
+      {/* 4 Stat boxes */}
       <CardContent className="p-5">
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-
-          {/* 1. Monthly Pool Target */}
+          {/* Monthly Pool */}
           <div className="p-4 rounded-xl border border-purple-500/20 bg-purple-500/5 space-y-1">
             <div className="flex justify-between items-center text-xs font-bold text-purple-600 dark:text-purple-400">
               <span>Monthly Pool Target</span>
               <Wallet className="w-4 h-4" />
             </div>
-            <div className="text-xl lg:text-2xl font-extrabold font-mono text-purple-600 dark:text-purple-400">
-              {fmt(monthlyPool)}
-            </div>
-            <span className="text-[10px] text-muted-foreground block">
-              {memberLimit} members × ₹{installmentAmt.toLocaleString("en-IN")}
-            </span>
+            <div className="text-xl lg:text-2xl font-extrabold font-mono text-purple-600 dark:text-purple-400">{fmt(monthlyPool)}</div>
+            <span className="text-[10px] text-muted-foreground block">{memberLimit} members × ₹{installmentAmt.toLocaleString("en-IN")}</span>
           </div>
 
-          {/* 2. Collected */}
+          {/* Collected */}
           <div className="p-4 rounded-xl border border-emerald-500/20 bg-emerald-500/5 space-y-1">
             <div className="flex justify-between items-center text-xs font-bold text-emerald-600 dark:text-emerald-400">
-              <span>{isCurrentMonth ? "इस महीने आया" : "Collected"}</span>
+              <span>{selectedMonth || "This Month"} Collected</span>
               <Wallet className="w-4 h-4" />
             </div>
-            <div className="text-xl lg:text-2xl font-extrabold font-mono text-emerald-600 dark:text-emerald-400">
-              {fmt(displayCollected)}
+            <div className="text-xl lg:text-2xl font-extrabold font-mono text-emerald-600 dark:text-emerald-400">{fmt(displayCollected)}</div>
+            <span className="text-[10px] text-muted-foreground block">{displayReceipts} receipts collected</span>
+          </div>
+
+          {/* Pending Amount — always clickable */}
+          <div
+            onClick={() => onOpenPending(scheme, selectedMonth)}
+            className="p-4 rounded-xl border border-rose-500/20 bg-rose-500/5 space-y-1 cursor-pointer hover:border-rose-500/60 hover:bg-rose-500/10 transition-colors"
+          >
+            <div className="flex justify-between items-center text-xs font-bold text-rose-600 dark:text-rose-400">
+              <span>Pending (बकाया)</span>
+              <AlertCircle className="w-4 h-4" />
             </div>
-            <span className="text-[10px] text-muted-foreground block">
-              {displayReceipts > 0 ? `${displayReceipts} receipts` : "0 receipts"} collected
+            <div className="text-xl lg:text-2xl font-extrabold font-mono text-rose-600 dark:text-rose-400">{fmt(displayPendingAmt)}</div>
+            <span className="text-[11px] text-rose-600 font-bold block">
+              🔴 {displayPendingCount} Tokens Unpaid → Click to View
             </span>
           </div>
 
-          {/* 3. Pending amount — clickable */}
+          {/* Pending List — always clickable */}
           <div
-            onClick={() => isCurrentMonth && onOpenPending(scheme)}
-            className={`p-4 rounded-xl border border-rose-500/20 bg-rose-500/5 space-y-1 transition-colors ${isCurrentMonth ? "cursor-pointer hover:border-rose-500/60 hover:bg-rose-500/10" : "cursor-default"}`}
-          >
-            <div className="flex justify-between items-center text-xs font-bold text-rose-600 dark:text-rose-400">
-              <span>{isCurrentMonth ? "बकाया (Pending)" : "Pending"}</span>
-              <AlertCircle className="w-4 h-4" />
-            </div>
-            <div className="text-xl lg:text-2xl font-extrabold font-mono text-rose-600 dark:text-rose-400">
-              {fmt(displayPendingAmt)}
-            </div>
-            {isCurrentMonth ? (
-              <span className="text-[11px] text-rose-600 font-bold block">
-                🔴 {displayPendingCount} Tokens Unpaid →
-              </span>
-            ) : (
-              <span className="text-[10px] text-muted-foreground block">~{displayPendingCount} tokens estimated</span>
-            )}
-          </div>
-
-          {/* 4. Pending list — clickable */}
-          <div
-            onClick={() => isCurrentMonth && onOpenPending(scheme)}
-            className={`p-4 rounded-xl border border-rose-500/20 bg-rose-50/50 dark:bg-rose-950/20 space-y-1 transition-colors ${isCurrentMonth ? "cursor-pointer hover:border-rose-500/60" : "cursor-default"}`}
+            onClick={() => onOpenPending(scheme, selectedMonth)}
+            className="p-4 rounded-xl border border-rose-500/20 bg-rose-50/50 dark:bg-rose-950/20 space-y-1 cursor-pointer hover:border-rose-500/60 transition-colors"
           >
             <div className="flex justify-between items-center text-xs font-bold text-rose-600 dark:text-rose-400">
               <span>Pending Tokens List</span>
               <AlertCircle className="w-4 h-4" />
             </div>
-            <div className="text-xl lg:text-2xl font-extrabold font-mono text-rose-600 dark:text-rose-400">
-              {displayPendingCount} Pending
-            </div>
-            {isCurrentMonth ? (
-              <span className="text-[11px] font-semibold text-rose-600 block">📋 View & Print Pending List →</span>
-            ) : (
-              <span className="text-[10px] text-muted-foreground block">Switch to current month to view</span>
-            )}
+            <div className="text-xl lg:text-2xl font-extrabold font-mono text-rose-600 dark:text-rose-400">{displayPendingCount} Pending</div>
+            <span className="text-[11px] font-semibold text-rose-600 block">📋 View List & Print →</span>
           </div>
         </div>
       </CardContent>
@@ -429,26 +409,25 @@ function SchemeCard({ scheme, idx, onOpenPending }: { scheme: any; idx: number; 
   );
 }
 
-// ── Pending tokens popup modal ─────────────────────────────────────────────────
-function PendingTokensModal({ scheme, onClose }: { scheme: any; onClose: () => void }) {
+// ── Pending tokens modal ───────────────────────────────────────────────────────
+function PendingTokensModal({ scheme, month, onClose }: { scheme: any; month: string; onClose: () => void }) {
   const [search, setSearch] = useState("");
 
+  const queryParams = new URLSearchParams();
+  queryParams.set("committeeId", String(scheme.id));
+  if (month) queryParams.set("month", month);
+
   const { data, isLoading } = useQuery<any>({
-    queryKey: ["pending-report-modal", scheme.id],
-    queryFn: () => customFetch(`/dashboard/pending-report?committeeId=${scheme.id}`),
+    queryKey: ["pending-report-modal", scheme.id, month],
+    queryFn: () => customFetch(`/dashboard/pending-report?${queryParams.toString()}`),
     staleTime: 30_000,
   });
 
   const rawList: any[] = Array.isArray(data?.pendingList) ? data.pendingList : [];
-
   const pendingList = search.trim()
     ? rawList.filter(item => {
         const q = search.toLowerCase();
-        return (
-          item.customerName?.toLowerCase().includes(q) ||
-          item.customerMobile?.includes(q) ||
-          String(item.tokenNumber)?.includes(q)
-        );
+        return item.customerName?.toLowerCase().includes(q) || item.customerMobile?.includes(q) || String(item.tokenNumber).includes(q);
       })
     : rawList;
 
@@ -469,11 +448,10 @@ function PendingTokensModal({ scheme, onClose }: { scheme: any; onClose: () => v
         <td style="padding:8px;border-bottom:1px solid #eee;width:120px;border-left:1px dashed #ddd"></td>
       </tr>`
     ).join("");
-    w.document.write(`<!DOCTYPE html><html><head><title>Pending List — ${scheme.name}</title>
+    w.document.write(`<!DOCTYPE html><html><head><title>Pending — ${scheme.name}</title>
     <style>
       body{font-family:Arial;padding:24px;font-size:12px;color:#0f172a}
       .hdr{display:flex;justify-content:space-between;border-bottom:2px solid #e11d48;padding-bottom:12px;margin-bottom:12px}
-      .title{font-size:18px;font-weight:800;color:#9f1239}
       .summary{background:#fff1f2;border:1px solid #fecdd3;padding:10px 16px;border-radius:8px;margin-bottom:14px;display:flex;justify-content:space-between;font-weight:700}
       table{width:100%;border-collapse:collapse}
       th{background:#f8fafc;padding:8px;text-align:left;border-bottom:2px solid #e2e8f0;font-size:11px}
@@ -483,8 +461,8 @@ function PendingTokensModal({ scheme, onClose }: { scheme: any; onClose: () => v
     <body>
     <button onclick="window.print()">🖨️ Print / Save PDF</button>
     <div class="hdr">
-      <div><div class="title">SHREE KRISHNA ASSOCIATION</div><div style="font-size:12px;color:#64748b">Pending Members Report — ${scheme.name}</div></div>
-      <div style="text-align:right;font-size:11px;color:#475569">Date: ${new Date().toLocaleDateString("en-IN")}<br>Total Pending: ${pendingList.length} tokens</div>
+      <div><div style="font-size:18px;font-weight:800;color:#9f1239">SHREE KRISHNA ASSOCIATION</div><div style="font-size:12px;color:#64748b">Pending Members — ${scheme.name} | ${month || "Current Month"}</div></div>
+      <div style="text-align:right;font-size:11px;color:#475569">Date: ${new Date().toLocaleDateString("en-IN")}</div>
     </div>
     <div class="summary">
       <span>🔴 Pending Tokens: <span style="color:#e11d48">${pendingList.length}</span></span>
@@ -505,11 +483,11 @@ function PendingTokensModal({ scheme, onClose }: { scheme: any; onClose: () => v
           <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 pr-8">
             <DialogTitle className="flex items-center gap-2 text-base font-bold text-rose-600">
               <AlertCircle className="h-5 w-5 text-rose-600" />
-              Pending Tokens — {scheme.name}
+              Pending — {scheme.name} {month ? `(${month})` : ""}
             </DialogTitle>
             <div className="flex items-center gap-2">
               <Badge variant="outline" className="text-xs bg-rose-500/10 text-rose-600 border-rose-500/30 font-mono">
-                {pendingList.length} Unpaid · {fmt(totalPending)}
+                {isLoading ? "Loading..." : `${pendingList.length} Unpaid · ${fmt(totalPending)}`}
               </Badge>
               <Button size="sm" variant="outline" onClick={handlePrint} className="h-8 text-xs gap-1 text-rose-600 border-rose-500/30">
                 <Printer className="w-3.5 h-3.5" /> Print
@@ -517,12 +495,7 @@ function PendingTokensModal({ scheme, onClose }: { scheme: any; onClose: () => v
             </div>
           </div>
           <div className="pt-2">
-            <Input
-              placeholder="Search by Name, Mobile or Token #..."
-              value={search}
-              onChange={e => setSearch(e.target.value)}
-              className="h-9 text-xs"
-            />
+            <Input placeholder="Search by Name, Mobile or Token #..." value={search} onChange={e => setSearch(e.target.value)} className="h-9 text-xs" />
           </div>
         </DialogHeader>
 
@@ -532,7 +505,7 @@ function PendingTokensModal({ scheme, onClose }: { scheme: any; onClose: () => v
               <div className="w-8 h-8 border-4 border-rose-500 border-t-transparent rounded-full animate-spin" />
             </div>
           ) : pendingList.length === 0 ? (
-            <div className="text-center py-12 text-sm text-muted-foreground">🎉 All members have paid this month!</div>
+            <div className="text-center py-12 text-sm text-muted-foreground">🎉 All members paid for {month || "this month"}!</div>
           ) : (
             <Table>
               <TableHeader className="bg-muted/50 sticky top-0">
@@ -550,13 +523,9 @@ function PendingTokensModal({ scheme, onClose }: { scheme: any; onClose: () => v
                     <TableCell className="font-mono text-xs font-bold text-indigo-600">#{p.tokenNumber || "—"}</TableCell>
                     <TableCell className="font-semibold text-xs">{p.customerName || "Member"}</TableCell>
                     <TableCell className="text-xs font-mono text-muted-foreground">{p.customerMobile || "—"}</TableCell>
-                    <TableCell className="text-right text-xs font-mono font-bold text-rose-600">
-                      {fmt(p.installmentAmount || installmentAmt)}
-                    </TableCell>
+                    <TableCell className="text-right text-xs font-mono font-bold text-rose-600">{fmt(p.installmentAmount || installmentAmt)}</TableCell>
                     <TableCell className="text-center">
-                      <Badge className="text-[10px] bg-rose-100 text-rose-700 border border-rose-200 dark:bg-rose-950 dark:text-rose-400">
-                        🔴 Pending
-                      </Badge>
+                      <Badge className="text-[10px] bg-rose-100 text-rose-700 border border-rose-200 dark:bg-rose-950 dark:text-rose-400">🔴 Pending</Badge>
                     </TableCell>
                   </TableRow>
                 ))}
