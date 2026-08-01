@@ -321,6 +321,9 @@ function AdminDashboard() {
         </Card>
       </div>
 
+      {/* Real-Time Pending Members & Tokens Section */}
+      <PendingReportCard />
+
       {/* Scheme Operational Boxes Section */}
       <div className="space-y-4">
         <div className="flex items-center gap-2">
@@ -587,70 +590,186 @@ function AdminDashboard() {
 }
 
 function PendingReportCard() {
+  const [selectedCommittee, setSelectedCommittee] = useState("all");
+  const [selectedMonth, setSelectedMonth] = useState("all");
+
+  const queryParams = new URLSearchParams();
+  if (selectedCommittee !== "all") queryParams.set("committeeId", selectedCommittee);
+  if (selectedMonth !== "all") queryParams.set("month", selectedMonth);
+
   const { data: pendingData, isLoading } = useQuery<{ success: boolean; pendingList: any[]; totalPending: number }>({
-    queryKey: ["dashboard-pending-report"],
-    queryFn: () => customFetch("/dashboard/pending-report"),
+    queryKey: ["dashboard-pending-report", selectedCommittee, selectedMonth],
+    queryFn: () => customFetch(`/dashboard/pending-report?${queryParams.toString()}`),
   });
 
   const pendingList = pendingData?.pendingList || [];
+  const totalPendingAmount = pendingList.reduce((sum, item) => sum + Number(item.installmentAmount || 3000), 0);
 
   const handlePrint = () => {
-    window.print();
+    const w = window.open("", "_blank");
+    if (!w) return;
+
+    const commName = selectedCommittee === "all" ? "All Bissi Schemes" : (selectedCommittee === "1" ? "Sawariya Seth Bissi (5th Date)" : selectedCommittee === "2" ? "Pyare Mohan Bissi (15th Date)" : selectedCommittee === "3" ? "Hare Ka Sahara Bissi (20th Date)" : "Shree Krishna Associate Bissi (10th Date)");
+    const monthName = selectedMonth === "all" ? "All Active Months" : selectedMonth;
+
+    const rows = pendingList.map((item, idx) => `
+      <tr>
+        <td style="padding:8px;border-bottom:1px solid #e2e8f0;font-weight:bold;color:#4f46e5 font-family:monospace">#${item.tokenNumber || "—"}</td>
+        <td style="padding:8px;border-bottom:1px solid #e2e8f0;font-weight:bold;color:#0f172a">${item.customerName || "Member"}</td>
+        <td style="padding:8px;border-bottom:1px solid #e2e8f0 font-family:monospace">${item.customerMobile || "—"}</td>
+        <td style="padding:8px;border-bottom:1px solid #e2e8f0;color:#64748b;font-size:11px">${item.customerAddress || "—"}</td>
+        <td style="padding:8px;border-bottom:1px solid #e2e8f0;font-size:11px;color:#475569">${item.committeeName}</td>
+        <td style="padding:8px;border-bottom:1px solid #e2e8f0;text-align:right;font-weight:bold;color:#e11d48;font-family:monospace">₹${Number(item.installmentAmount).toLocaleString("en-IN")}</td>
+        <td style="padding:8px;border-bottom:1px solid #e2e8f0;text-align:center;color:#e11d48;font-weight:bold;font-size:10px">🔴 PENDING</td>
+        <td style="padding:8px;border-bottom:1px solid #e2e8f0;border-left:1px dashed #cbd5e1"></td>
+      </tr>
+    `).join("");
+
+    w.document.write(`<!DOCTYPE html>
+<html>
+<head>
+  <title>Pending Tokens Report - ${commName}</title>
+  <style>
+    body { font-family: 'Segoe UI', Arial, sans-serif; padding: 24px; font-size: 12px; color: #0f172a; }
+    .header { border-bottom: 2px solid #e11d48; padding-bottom: 12px; margin-bottom: 16px; display: flex; justify-content: space-between; align-items: flex-end; }
+    .title { font-size: 20px; font-weight: 800; color: #9f1239; }
+    .subtitle { font-size: 12px; color: #64748b; margin-top: 2px; }
+    .summary-box { background: #fff1f2; border: 1px solid #fecdd3; padding: 12px 16px; border-radius: 8px; margin-bottom: 16px; display: flex; justify-content: space-between; font-weight: bold; }
+    table { width: 100%; border-collapse: collapse; margin-top: 8px; }
+    th { background: #f8fafc; padding: 10px 8px; text-align: left; border-bottom: 2px solid #cbd5e1; font-size: 11px; color: #334155; }
+    button { margin-bottom: 16px; padding: 10px 20px; background: #e11d48; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: bold; font-size: 13px; shadow: 0 2px 4px rgba(0,0,0,0.1); }
+    @media print { button { display: none; } }
+  </style>
+</head>
+<body>
+  <button onclick="window.print()">🖨️ Print / Save PDF Pending List</button>
+  <div class="header">
+    <div>
+      <div class="title">🏛️ SHREE KRISHNA ASSOCIATION</div>
+      <div class="subtitle">Official Bissi Committee Monthly Pending Tokens & Collection Ledger Report</div>
+    </div>
+    <div style="text-align:right">
+      <div style="font-weight:bold;font-size:13px;color:#0f172a">${commName}</div>
+      <div style="font-size:11px;color:#64748b">Filter Month: ${monthName} | Date: ${new Date().toLocaleDateString("en-IN")}</div>
+    </div>
+  </div>
+
+  <div class="summary-box">
+    <span>🔴 Total Pending Member Tokens: <span style="color:#e11d48">${pendingList.length}</span></span>
+    <span>💸 Total Pending Amount Due: <span style="color:#e11d48">₹${totalPendingAmount.toLocaleString("en-IN")}</span></span>
+  </div>
+
+  <table>
+    <thead>
+      <tr>
+        <th style="width:70px">Token #</th>
+        <th>Member Name (नाम)</th>
+        <th style="width:100px">Mobile</th>
+        <th>Address</th>
+        <th>Bissi Scheme</th>
+        <th style="text-align:right;width:100px">Pending Due (₹)</th>
+        <th style="text-align:center;width:80px">Status</th>
+        <th style="width:110px;text-align:center">Collector Sign</th>
+      </tr>
+    </thead>
+    <tbody>
+      ${rows}
+    </tbody>
+  </table>
+  <div style="margin-top:24px;text-align:right;font-size:11px;color:#94a3b8">
+    Report Generated by Real-Time Bissi Master Portal • Page 1 of 1
+  </div>
+</body>
+</html>`);
+    w.document.close();
   };
 
   return (
     <Card className="shadow-md border-rose-500/20">
-      <CardHeader className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 bg-rose-500/5">
+      <CardHeader className="flex flex-col md:flex-row items-start md:items-center justify-between gap-3 bg-rose-500/5 p-4 border-b">
         <div>
           <CardTitle className="text-lg font-bold text-rose-700 dark:text-rose-400 flex items-center gap-2">
             <AlertCircle className="w-5 h-5 text-rose-600" />
-            Pending Members & Tokens Report
+            Real-Time Pending Tokens & Unpaid List (मासिक बकाया टोकन सूची)
           </CardTitle>
           <CardDescription className="text-xs">
-            List of assigned tokens with pending installment payments ({pendingList.length} Records)
+            Live real-time list of members who have not paid installment payments ({pendingList.length} Pending Tokens • ₹{totalPendingAmount.toLocaleString("en-IN")} Pending Due)
           </CardDescription>
         </div>
-        <Button onClick={handlePrint} size="sm" className="bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs gap-1.5 shadow-sm">
-          <Printer className="w-4 h-4" />
-          Print Pending List
-        </Button>
+        
+        <div className="flex flex-wrap items-center gap-2 w-full md:w-auto">
+          {/* Committee Filter */}
+          <select
+            value={selectedCommittee}
+            onChange={e => setSelectedCommittee(e.target.value)}
+            className="h-8 text-xs font-bold bg-card border rounded-md px-2 focus:outline-none cursor-pointer"
+          >
+            <option value="all">All Bissi Schemes</option>
+            <option value="1">Sawariya Seth Bissi (5th)</option>
+            <option value="2">Pyare Mohan Bissi (15th)</option>
+            <option value="3">Hare Ka Sahara Bissi (20th)</option>
+            <option value="4">Shree Krishna Bissi (10th)</option>
+          </select>
+
+          {/* Month Filter */}
+          <select
+            value={selectedMonth}
+            onChange={e => setSelectedMonth(e.target.value)}
+            className="h-8 text-xs font-bold bg-card border rounded-md px-2 focus:outline-none cursor-pointer"
+          >
+            <option value="all">🗓️ All Months</option>
+            <option value="Jul-26">July 2026</option>
+            <option value="Jun-26">June 2026</option>
+            <option value="May-26">May 2026</option>
+            <option value="Apr-26">April 2026</option>
+            <option value="Mar-26">March 2026</option>
+            <option value="Feb-26">February 2026</option>
+            <option value="Jan-26">January 2026</option>
+            <option value="Dec-25">December 2025</option>
+            <option value="Nov-25">November 2025</option>
+            <option value="Jun-24">June 2024</option>
+          </select>
+
+          <Button onClick={handlePrint} size="sm" className="h-8 bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs gap-1.5 shadow-sm">
+            <Printer className="w-3.5 h-3.5" />
+            Print Pending List
+          </Button>
+        </div>
       </CardHeader>
-      <CardContent className="p-4">
+
+      <CardContent className="p-0">
         {isLoading ? (
-          <p className="text-xs text-muted-foreground">Loading pending report list...</p>
+          <div className="p-8 text-center text-xs text-muted-foreground">Loading real-time pending report list...</div>
         ) : pendingList.length === 0 ? (
-          <p className="text-xs text-muted-foreground">No pending tokens found.</p>
+          <div className="p-8 text-center text-xs text-muted-foreground font-semibold text-emerald-600">
+            🎉 All members have paid for this selection! No pending tokens found.
+          </div>
         ) : (
-          <div className="overflow-x-auto">
+          <div className="overflow-x-auto max-h-[400px]">
             <table className="w-full text-xs border-collapse">
-              <thead>
-                <tr className="bg-muted text-muted-foreground text-left border-b">
-                  <th className="p-2 font-bold">Token #</th>
-                  <th className="p-2 font-bold">Bissi Scheme</th>
-                  <th className="p-2 font-bold">Member Name</th>
-                  <th className="p-2 font-bold">Mobile</th>
-                  <th className="p-2 font-bold">Ref No</th>
-                  <th className="p-2 font-bold text-right">Installment</th>
+              <thead className="sticky top-0 bg-muted/90 backdrop-blur-xs z-10">
+                <tr className="text-muted-foreground text-left border-b">
+                  <th className="p-3 font-bold pl-4">Token #</th>
+                  <th className="p-3 font-bold">Bissi Scheme</th>
+                  <th className="p-3 font-bold">Member Name</th>
+                  <th className="p-3 font-bold">Mobile</th>
+                  <th className="p-3 font-bold">Address</th>
+                  <th className="p-3 font-bold text-right pr-4">Installment Due</th>
                 </tr>
               </thead>
               <tbody>
-                {pendingList.slice(0, 50).map((item: any, idx: number) => (
-                  <tr key={idx} className="border-b hover:bg-muted/50">
-                    <td className="p-2 font-mono font-bold text-indigo-600">#{item.tokenNumber}</td>
-                    <td className="p-2 font-semibold">{item.committeeName}</td>
-                    <td className="p-2 font-bold text-foreground">{item.customerName}</td>
-                    <td className="p-2 font-mono">{item.customerMobile || "N/A"}</td>
-                    <td className="p-2 font-mono text-muted-foreground">{item.referenceNumber || "—"}</td>
-                    <td className="p-2 text-right font-mono font-bold text-rose-600">₹{item.installmentAmount}</td>
+                {pendingList.map((item: any, idx: number) => (
+                  <tr key={idx} className="border-b hover:bg-rose-500/5 transition-colors">
+                    <td className="p-3 pl-4 font-mono font-bold text-indigo-600">#{item.tokenNumber}</td>
+                    <td className="p-3 font-semibold text-muted-foreground">{item.committeeName}</td>
+                    <td className="p-3 font-bold text-foreground">{item.customerName}</td>
+                    <td className="p-3 font-mono text-muted-foreground">{item.customerMobile || "—"}</td>
+                    <td className="p-3 text-muted-foreground truncate max-w-[150px]">{item.customerAddress || "—"}</td>
+                    <td className="p-3 pr-4 text-right font-mono font-bold text-rose-600">₹{Number(item.installmentAmount).toLocaleString("en-IN")}</td>
                   </tr>
                 ))}
               </tbody>
             </table>
-            {pendingList.length > 50 && (
-              <p className="text-[11px] text-muted-foreground mt-2 text-center">
-                Showing top 50 of {pendingList.length} pending members. Click <b>Print Pending List</b> to view/print the complete document.
-              </p>
-            )}
           </div>
         )}
       </CardContent>

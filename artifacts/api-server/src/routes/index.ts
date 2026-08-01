@@ -1484,12 +1484,18 @@ router.get("/dashboard/scheme-boxes", async (req, res) => {
 
 router.get("/dashboard/pending-report", async (req, res) => {
   try {
-    const { committeeId } = req.query;
+    const { committeeId, month } = req.query as any;
     const params: any[] = [];
     let commCondition = "";
     if (committeeId && committeeId !== "all") {
-      params.push(parseInt(committeeId as string));
-      commCondition = ` AND cm.committee_id = $1`;
+      params.push(parseInt(committeeId as string, 10));
+      commCondition = ` AND t.committee_id = $${params.length}`;
+    }
+
+    let monthSubquery = `AND col.collected_at >= DATE_TRUNC('month', NOW())`;
+    if (month && month !== "all") {
+      params.push(`%${month}%`);
+      monthSubquery = `AND (col.notes ILIKE $${params.length} OR TO_CHAR(col.collected_at, 'Mon-YY') ILIKE $${params.length} OR TO_CHAR(col.collected_at, 'Mon YYYY') ILIKE $${params.length})`;
     }
 
     const result = await pool.query(`
@@ -1500,6 +1506,7 @@ router.get("/dashboard/pending-report", async (req, res) => {
         c.installment_amount as "installmentAmount",
         cust.name as "customerName",
         cust.mobile as "customerMobile",
+        cust.address as "customerAddress",
         cust.reference_number as "referenceNumber"
       FROM tokens t
       JOIN committees c ON c.id = t.committee_id
@@ -1509,12 +1516,12 @@ router.get("/dashboard/pending-report", async (req, res) => {
           SELECT DISTINCT col.customer_id
           FROM collections col
           WHERE col.committee_id = t.committee_id
-            AND col.collected_at >= DATE_TRUNC('month', NOW())
+            ${monthSubquery}
             AND col.customer_id IS NOT NULL
         )
       ORDER BY c.id ASC, 
                CASE WHEN t.token_number ~ '^[0-9]+$' THEN CAST(t.token_number AS integer) ELSE 99999 END ASC
-      LIMIT 2000
+      LIMIT 3000
     `, params);
 
     res.json({ success: true, pendingList: result.rows, totalPending: result.rows.length });
