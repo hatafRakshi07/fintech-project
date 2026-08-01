@@ -15,4 +15,6 @@ export * from './notifications';
 export * from './audit';
 export * from './relations';
 export * from './daily_diary';
+export * from './lottery_management';
+
 

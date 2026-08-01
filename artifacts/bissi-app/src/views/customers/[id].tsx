@@ -33,6 +33,7 @@ import {
   Calendar
 } from "lucide-react";
 import { format } from "date-fns";
+import { useQuery } from "@tanstack/react-query";
 
 export default function CustomerDetailPage() {
   const params = useParams<{ id?: string }>();
@@ -42,6 +43,19 @@ export default function CustomerDetailPage() {
   const { data: customer, isLoading: customerLoading } = useGetCustomer(customerId);
   const { data: passbook } = useGetCustomerPassbook(customerId);
   const { data: history, isLoading: historyLoading } = useGetCustomerHistory(customerId);
+
+  const { data: lotteryHistoryData } = useQuery({
+    queryKey: ["customer-lottery-history", customerId],
+    queryFn: async () => {
+      const res = await fetch(`/api/lottery/customer/${customerId}/history`);
+      if (!res.ok) return { gifts: [] };
+      return res.json();
+    },
+    enabled: Boolean(customerId),
+  });
+
+  const lotteryGifts = lotteryHistoryData?.gifts || [];
+
 
   if (customerLoading) return <div className="p-8">Loading customer details...</div>;
   if (!customer) return <div className="p-8">Customer not found</div>;
@@ -375,13 +389,67 @@ export default function CustomerDetailPage() {
         </TabsContent>
 
         {/* ─── GIFTS TAB ─────────────────────────────────── */}
-        <TabsContent value="gifts" className="mt-4">
+        <TabsContent value="gifts" className="mt-4 space-y-4">
+          {/* Bissi Lottery Gifts History */}
           <Card>
-            <CardHeader><CardTitle className="text-sm flex items-center gap-2"><Gift className="h-4 w-4" /> Gift History</CardTitle></CardHeader>
-            <CardContent>
-              {!gifts.length ? (
-                <div className="text-center py-8 text-muted-foreground text-sm">No gifts recorded yet.</div>
+            <CardHeader className="pb-2 border-b">
+              <CardTitle className="text-sm flex items-center justify-between">
+                <span className="flex items-center gap-2">
+                  <Gift className="h-4 w-4 text-amber-500" /> Bissi Lottery Gifts History
+                </span>
+                <Badge variant="outline" className="text-xs">{lotteryGifts.length} Won</Badge>
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="pt-3">
+              {!lotteryGifts.length ? (
+                <div className="text-center py-6 text-muted-foreground text-xs">
+                  No Bissi lottery winning gifts recorded for this customer yet.
+                </div>
               ) : (
+                <div className="space-y-3">
+                  {lotteryGifts.map((lg: any) => (
+                    <div key={lg.id} className="p-3.5 rounded-lg border bg-muted/20 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
+                      <div className="space-y-1">
+                        <div className="flex items-center gap-2">
+                          <span className="font-bold text-sm text-foreground">{lg.bissiName || "Bissi Scheme"}</span>
+                          <span className="px-2 py-0.5 rounded text-[11px] font-mono font-bold bg-amber-500/10 text-amber-600 border border-amber-500/20">
+                            Token #{lg.tokenNumber}
+                          </span>
+                        </div>
+                        <p className="text-muted-foreground">
+                          Lottery Date: <strong className="text-foreground">{lg.lotteryDate}</strong> {lg.lotteryMonth ? `(${lg.lotteryMonth})` : ""}
+                        </p>
+                        <p className="font-bold text-sm text-amber-600">
+                          Gift: {lg.giftName}
+                        </p>
+                      </div>
+
+                      <div className="flex items-center sm:flex-col sm:items-end gap-2">
+                        {lg.status === "Collected" ? (
+                          <Badge className="bg-emerald-500/20 text-emerald-700 border-emerald-500/40 text-xs">
+                            ✓ Collected ({lg.collectionDate || "Done"})
+                          </Badge>
+                        ) : (
+                          <Badge className="bg-amber-500/20 text-amber-700 border-amber-500/40 text-xs">
+                            Pending Collection
+                          </Badge>
+                        )}
+                        {lg.collectedBy && (
+                          <span className="text-[11px] text-muted-foreground">Handed by: {lg.collectedBy}</span>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Standard Gifts */}
+          {gifts.length > 0 && (
+            <Card>
+              <CardHeader><CardTitle className="text-sm flex items-center gap-2"><Gift className="h-4 w-4" /> Other Gifts</CardTitle></CardHeader>
+              <CardContent>
                 <div className="space-y-2">
                   {gifts.map((g: any) => (
                     <div key={g.id} className="flex items-center justify-between p-3 rounded-lg border">
@@ -398,10 +466,11 @@ export default function CustomerDetailPage() {
                     </div>
                   ))}
                 </div>
-              )}
-            </CardContent>
-          </Card>
+              </CardContent>
+            </Card>
+          )}
         </TabsContent>
+
 
         {/* ─── INTEREST TAB ──────────────────────────────── */}
         <TabsContent value="interest" className="mt-4">

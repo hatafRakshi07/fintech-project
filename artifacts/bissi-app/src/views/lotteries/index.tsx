@@ -1,609 +1,893 @@
 'use client';
 
 import React, { useState } from "react";
+import { Link, useLocation } from "@/lib/router-adapter";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
-  useListLotteries,
-  useCreateLottery,
-  useUpdateLottery,
-  useConductDraw,
-  useListCommittees,
-  getListLotteriesQueryKey,
-} from "@workspace/api-client-react";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { api } from "@/lib/api";
-import { safeArray } from "@/lib/utils";
+  Trophy,
+  Gift,
+  Plus,
+  Search,
+  Filter,
+  Users,
+  CheckCircle2,
+  Clock,
+  Calendar,
+  FileSpreadsheet,
+  FileText,
+  ChevronRight,
+  Phone,
+  Sparkles,
+  ArrowUpRight,
+  Eye,
+  Check,
+  AlertCircle,
+  Building2,
+  Hash,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader } from "@/components/ui/card";
-import {
-  Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
-} from "@/components/ui/table";
-import { Badge } from "@/components/ui/badge";
-import {
-  Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger,
-} from "@/components/ui/dialog";
-import {
-  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
-} from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
-import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
-import { Plus, Gift, Trophy, CalendarDays, Users, Banknote, ShieldAlert } from "lucide-react";
-import { useForm } from "react-hook-form";
-import { zodResolver } from "@hookform/resolvers/zod";
-import * as z from "zod";
-import { useToast } from "@/hooks/use-toast";
+import { Badge } from "@/components/ui/badge";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import {
-  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
-  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+  DialogFooter,
+  DialogDescription,
+} from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { useToast } from "@/hooks/use-toast";
 
-const lotterySchema = z.object({
-  committeeId: z.coerce.number().min(1, "Committee is required"),
-  drawDate: z.string().min(1, "Draw date is required"),
-  prizeAmount: z.coerce.number().optional(),
-  notes: z.string().optional(),
-});
+interface LotteryGift {
+  id: string;
+  sessionId: string;
+  tokenNumber: string;
+  tokenId?: string;
+  customerId?: string;
+  customerName: string;
+  mobileNumber: string;
+  bissiName: string;
+  giftName: string;
+  giftCategory?: string;
+  giftValue?: number;
+  status: "Pending" | "Collected";
+  collectionDate?: string;
+  collectedBy?: string;
+  remarks?: string;
+  createdAt: string;
+}
 
-const statusBadge: Record<string, "default" | "secondary" | "destructive" | "outline"> = {
-  scheduled: "outline",
-  completed: "default",
-  cancelled: "destructive",
-};
+interface LotterySession {
+  id: string;
+  bissiName: string;
+  lotteryDate: string;
+  lotteryMonth: string;
+  notes: string;
+  totalGifts: number;
+  collectedGifts: number;
+  pendingGifts: number;
+  gifts?: LotteryGift[];
+}
 
-const formatCurrency = (n: number) =>
-  new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 0 }).format(n);
+interface DashboardStats {
+  totalSessions: number;
+  totalGiftsDistributed: number;
+  collectedGifts: number;
+  pendingGifts: number;
+  todayCollectedGifts: number;
+}
 
 export default function LotteriesPage() {
-  const [statusFilter, setStatusFilter] = useState("all");
-  const [committeeFilter, setCommitteeFilter] = useState("all");
-  const [isCreateOpen, setIsCreateOpen] = useState(false);
-  const [drawConfirmId, setDrawConfirmId] = useState<number | null>(null);
-  const [drawRewardType, setDrawRewardType] = useState<"cash" | "gift">("cash");
-  const [drawCashTaken, setDrawCashTaken] = useState("");
-  const [membersLotteryId, setMembersLotteryId] = useState<number | null>(null);
-  const [selectedWinnerId, setSelectedWinnerId] = useState<string>("random");
-  const [historyGroup, setHistoryGroup] = useState<{ commName: string; draws: any[] } | null>(null);
-
-  const { data: rawLotteries, isLoading } = useListLotteries({
-    status: statusFilter !== "all" ? statusFilter : undefined,
-    committeeId: committeeFilter !== "all" ? parseInt(committeeFilter, 10) : undefined,
-  });
-  const { data: rawCommittees } = useListCommittees();
-
-  const lotteries = safeArray<any>(rawLotteries);
-  const committees = safeArray<any>(rawCommittees);
-
-  const createLottery = useCreateLottery();
-  const conductDraw = useConductDraw();
-  const queryClient = useQueryClient();
+  const [, setLocation] = useLocation();
   const { toast } = useToast();
+  const queryClient = useQueryClient();
 
-  // Members for selected lottery
-  const { data: rawMembers = [] } = useQuery<any[]>({
-    queryKey: ["lottery-members", membersLotteryId],
-    queryFn: () => api.get(`/lotteries/${membersLotteryId}/members`),
-    enabled: membersLotteryId !== null,
+  const [searchTerm, setSearchTerm] = useState("");
+  const [statusFilter, setStatusFilter] = useState("ALL");
+  const [bissiFilter, setBissiFilter] = useState("ALL");
+
+  const [selectedSession, setSelectedSession] = useState<LotterySession | null>(null);
+
+  // Modals state
+  const [isCreateSessionOpen, setIsCreateSessionOpen] = useState(false);
+  const [isAddGiftOpen, setIsAddGiftOpen] = useState(false);
+  const [isCollectModalOpen, setIsCollectModalOpen] = useState(false);
+  const [selectedGiftForCollect, setSelectedGiftForCollect] = useState<LotteryGift | null>(null);
+  const [viewGiftDetails, setViewGiftDetails] = useState<LotteryGift | null>(null);
+
+  // New Session Form
+  const [newSessionForm, setNewSessionForm] = useState({
+    bissiName: "Sanwariya Seth",
+    lotteryDate: new Date().toISOString().slice(0, 10),
+    lotteryMonth: "July 2026",
+    notes: "",
   });
 
-  // Members for draw modal selection
-  const { data: rawDrawMembers = [] } = useQuery<any[]>({
-    queryKey: ["lottery-draw-members", drawConfirmId],
-    queryFn: () => api.get(`/lotteries/${drawConfirmId}/members`),
-    enabled: drawConfirmId !== null,
+  // New Gift Form
+  const [newGiftForm, setNewGiftForm] = useState({
+    tokenNumber: "",
+    customerName: "",
+    mobileNumber: "",
+    bissiName: "",
+    giftName: "",
+    giftCategory: "Electronics",
+    giftValue: "",
+    status: "Pending",
+    collectionDate: "",
+    collectedBy: "Admin",
+    remarks: "",
   });
 
-  const members = safeArray<any>(rawMembers);
-  const drawMembers = safeArray<any>(rawDrawMembers);
+  const [isAutoDetecting, setIsAutoDetecting] = useState(false);
+  const [detectedInfo, setDetectedInfo] = useState<{ found: boolean; customerName?: string; mobileNumber?: string; bissiName?: string } | null>(null);
 
-  const form = useForm<z.infer<typeof lotterySchema>>({
-    resolver: zodResolver(lotterySchema),
-    defaultValues: {
-      committeeId: 0,
-      drawDate: new Date().toISOString().split("T")[0],
-      prizeAmount: undefined,
-      notes: "",
+  // Collect Gift Form
+  const [collectForm, setCollectForm] = useState({
+    collectionDate: new Date().toISOString().slice(0, 10),
+    collectedBy: "Admin",
+    remarks: "",
+  });
+
+  // Fetch Dashboard Stats
+  const { data: statsData } = useQuery<{ success: boolean; stats: DashboardStats }>({
+    queryKey: ["lottery-dashboard"],
+    queryFn: async () => {
+      const res = await fetch("/api/lottery/dashboard");
+      if (!res.ok) throw new Error("Failed to fetch lottery stats");
+      return res.json();
     },
   });
 
-  const onSubmit = (values: z.infer<typeof lotterySchema>) => {
-    createLottery.mutate(
-      { data: { committeeId: values.committeeId, drawDate: values.drawDate, prizeAmount: values.prizeAmount, notes: values.notes } },
-      {
-        onSuccess: () => {
-          toast({ title: "Lottery scheduled successfully" });
-          setIsCreateOpen(false);
-          form.reset();
-          queryClient.invalidateQueries({ queryKey: getListLotteriesQueryKey() });
-        },
-        onError: () => toast({ title: "Failed to schedule lottery", variant: "destructive" }),
+  // Fetch Lottery Sessions
+  const { data: sessionsData, isLoading: isSessionsLoading } = useQuery<{ success: boolean; sessions: LotterySession[] }>({
+    queryKey: ["lottery-sessions", searchTerm, bissiFilter],
+    queryFn: async () => {
+      const queryParams = new URLSearchParams();
+      if (searchTerm) queryParams.set("search", searchTerm);
+      if (bissiFilter !== "ALL") queryParams.set("bissi", bissiFilter);
+
+      const res = await fetch(`/api/lottery/sessions?${queryParams.toString()}`);
+      if (!res.ok) throw new Error("Failed to fetch lottery sessions");
+      return res.json();
+    },
+  });
+
+  // Fetch Selected Session Details (with gifts)
+  const { data: sessionDetailData, isLoading: isDetailLoading } = useQuery<{ success: boolean; session: LotterySession }>({
+    queryKey: ["lottery-session-detail", selectedSession?.id],
+    queryFn: async () => {
+      const res = await fetch(`/api/lottery/sessions/${selectedSession?.id}`);
+      if (!res.ok) throw new Error("Failed to fetch session gifts");
+      return res.json();
+    },
+    enabled: Boolean(selectedSession?.id),
+  });
+
+  const activeSessionGifts = sessionDetailData?.session?.gifts || [];
+
+  // Mutation: Create Session
+  const createSessionMutation = useMutation({
+    mutationFn: async (payload: typeof newSessionForm) => {
+      const res = await fetch("/api/lottery/sessions", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) throw new Error(data.error || "Failed to create session");
+      return data;
+    },
+    onSuccess: (data) => {
+      toast({ title: "Lottery Session Created", description: `Session created for ${data.session.bissiName}!` });
+      queryClient.invalidateQueries({ queryKey: ["lottery-dashboard"] });
+      queryClient.invalidateQueries({ queryKey: ["lottery-sessions"] });
+      setSelectedSession(data.session);
+      setIsCreateSessionOpen(false);
+      setNewSessionForm({
+        bissiName: "Sanwariya Seth",
+        lotteryDate: new Date().toISOString().slice(0, 10),
+        lotteryMonth: "July 2026",
+        notes: "",
+      });
+    },
+    onError: (err: any) => {
+      toast({ title: "Error", description: err.message, variant: "destructive" });
+    },
+  });
+
+  // Mutation: Add Gift Entry
+  const addGiftMutation = useMutation({
+    mutationFn: async (payload: typeof newGiftForm) => {
+      if (!selectedSession?.id) throw new Error("No lottery session selected");
+      const res = await fetch(`/api/lottery/sessions/${selectedSession.id}/gifts`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ...payload, bissiName: payload.bissiName || selectedSession.bissiName }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) throw new Error(data.error || "Failed to add gift entry");
+      return data;
+    },
+    onSuccess: () => {
+      toast({ title: "Gift Winning Added!", description: "Gift entry recorded for token winner." });
+      queryClient.invalidateQueries({ queryKey: ["lottery-dashboard"] });
+      queryClient.invalidateQueries({ queryKey: ["lottery-sessions"] });
+      queryClient.invalidateQueries({ queryKey: ["lottery-session-detail", selectedSession?.id] });
+      setIsAddGiftOpen(false);
+      setNewGiftForm({
+        tokenNumber: "",
+        customerName: "",
+        mobileNumber: "",
+        bissiName: "",
+        giftName: "",
+        giftCategory: "Electronics",
+        giftValue: "",
+        status: "Pending",
+        collectionDate: "",
+        collectedBy: "Admin",
+        remarks: "",
+      });
+      setDetectedInfo(null);
+    },
+    onError: (err: any) => {
+      toast({ title: "Gift Entry Error", description: err.message, variant: "destructive" });
+    },
+  });
+
+  // Mutation: Mark Gift Collected
+  const collectGiftMutation = useMutation({
+    mutationFn: async ({ giftId, payload }: { giftId: string; payload: typeof collectForm }) => {
+      const res = await fetch(`/api/lottery/gifts/${giftId}/collect`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) throw new Error(data.error || "Failed to mark gift as collected");
+      return data;
+    },
+    onSuccess: () => {
+      toast({ title: "Gift Marked as Collected!", description: "Status updated to Collected permanently." });
+      queryClient.invalidateQueries({ queryKey: ["lottery-dashboard"] });
+      queryClient.invalidateQueries({ queryKey: ["lottery-sessions"] });
+      queryClient.invalidateQueries({ queryKey: ["lottery-session-detail", selectedSession?.id] });
+      setIsCollectModalOpen(false);
+      setSelectedGiftForCollect(null);
+    },
+    onError: (err: any) => {
+      toast({ title: "Error", description: err.message, variant: "destructive" });
+    },
+  });
+
+  // Auto-detect Token Handler
+  const handleTokenNumberChange = async (tokenVal: string) => {
+    setNewGiftForm((prev) => ({ ...prev, tokenNumber: tokenVal }));
+    if (!tokenVal || tokenVal.trim().length === 0) {
+      setDetectedInfo(null);
+      return;
+    }
+
+    setIsAutoDetecting(true);
+    try {
+      const res = await fetch(`/api/lottery/detect-token?tokenNumber=${encodeURIComponent(tokenVal)}&bissiName=${encodeURIComponent(selectedSession?.bissiName || "")}`);
+      const data = await res.json();
+      if (data.found) {
+        setDetectedInfo(data);
+        setNewGiftForm((prev) => ({
+          ...prev,
+          customerName: data.customerName || prev.customerName,
+          mobileNumber: data.mobileNumber || prev.mobileNumber,
+          bissiName: data.bissiName || selectedSession?.bissiName || prev.bissiName,
+        }));
+      } else {
+        setDetectedInfo({ found: false });
       }
-    );
+    } catch {
+      setDetectedInfo({ found: false });
+    } finally {
+      setIsAutoDetecting(false);
+    }
   };
 
-  const handleConductDraw = () => {
-    if (!drawConfirmId) return;
-    conductDraw.mutate(
-      {
-        id: drawConfirmId,
-        data: {
-          rewardType: drawRewardType,
-          cashTaken: drawRewardType === "cash" && drawCashTaken ? parseFloat(drawCashTaken) : undefined,
-          winnerId: selectedWinnerId !== "random" ? parseInt(selectedWinnerId, 10) : undefined,
-        },
-      } as any,
-      {
-        onSuccess: (result: any) => {
-          toast({ title: `🎉 Winner: ${result.winnerName ?? "Selected!"}`, description: `Token: ${result.winnerToken ?? "—"} | Reward: ${drawRewardType === "cash" ? `Cash ₹${drawCashTaken || result.prizeAmount}` : "Gift"}` });
-          setDrawConfirmId(null);
-          setSelectedWinnerId("random");
-          queryClient.invalidateQueries({ queryKey: getListLotteriesQueryKey() });
-        },
-        onError: () => toast({ title: "Draw failed — ensure committee has members", variant: "destructive" }),
-      }
-    );
+  const stats = statsData?.stats || {
+    totalSessions: 0,
+    totalGiftsDistributed: 0,
+    collectedGifts: 0,
+    pendingGifts: 0,
+    todayCollectedGifts: 0,
   };
 
-  const scheduledCount = lotteries?.filter((l) => l.status === "scheduled").length ?? 0;
-  const completedCount = lotteries?.filter((l) => l.status === "completed").length ?? 0;
+  const sessions = sessionsData?.sessions || [];
+
+  // Filter gift entries by status / search
+  const filteredGifts = activeSessionGifts.filter((g) => {
+    if (statusFilter !== "ALL" && g.status !== statusFilter) return false;
+    if (searchTerm) {
+      const term = searchTerm.toLowerCase();
+      return (
+        g.customerName.toLowerCase().includes(term) ||
+        g.tokenNumber.toLowerCase().includes(term) ||
+        g.giftName.toLowerCase().includes(term) ||
+        g.mobileNumber.toLowerCase().includes(term)
+      );
+    }
+    return true;
+  });
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight">Lotteries</h1>
-          <p className="text-muted-foreground">Schedule and conduct committee lucky draws.</p>
+    <div className="space-y-6 pb-12">
+      {/* Header Banner */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-gradient-to-r from-slate-900 via-amber-950 to-slate-900 p-6 rounded-2xl border border-amber-500/20 text-white shadow-xl">
+        <div className="space-y-1">
+          <div className="flex items-center gap-3">
+            <div className="p-2.5 bg-amber-500/20 border border-amber-500/30 rounded-xl text-amber-400">
+              <Trophy className="h-6 w-6" />
+            </div>
+            <div>
+              <h1 className="text-2xl font-bold tracking-tight text-white flex items-center gap-2">
+                Lottery Management <span className="text-xs bg-amber-500/20 text-amber-300 border border-amber-500/30 px-2.5 py-0.5 rounded-full font-medium">Bissi Winning Gifts</span>
+              </h1>
+              <p className="text-sm text-slate-300">
+                Manually record lottery gift wins per Bissi opening, auto-detect customer details by Token Number, and track collection status.
+              </p>
+            </div>
+          </div>
         </div>
-        <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
-          <DialogTrigger asChild>
-            <Button><Plus className="h-4 w-4 mr-2" /> Schedule Draw</Button>
-          </DialogTrigger>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>Schedule New Lottery Draw</DialogTitle>
-            </DialogHeader>
-            <Form {...form}>
-              <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-                <FormField
-                  control={form.control}
-                  name="committeeId"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Committee</FormLabel>
-                      <Select onValueChange={field.onChange} defaultValue={field.value?.toString()}>
-                        <FormControl>
-                          <SelectTrigger><SelectValue placeholder="Select committee" /></SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                          {committees?.map((c) => (
-                            <SelectItem key={c.id} value={c.id.toString()}>{c.name}</SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={form.control}
-                  name="drawDate"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Draw Date</FormLabel>
-                      <FormControl><Input type="date" {...field} /></FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={form.control}
-                  name="prizeAmount"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Prize Amount (₹) — optional</FormLabel>
-                      <FormControl><Input type="number" placeholder="Leave blank to auto-calculate" {...field} value={field.value ?? ""} /></FormControl>
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={form.control}
-                  name="notes"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Notes (optional)</FormLabel>
-                      <FormControl><Input placeholder="Any remarks…" {...field} /></FormControl>
-                    </FormItem>
-                  )}
-                />
-                <div className="flex justify-end pt-4">
-                  <Button type="submit" disabled={createLottery.isPending}>
-                    {createLottery.isPending ? "Scheduling..." : "Schedule Draw"}
-                  </Button>
+
+        <div className="flex flex-wrap items-center gap-3">
+          <Button
+            variant="outline"
+            className="bg-slate-800/80 border-slate-700 text-slate-200 hover:bg-slate-700 hover:text-white"
+            onClick={() => setLocation("/daily-diary/reports")}
+          >
+            <FileText className="h-4 w-4 mr-2 text-blue-400" />
+            Lottery Reports
+          </Button>
+
+          <Dialog open={isCreateSessionOpen} onOpenChange={setIsCreateSessionOpen}>
+            <DialogTrigger asChild>
+              <Button className="bg-amber-600 hover:bg-amber-500 text-slate-950 font-bold shadow-lg shadow-amber-950/40">
+                <Plus className="h-4 w-4 mr-2" />
+                Create Lottery Session
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="max-w-md">
+              <DialogHeader>
+                <DialogTitle className="flex items-center gap-2 text-lg">
+                  <Trophy className="h-5 w-5 text-amber-500" />
+                  Create New Lottery Session
+                </DialogTitle>
+                <DialogDescription>
+                  Setup a lottery opening session for a specific Bissi scheme and date.
+                </DialogDescription>
+              </DialogHeader>
+
+              <div className="space-y-4 py-2">
+                <div className="space-y-2">
+                  <Label>Bissi Name <span className="text-red-500">*</span></Label>
+                  <Select
+                    value={newSessionForm.bissiName}
+                    onValueChange={(val) => setNewSessionForm({ ...newSessionForm, bissiName: val })}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select Bissi" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="Sanwariya Seth">Sanwariya Seth</SelectItem>
+                      <SelectItem value="Pyare Mohan">Pyare Mohan</SelectItem>
+                      <SelectItem value="Hare Ka Sahara">Hare Ka Sahara</SelectItem>
+                      <SelectItem value="Shree Krishna Associate">Shree Krishna Associate</SelectItem>
+                    </SelectContent>
+                  </Select>
                 </div>
-              </form>
-            </Form>
-          </DialogContent>
-        </Dialog>
+
+                <div className="space-y-2">
+                  <Label>Lottery Date <span className="text-red-500">*</span></Label>
+                  <Input
+                    type="date"
+                    value={newSessionForm.lotteryDate}
+                    onChange={(e) => setNewSessionForm({ ...newSessionForm, lotteryDate: e.target.value })}
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label>Lottery Month / Number</Label>
+                  <Input
+                    placeholder="e.g. July 2026 or 15 Date Bissi"
+                    value={newSessionForm.lotteryMonth}
+                    onChange={(e) => setNewSessionForm({ ...newSessionForm, lotteryMonth: e.target.value })}
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label>Notes (Optional)</Label>
+                  <Input
+                    placeholder="Remarks or location details"
+                    value={newSessionForm.notes}
+                    onChange={(e) => setNewSessionForm({ ...newSessionForm, notes: e.target.value })}
+                  />
+                </div>
+              </div>
+
+              <DialogFooter>
+                <Button variant="outline" onClick={() => setIsCreateSessionOpen(false)}>Cancel</Button>
+                <Button
+                  className="bg-amber-600 hover:bg-amber-500 text-slate-950 font-bold"
+                  onClick={() => createSessionMutation.mutate(newSessionForm)}
+                  disabled={createSessionMutation.isPending}
+                >
+                  {createSessionMutation.isPending ? "Creating..." : "Save Session"}
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+        </div>
       </div>
 
-      {/* Confirm Draw Alert */}
-      <AlertDialog open={drawConfirmId !== null} onOpenChange={(o) => !o && setDrawConfirmId(null)}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Conduct Lucky Draw</AlertDialogTitle>
-            <AlertDialogDescription>
-              Randomly select a winner. Choose what reward they receive:
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <div className="space-y-3 py-2">
-            <div>
-              <Label className="text-sm font-medium">Reward Type</Label>
-              <div className="flex gap-2 mt-1.5">
-                <button
-                  type="button"
-                  onClick={() => setDrawRewardType("cash")}
-                  className={`flex-1 py-2 rounded-lg border text-sm font-medium flex items-center justify-center gap-1.5 transition-colors
-                    ${drawRewardType === "cash" ? "border-primary bg-primary text-primary-foreground" : "border-input bg-background hover:bg-accent"}`}>
-                  <Banknote className="h-4 w-4" /> Cash
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setDrawRewardType("gift")}
-                  className={`flex-1 py-2 rounded-lg border text-sm font-medium flex items-center justify-center gap-1.5 transition-colors
-                    ${drawRewardType === "gift" ? "border-primary bg-primary text-primary-foreground" : "border-input bg-background hover:bg-accent"}`}>
-                  <Gift className="h-4 w-4" /> Gift Item
-                </button>
+      {/* Dashboard KPI Grid */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+        <Card className="bg-slate-900 border-slate-800 text-white">
+          <CardContent className="p-4">
+            <span className="text-xs text-slate-400 uppercase font-semibold">Total Sessions</span>
+            <span className="text-2xl font-bold text-white block mt-1">{stats.totalSessions}</span>
+          </CardContent>
+        </Card>
+
+        <Card className="bg-slate-900 border-slate-800 text-white">
+          <CardContent className="p-4">
+            <span className="text-xs text-slate-400 uppercase font-semibold">Total Gifts</span>
+            <span className="text-2xl font-bold text-amber-400 block mt-1">{stats.totalGiftsDistributed}</span>
+          </CardContent>
+        </Card>
+
+        <Card className="bg-slate-900 border-slate-800 text-white">
+          <CardContent className="p-4">
+            <span className="text-xs text-emerald-400 uppercase font-semibold">Collected Gifts</span>
+            <span className="text-2xl font-bold text-emerald-400 block mt-1">{stats.collectedGifts}</span>
+          </CardContent>
+        </Card>
+
+        <Card className="bg-slate-900 border-slate-800 text-white">
+          <CardContent className="p-4">
+            <span className="text-xs text-amber-400 uppercase font-semibold">Pending Gifts</span>
+            <span className="text-2xl font-bold text-amber-400 block mt-1">{stats.pendingGifts}</span>
+          </CardContent>
+        </Card>
+
+        <Card className="bg-slate-900 border-slate-800 text-white">
+          <CardContent className="p-4">
+            <span className="text-xs text-blue-400 uppercase font-semibold">Collected Today</span>
+            <span className="text-2xl font-bold text-blue-400 block mt-1">{stats.todayCollectedGifts}</span>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Main View Split: Left = Sessions Directory, Right = Selected Session Gift Entries */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+        {/* Left Column: Lottery Sessions Directory */}
+        <div className="lg:col-span-4 space-y-4">
+          <div className="flex items-center justify-between">
+            <h2 className="text-lg font-bold text-white flex items-center gap-2">
+              <Calendar className="h-5 w-5 text-amber-400" />
+              Lottery Sessions
+            </h2>
+            <span className="text-xs text-slate-400">{sessions.length} Sessions</span>
+          </div>
+
+          <div className="space-y-3">
+            {isSessionsLoading ? (
+              <div className="p-6 text-center text-slate-400 text-sm">Loading sessions...</div>
+            ) : sessions.length === 0 ? (
+              <div className="p-6 bg-slate-900 border border-slate-800 rounded-xl text-center text-slate-400 text-sm">
+                No lottery sessions created yet. Click "+ Create Lottery Session" to start.
               </div>
-            </div>
-            <div>
-              <Label className="text-sm font-medium">Select Winner Mode (विजेता चुनें)</Label>
-              <select
-                value={selectedWinnerId}
-                onChange={(e) => setSelectedWinnerId(e.target.value)}
-                className="w-full h-10 border border-input bg-background rounded-md px-3 text-sm focus:outline-none focus:ring-1 focus:ring-ring mt-1.5 font-bold text-foreground"
-              >
-                <option value="random">🎲 Random Draw (Automatic)</option>
-                {drawMembers.map((m: any) => (
-                  <option key={m.id} value={m.customerId}>
-                    👤 {m.customerName || `Member #${m.customerId}`} (Token: {m.tokenNumber || "—"})
-                  </option>
-                ))}
-              </select>
-            </div>
-            {drawRewardType === "cash" && (
-              <div>
-                <Label className="text-sm font-medium">Cash Amount (₹)</Label>
-                <Input
-                  type="number"
-                  className="mt-1.5"
-                  value={drawCashTaken}
-                  onChange={(e) => setDrawCashTaken(e.target.value)}
-                  placeholder="Enter cash amount"
-                />
-              </div>
+            ) : (
+              sessions.map((s) => {
+                const isSelected = selectedSession?.id === s.id;
+                return (
+                  <div
+                    key={s.id}
+                    onClick={() => setSelectedSession(s)}
+                    className={`p-4 rounded-xl border transition-all cursor-pointer space-y-3 ${
+                      isSelected
+                        ? "bg-slate-800 border-amber-500/50 shadow-lg ring-1 ring-amber-500/30"
+                        : "bg-slate-900/90 border-slate-800 hover:border-slate-700"
+                    }`}
+                  >
+                    <div className="flex items-start justify-between">
+                      <div>
+                        <h3 className="font-bold text-white text-base">{s.bissiName}</h3>
+                        <p className="text-xs text-slate-400 mt-0.5">
+                          Date: <strong className="text-slate-200">{s.lotteryDate}</strong> {s.lotteryMonth ? `(${s.lotteryMonth})` : ""}
+                        </p>
+                      </div>
+                      <Badge className="bg-amber-500/20 text-amber-300 border-amber-500/30 text-xs">
+                        {s.totalGifts} Gifts
+                      </Badge>
+                    </div>
+
+                    <div className="flex items-center gap-4 text-xs pt-1 border-t border-slate-800">
+                      <span className="text-emerald-400 font-semibold flex items-center gap-1">
+                        <CheckCircle2 className="h-3.5 w-3.5" />
+                        Collected: {s.collectedGifts}
+                      </span>
+                      <span className="text-amber-400 font-semibold flex items-center gap-1">
+                        <Clock className="h-3.5 w-3.5" />
+                        Pending: {s.pendingGifts}
+                      </span>
+                    </div>
+                  </div>
+                );
+              })
             )}
           </div>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={handleConductDraw} disabled={conductDraw.isPending}>
-              {conductDraw.isPending ? "Drawing..." : "🎲 Conduct Draw"}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+        </div>
 
-      {/* Members Dialog */}
-      <Dialog open={membersLotteryId !== null} onOpenChange={(o) => !o && setMembersLotteryId(null)}>
-        <DialogContent className="max-w-md">
-          <DialogHeader><DialogTitle>Committee Members</DialogTitle></DialogHeader>
-          {members.length === 0 ? (
-            <p className="text-sm text-muted-foreground py-4 text-center">No members found in this committee.</p>
-          ) : (
-            <div className="max-h-80 overflow-y-auto">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Name</TableHead>
-                    <TableHead>Mobile</TableHead>
-                    <TableHead>Token #</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {members.map((m: any) => (
-                    <TableRow key={m.id}>
-                      <TableCell className="font-medium">{m.customerName ?? `#${m.customerId}`}</TableCell>
-                      <TableCell className="text-sm text-muted-foreground">{m.customerMobile ?? "—"}</TableCell>
-                      <TableCell className="font-mono text-sm">{m.tokenNumber ?? "—"}</TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
+        {/* Right Column: Session Gift Entries Table */}
+        <div className="lg:col-span-8 space-y-4">
+          {!selectedSession ? (
+            <div className="p-12 bg-slate-900/50 border border-slate-800 rounded-2xl text-center text-slate-400 space-y-2">
+              <Gift className="h-10 w-10 mx-auto text-amber-500/60" />
+              <p className="text-base font-semibold text-white">Select a Lottery Session</p>
+              <p className="text-xs text-slate-400 max-w-sm mx-auto">
+                Click any lottery session on the left to view, search, and manage its winning gift entries.
+              </p>
             </div>
+          ) : (
+            <Card className="bg-slate-900 border-slate-800 shadow-xl">
+              <CardHeader className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-slate-800 gap-4 pb-4">
+                <div>
+                  <CardTitle className="text-lg font-bold text-white flex items-center gap-2">
+                    <Gift className="h-5 w-5 text-amber-400" />
+                    {selectedSession.bissiName} — {selectedSession.lotteryDate}
+                  </CardTitle>
+                  <CardDescription className="text-slate-400 text-xs mt-0.5">
+                    Winning Gift Sheet ({activeSessionGifts.length} Gifts Logged)
+                  </CardDescription>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <Dialog open={isAddGiftOpen} onOpenChange={setIsAddGiftOpen}>
+                    <DialogTrigger asChild>
+                      <Button className="bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-xs">
+                        <Plus className="h-3.5 w-3.5 mr-1" />
+                        Add Gift Entry
+                      </Button>
+                    </DialogTrigger>
+                    <DialogContent className="max-w-md">
+                      <DialogHeader>
+                        <DialogTitle className="flex items-center gap-2">
+                          <Gift className="h-5 w-5 text-amber-500" />
+                          Add Winning Gift Entry
+                        </DialogTitle>
+                        <DialogDescription>
+                          Enter Token Number. Customer details will auto-detect from Bissi database.
+                        </DialogDescription>
+                      </DialogHeader>
+
+                      <div className="space-y-4 py-2">
+                        <div className="space-y-2">
+                          <Label>Token Number <span className="text-red-500">*</span></Label>
+                          <Input
+                            placeholder="e.g. 45 or 18"
+                            value={newGiftForm.tokenNumber}
+                            onChange={(e) => handleTokenNumberChange(e.target.value)}
+                          />
+                          {isAutoDetecting && (
+                            <span className="text-xs text-amber-400 animate-pulse block">Detecting token customer details...</span>
+                          )}
+                          {detectedInfo && detectedInfo.found && (
+                            <div className="bg-emerald-950/60 border border-emerald-500/30 p-2.5 rounded-lg text-xs space-y-0.5">
+                              <span className="text-emerald-300 font-bold block">✓ Customer Detected:</span>
+                              <span className="text-slate-200 block">{detectedInfo.customerName} ({detectedInfo.mobileNumber})</span>
+                              {detectedInfo.bissiName && (
+                                <span className="text-slate-400 block text-[11px]">Bissi: {detectedInfo.bissiName}</span>
+                              )}
+                            </div>
+                          )}
+                        </div>
+
+                        <div className="space-y-2">
+                          <Label>Customer Name <span className="text-red-500">*</span></Label>
+                          <Input
+                            placeholder="Auto-detected or enter name"
+                            value={newGiftForm.customerName}
+                            onChange={(e) => setNewGiftForm({ ...newGiftForm, customerName: e.target.value })}
+                          />
+                        </div>
+
+                        <div className="space-y-2">
+                          <Label>Mobile Number</Label>
+                          <Input
+                            placeholder="Customer contact number"
+                            value={newGiftForm.mobileNumber}
+                            onChange={(e) => setNewGiftForm({ ...newGiftForm, mobileNumber: e.target.value })}
+                          />
+                        </div>
+
+                        <div className="space-y-2">
+                          <Label>Gift Name <span className="text-red-500">*</span></Label>
+                          <Input
+                            placeholder="e.g. AC, Washing Machine, Mixer Grinder, Gold Coin"
+                            value={newGiftForm.giftName}
+                            onChange={(e) => setNewGiftForm({ ...newGiftForm, giftName: e.target.value })}
+                          />
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-3">
+                          <div className="space-y-2">
+                            <Label>Category (Optional)</Label>
+                            <Input
+                              placeholder="e.g. Electronics"
+                              value={newGiftForm.giftCategory}
+                              onChange={(e) => setNewGiftForm({ ...newGiftForm, giftCategory: e.target.value })}
+                            />
+                          </div>
+
+                          <div className="space-y-2">
+                            <Label>Value (₹) (Optional)</Label>
+                            <Input
+                              type="number"
+                              placeholder="e.g. 25000"
+                              value={newGiftForm.giftValue}
+                              onChange={(e) => setNewGiftForm({ ...newGiftForm, giftValue: e.target.value })}
+                            />
+                          </div>
+                        </div>
+
+                        <div className="space-y-2">
+                          <Label>Status</Label>
+                          <Select
+                            value={newGiftForm.status}
+                            onValueChange={(val) => setNewGiftForm({ ...newGiftForm, status: val })}
+                          >
+                            <SelectTrigger>
+                              <SelectValue placeholder="Status" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="Pending">Pending (Default)</SelectItem>
+                              <SelectItem value="Collected">Collected</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      </div>
+
+                      <DialogFooter>
+                        <Button variant="outline" onClick={() => setIsAddGiftOpen(false)}>Cancel</Button>
+                        <Button
+                          className="bg-emerald-600 hover:bg-emerald-500 text-white font-bold"
+                          onClick={() => addGiftMutation.mutate(newGiftForm)}
+                          disabled={addGiftMutation.isPending}
+                        >
+                          {addGiftMutation.isPending ? "Saving..." : "Save Gift Entry"}
+                        </Button>
+                      </DialogFooter>
+                    </DialogContent>
+                  </Dialog>
+                </div>
+              </CardHeader>
+
+              {/* Filters Bar Inside Session */}
+              <div className="p-4 bg-slate-950/60 border-b border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div className="relative w-full sm:w-64">
+                  <Search className="absolute left-3 top-2.5 h-3.5 w-3.5 text-slate-400" />
+                  <Input
+                    placeholder="Search Token, Customer, Gift..."
+                    className="pl-8 bg-slate-900 border-slate-800 text-slate-200 text-xs"
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                  />
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-slate-400">Filter Status:</span>
+                  <Select value={statusFilter} onValueChange={setStatusFilter}>
+                    <SelectTrigger className="w-[130px] bg-slate-900 border-slate-800 text-slate-200 text-xs">
+                      <SelectValue placeholder="Status" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="ALL">All Status</SelectItem>
+                      <SelectItem value="Pending">Pending</SelectItem>
+                      <SelectItem value="Collected">Collected</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+
+              <CardContent className="p-0">
+                {isDetailLoading ? (
+                  <div className="p-8 text-center text-slate-400 text-sm">Loading gift entries...</div>
+                ) : filteredGifts.length === 0 ? (
+                  <div className="p-8 text-center text-slate-500 text-sm">
+                    No winning gift entries logged for this session yet. Click "+ Add Gift Entry" to add.
+                  </div>
+                ) : (
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left text-sm">
+                      <thead className="bg-slate-950 text-slate-400 uppercase text-[11px] font-semibold border-b border-slate-800">
+                        <tr>
+                          <th className="px-4 py-3">Token #</th>
+                          <th className="px-4 py-3">Customer Name</th>
+                          <th className="px-4 py-3">Gift Won</th>
+                          <th className="px-4 py-3">Status</th>
+                          <th className="px-4 py-3 text-right">Action</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-800/60 text-slate-200">
+                        {filteredGifts.map((g) => (
+                          <tr key={g.id} className="hover:bg-slate-800/40 transition-colors">
+                            <td className="px-4 py-3.5 font-black text-amber-400">
+                              #{g.tokenNumber}
+                            </td>
+                            <td className="px-4 py-3.5">
+                              <span className="font-semibold text-white block">{g.customerName}</span>
+                              <span className="text-xs text-slate-400 block">{g.mobileNumber}</span>
+                            </td>
+                            <td className="px-4 py-3.5 font-bold text-slate-100">
+                              {g.giftName}
+                            </td>
+                            <td className="px-4 py-3.5">
+                              {g.status === "Collected" ? (
+                                <Badge className="bg-emerald-500/20 text-emerald-300 border-emerald-500/40 text-xs px-2.5 py-0.5">
+                                  ✓ Collected {g.collectionDate ? `(${g.collectionDate})` : ""}
+                                </Badge>
+                              ) : (
+                                <Badge className="bg-amber-500/20 text-amber-300 border-amber-500/40 text-xs px-2.5 py-0.5">
+                                  Pending Collection
+                                </Badge>
+                              )}
+                            </td>
+                            <td className="px-4 py-3.5 text-right">
+                              {g.status === "Pending" ? (
+                                <Button
+                                  size="sm"
+                                  className="bg-emerald-600 hover:bg-emerald-500 text-white font-medium text-xs px-3 py-1 h-8"
+                                  onClick={() => {
+                                    setSelectedGiftForCollect(g);
+                                    setCollectForm({
+                                      collectionDate: new Date().toISOString().slice(0, 10),
+                                      collectedBy: "Admin",
+                                      remarks: "",
+                                    });
+                                    setIsCollectModalOpen(true);
+                                  }}
+                                >
+                                  Mark Collected
+                                </Button>
+                              ) : (
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  className="bg-slate-950 border-slate-800 text-slate-300 hover:bg-slate-800 text-xs px-2.5 py-1 h-8"
+                                  onClick={() => setViewGiftDetails(g)}
+                                >
+                                  <Eye className="h-3.5 w-3.5 mr-1" />
+                                  View
+                                </Button>
+                              )}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
           )}
+        </div>
+      </div>
+
+      {/* Modal: Mark Collected */}
+      <Dialog open={isCollectModalOpen} onOpenChange={setIsCollectModalOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <CheckCircle2 className="h-5 w-5 text-emerald-500" />
+              Mark Gift as Collected — Token #{selectedGiftForCollect?.tokenNumber}
+            </DialogTitle>
+            <DialogDescription>
+              Confirm receipt of <strong>{selectedGiftForCollect?.giftName}</strong> by {selectedGiftForCollect?.customerName}.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4 py-2">
+            <div className="space-y-2">
+              <Label>Collection Date <span className="text-red-500">*</span></Label>
+              <Input
+                type="date"
+                value={collectForm.collectionDate}
+                onChange={(e) => setCollectForm({ ...collectForm, collectionDate: e.target.value })}
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label>Collected By / Handed Over By</Label>
+              <Input
+                placeholder="Staff / Admin name"
+                value={collectForm.collectedBy}
+                onChange={(e) => setCollectForm({ ...collectForm, collectedBy: e.target.value })}
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label>Remarks / Receiver Notes</Label>
+              <Input
+                placeholder="Receiver name or ID proof reference"
+                value={collectForm.remarks}
+                onChange={(e) => setCollectForm({ ...collectForm, remarks: e.target.value })}
+              />
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsCollectModalOpen(false)}>Cancel</Button>
+            <Button
+              className="bg-emerald-600 hover:bg-emerald-500 text-white font-bold"
+              onClick={() => {
+                if (selectedGiftForCollect) {
+                  collectGiftMutation.mutate({
+                    giftId: selectedGiftForCollect.id,
+                    payload: collectForm,
+                  });
+                }
+              }}
+              disabled={collectGiftMutation.isPending}
+            >
+              {collectGiftMutation.isPending ? "Saving..." : "Confirm Collection"}
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
 
-      {/* Stats */}
-      <div className="grid grid-cols-3 gap-4">
-        <Card>
-          <CardHeader className="p-3 pb-1"><p className="text-xs text-muted-foreground flex items-center gap-1"><CalendarDays className="h-3 w-3" /> Scheduled</p></CardHeader>
-          <CardContent className="p-3 pt-0"><div className="text-2xl font-bold">{scheduledCount}</div></CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="p-3 pb-1"><p className="text-xs text-muted-foreground flex items-center gap-1"><Trophy className="h-3 w-3" /> Completed</p></CardHeader>
-          <CardContent className="p-3 pt-0"><div className="text-2xl font-bold">{completedCount}</div></CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="p-3 pb-1"><p className="text-xs text-muted-foreground flex items-center gap-1"><Gift className="h-3 w-3" /> Total</p></CardHeader>
-          <CardContent className="p-3 pt-0"><div className="text-2xl font-bold">{lotteries?.length ?? 0}</div></CardContent>
-        </Card>
-      </div>
+      {/* Modal: View Collected Gift Details */}
+      <Dialog open={Boolean(viewGiftDetails)} onOpenChange={() => setViewGiftDetails(null)}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Trophy className="h-5 w-5 text-amber-500" />
+              Gift Collection Record
+            </DialogTitle>
+          </DialogHeader>
 
-      {/* Draw History Modal with Search, Sort & Filter */}
-      {historyGroup && (
-        <DrawHistoryModal
-          historyGroup={historyGroup}
-          onClose={() => setHistoryGroup(null)}
-        />
-      )}
+          {viewGiftDetails && (
+            <div className="space-y-3 py-2 text-sm">
+              <div className="bg-slate-950 p-3.5 rounded-xl border border-slate-800 space-y-1">
+                <span className="text-amber-400 font-bold text-lg block">Token #{viewGiftDetails.tokenNumber}</span>
+                <span className="text-white font-bold text-base block">{viewGiftDetails.customerName}</span>
+                <span className="text-slate-400 text-xs block">Mobile: {viewGiftDetails.mobileNumber}</span>
+              </div>
 
-      {/* Filter bar */}
-      <div className="flex flex-row gap-4 flex-wrap items-center bg-card p-3 rounded-lg border border-border">
-        <Select value={statusFilter} onValueChange={setStatusFilter}>
-          <SelectTrigger className="w-40"><SelectValue placeholder="Status" /></SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All Statuses</SelectItem>
-            <SelectItem value="scheduled">Scheduled</SelectItem>
-            <SelectItem value="completed">Completed</SelectItem>
-            <SelectItem value="cancelled">Cancelled</SelectItem>
-          </SelectContent>
-        </Select>
-        <Select value={committeeFilter} onValueChange={setCommitteeFilter}>
-          <SelectTrigger className="w-[200px]"><SelectValue placeholder="Committee" /></SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All Committees</SelectItem>
-            {committees?.map((c) => (
-              <SelectItem key={c.id} value={c.id.toString()}>{c.name}</SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
-
-      {isLoading ? (
-        <Card className="p-8 text-center text-muted-foreground">Loading lotteries...</Card>
-      ) : !lotteries?.length ? (
-        <Card className="p-8 text-center text-muted-foreground">
-          <Gift className="h-10 w-10 mx-auto mb-2 opacity-30" />
-          No lottery draws scheduled yet.
-        </Card>
-      ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {/* SINGLE CARD PER COMMITTEE */}
-          {Object.entries(
-            lotteries.reduce((groups: Record<string, any[]>, item: any) => {
-              const name = item.committeeName || `Committee #${item.committeeId}`;
-              if (!groups[name]) groups[name] = [];
-              groups[name].push(item);
-              return groups;
-            }, {})
-          ).map(([commName, commLotteries]: [string, any[]]) => {
-            const scheduledDraw = commLotteries.find((l) => l.status === "scheduled");
-            const latestCompleted = commLotteries.find((l) => l.status === "completed");
-            const firstLotteryId = commLotteries[0]?.id;
-
-            return (
-              <Card key={commName} className="overflow-hidden border border-border shadow-sm flex flex-col justify-between">
-                <CardHeader className="p-4 bg-slate-900 text-white border-b flex flex-row items-center justify-between gap-2">
-                  <div className="flex items-center gap-2 truncate">
-                    <ShieldAlert className="h-5 w-5 text-amber-400 shrink-0" />
-                    <h2 className="text-base font-bold truncate">{commName}</h2>
-                  </div>
-                  <Badge variant="outline" className="text-xs bg-slate-800 text-amber-400 border-amber-500/30 shrink-0">
-                    {commLotteries.length} Total Draws
-                  </Badge>
-                </CardHeader>
-
-                <CardContent className="p-4 space-y-3 flex-1">
-                  {/* Status / Scheduled banner */}
-                  {scheduledDraw ? (
-                    <div className="p-3 bg-amber-500/10 border border-amber-500/30 rounded-lg flex items-center justify-between gap-2">
-                      <div>
-                        <span className="text-xs font-bold text-amber-600 dark:text-amber-400 flex items-center gap-1">
-                          <CalendarDays className="h-3.5 w-3.5" /> Next Scheduled Draw
-                        </span>
-                        <p className="text-sm font-semibold text-foreground mt-0.5">
-                          {new Date(scheduledDraw.drawDate).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })}
-                        </p>
-                      </div>
-                      <Button
-                        size="sm"
-                        className="bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs h-8 px-3"
-                        onClick={() => { setDrawConfirmId(scheduledDraw.id); setDrawRewardType("cash"); setDrawCashTaken(""); }}
-                      >
-                        <Trophy className="h-3.5 w-3.5 mr-1" /> Conduct Draw
-                      </Button>
-                    </div>
-                  ) : (
-                    <div className="p-3 bg-muted/40 border border-border rounded-lg text-xs text-muted-foreground flex items-center justify-between">
-                      <span>No pending draw scheduled</span>
-                      <Button size="sm" variant="ghost" className="h-7 text-xs text-primary" onClick={() => setIsCreateOpen(true)}>
-                        + Schedule Draw
-                      </Button>
-                    </div>
-                  )}
-
-                  {/* Latest Winner Card */}
-                  {latestCompleted && (
-                    <div className="p-3 bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-500/20 rounded-lg space-y-1">
-                      <div className="flex items-center justify-between text-xs text-emerald-700 dark:text-emerald-400 font-semibold">
-                        <span className="flex items-center gap-1"><Trophy className="h-3.5 w-3.5 text-amber-500" /> Latest Winner</span>
-                        <span>{new Date(latestCompleted.drawDate).toLocaleDateString("en-IN", { day: "2-digit", month: "short" })}</span>
-                      </div>
-                      <div className="flex items-baseline justify-between pt-0.5">
-                        <span className="text-sm font-bold text-foreground">{latestCompleted.winnerName || "Winner Declared"}</span>
-                        <span className="font-mono text-xs font-bold text-emerald-600 dark:text-emerald-400">Token: {latestCompleted.winnerToken ?? "—"}</span>
-                      </div>
-                      <div className="text-xs text-muted-foreground flex items-center justify-between pt-0.5">
-                        <span className="font-semibold text-purple-600 dark:text-purple-400">
-                          {latestCompleted.rewardType === "cash"
-                            ? `Cash: ${formatCurrency(latestCompleted.cashTaken || latestCompleted.prizeAmount || 0)}`
-                            : `🎁 ${latestCompleted.notes?.includes("Winner Reward:") ? latestCompleted.notes.replace("Winner Reward:", "").trim() : latestCompleted.notes || "Gift Item"}`}
-                        </span>
-                      </div>
-                    </div>
-                  )}
-                </CardContent>
-
-                {/* Footer Action Buttons */}
-                <div className="p-3 bg-muted/20 border-t flex items-center justify-between gap-2">
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="h-8 text-xs font-semibold w-full"
-                    onClick={() => setHistoryGroup({ commName, draws: commLotteries })}
-                  >
-                    📜 View Draw History ({commLotteries.length})
-                  </Button>
+              <div className="grid grid-cols-2 gap-3 text-xs">
+                <div className="bg-slate-950 p-2.5 rounded-lg border border-slate-800">
+                  <span className="text-slate-400 block">Gift Won</span>
+                  <span className="font-bold text-white">{viewGiftDetails.giftName}</span>
                 </div>
-              </Card>
-            );
-          })}
-        </div>
-      )}
+                <div className="bg-slate-950 p-2.5 rounded-lg border border-slate-800">
+                  <span className="text-slate-400 block">Status</span>
+                  <Badge className="bg-emerald-500/20 text-emerald-300 border-emerald-500/40 text-[11px]">
+                    Collected
+                  </Badge>
+                </div>
+              </div>
+
+              <div className="bg-slate-950 p-3 rounded-lg border border-slate-800 space-y-1 text-xs text-slate-300">
+                <p>Collection Date: <strong className="text-white">{viewGiftDetails.collectionDate}</strong></p>
+                <p>Handed Over By: <strong className="text-white">{viewGiftDetails.collectedBy || "Admin"}</strong></p>
+                {viewGiftDetails.remarks && <p>Remarks: <strong className="text-slate-200">{viewGiftDetails.remarks}</strong></p>}
+              </div>
+            </div>
+          )}
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setViewGiftDetails(null)}>Close</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
-
-function DrawHistoryModal({ historyGroup, onClose }: { historyGroup: { commName: string; draws: any[] }; onClose: () => void }) {
-  const [search, setSearch] = useState("");
-  const [sortOrder, setSortOrder] = useState<"desc" | "asc">("desc");
-  const [statusFilter, setStatusFilter] = useState("all");
-
-  const filteredDraws = historyGroup.draws
-    .filter((d: any) => {
-      const matchSearch =
-        !search ||
-        (d.winnerName && d.winnerName.toLowerCase().includes(search.toLowerCase())) ||
-        (d.winnerToken && String(d.winnerToken).includes(search)) ||
-        (d.notes && d.notes.toLowerCase().includes(search.toLowerCase()));
-
-      const matchStatus = statusFilter === "all" || d.status === statusFilter;
-      return matchSearch && matchStatus;
-    })
-    .sort((a: any, b: any) => {
-      const timeA = new Date(a.drawDate).getTime();
-      const timeB = new Date(b.drawDate).getTime();
-      return sortOrder === "desc" ? timeB - timeA : timeA - timeB;
-    });
-
-  return (
-    <Dialog open={true} onOpenChange={(o) => !o && onClose()}>
-      <DialogContent className="max-w-4xl max-h-[90vh] flex flex-col">
-        <DialogHeader className="pb-2 border-b">
-          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 pr-6">
-            <DialogTitle className="flex items-center gap-2 text-lg font-bold">
-              <Trophy className="h-5 w-5 text-amber-500" />
-              Draw History — {historyGroup.commName}
-            </DialogTitle>
-            <Badge variant="outline" className="text-xs bg-amber-500/10 text-amber-600 border-amber-500/30">
-              {filteredDraws.length} Draws Listed
-            </Badge>
-          </div>
-
-          {/* Interactive Search, Sort & Filter Toolbar */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 pt-3">
-            <Input
-              placeholder="Search Winner Name, Token # or Gift..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="h-9 text-xs"
-            />
-
-            <select
-              value={sortOrder}
-              onChange={(e) => setSortOrder(e.target.value as "desc" | "asc")}
-              className="h-9 border border-input bg-background rounded-md px-2 text-xs font-semibold focus:outline-none"
-            >
-              <option value="desc">📅 Sort: Newest Date First</option>
-              <option value="asc">📅 Sort: Oldest Date First</option>
-            </select>
-
-            <select
-              value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value)}
-              className="h-9 border border-input bg-background rounded-md px-2 text-xs font-semibold focus:outline-none"
-            >
-              <option value="all">🔍 Filter: All Statuses</option>
-              <option value="completed">🏆 Completed Winner Draws</option>
-              <option value="scheduled">⏳ Scheduled Draws</option>
-            </select>
-          </div>
-        </DialogHeader>
-
-        <div className="flex-1 overflow-y-auto min-h-[300px]">
-          {filteredDraws.length === 0 ? (
-            <div className="text-center py-12 text-sm text-muted-foreground">
-              No draw history records found matching your filters.
-            </div>
-          ) : (
-            <Table>
-              <TableHeader className="bg-muted/50 sticky top-0">
-                <TableRow>
-                  <TableHead>Date &amp; Time</TableHead>
-                  <TableHead>Winner</TableHead>
-                  <TableHead>Winning Token #</TableHead>
-                  <TableHead className="text-right">Prize Amount</TableHead>
-                  <TableHead>Gift / Reward (क्या मिला)</TableHead>
-                  <TableHead className="text-center">Status</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {filteredDraws.map((d: any) => (
-                  <TableRow key={d.id} className="hover:bg-muted/30">
-                    <TableCell className="font-medium text-xs whitespace-nowrap">
-                      {new Date(d.drawDate).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })}
-                    </TableCell>
-                    <TableCell>
-                      {d.winnerName ? (
-                        <span className="flex items-center gap-1.5 text-emerald-600 font-bold text-xs">
-                          <Trophy className="h-3.5 w-3.5 text-amber-500 shrink-0" />
-                          {d.winnerName}
-                        </span>
-                      ) : (
-                        <span className="text-muted-foreground italic text-xs">Pending Draw</span>
-                      )}
-                    </TableCell>
-                    <TableCell className="font-mono text-xs font-bold text-indigo-600">
-                      {d.winnerToken ? `#${d.winnerToken}` : "—"}
-                    </TableCell>
-                    <TableCell className="text-right text-xs font-mono font-bold text-emerald-600">
-                      {d.prizeAmount ? formatCurrency(d.prizeAmount) : "—"}
-                    </TableCell>
-                    <TableCell className="text-xs font-bold">
-                      {d.rewardType === "cash" ? (
-                        <span className="inline-flex items-center gap-1 text-emerald-600 font-bold bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-300">
-                          <Banknote className="h-3.5 w-3.5" />
-                          {d.cashTaken ? formatCurrency(d.cashTaken) : "Cash ₹3,000"}
-                        </span>
-                      ) : (
-                        <span className="inline-flex items-center gap-1 text-purple-600 font-bold bg-purple-500/10 px-2 py-0.5 rounded border border-purple-300">
-                          <Gift className="h-3.5 w-3.5 text-purple-600" />
-                          {d.notes?.includes("Winner Reward:") ? d.notes.replace("Winner Reward:", "").trim() : (d.giftName || d.notes || "Gift Item")}
-                        </span>
-                      )}
-                    </TableCell>
-                    <TableCell className="text-center">
-                      <Badge variant={statusBadge[d.status] ?? "secondary"} className="text-[10px] uppercase">
-                        {d.status}
-                      </Badge>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          )}
-        </div>
-      </DialogContent>
-    </Dialog>
-  );
-}
-

@@ -146,6 +146,29 @@ export default function HomePage() {
           </div>
         </div>
 
+        {/* ── DAILY DIARY LOAN COLLECTION QUICK BANNER ── */}
+        <Link href="/daily-diary">
+          <div className="bg-gradient-to-r from-slate-900 via-emerald-950 to-slate-900 border border-emerald-500/30 p-4 rounded-2xl shadow-xl flex items-center justify-between text-white hover:border-emerald-500/50 transition-all cursor-pointer">
+            <div className="flex items-center gap-3">
+              <div className="p-2.5 bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 rounded-xl">
+                <BookOpen className="h-6 w-6" />
+              </div>
+              <div>
+                <h3 className="font-bold text-base flex items-center gap-2">
+                  Daily Diary Collection <span className="text-[10px] bg-emerald-500/20 text-emerald-300 px-2 py-0.5 rounded-full border border-emerald-500/30">Field Recovery</span>
+                </h3>
+                <p className="text-xs text-slate-300 mt-0.5">
+                  Collect daily cash deposits & record live loan balance subtractions
+                </p>
+              </div>
+            </div>
+            <div className="p-2 bg-emerald-500/20 text-emerald-400 rounded-xl">
+              <ArrowRight className="h-4 w-4" />
+            </div>
+          </div>
+        </Link>
+
+
         {/* ── TODAY'S COLLECTION TARGET CARD ── */}
         <div className="glass-card rounded-2xl p-5 space-y-4 float-up-delay-1">
           <div className="flex items-center justify-between">

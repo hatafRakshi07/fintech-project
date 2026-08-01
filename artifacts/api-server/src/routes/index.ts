@@ -9,13 +9,17 @@ import { migrationV2Router } from "./migration-v2";
 import { ledgerV2Router } from "./ledger-v2";
 import { calendarV2Router } from "./calendar-v2";
 import dailyDiaryRouter from "./daily-diary";
+import lotteryManagementRouter from "./lottery-management";
 import { pool, queryWithRetry, getPoolStats } from "@workspace/db";
 
 const router: IRouter = Router();
 
 router.use("/daily-diary", dailyDiaryRouter);
+router.use("/lottery", lotteryManagementRouter);
+router.use("/lotteries", lotteryManagementRouter);
 
 router.use(healthRouter);
+
 
 // Public: login, logout, me
 router.use("/auth", authRouter);
