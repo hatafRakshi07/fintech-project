@@ -58,6 +58,7 @@ export default function CustomerPortalPage() {
   const [inputName, setInputName] = useState("");
   const [inputMobile, setInputMobile] = useState("");
   const [authCustomer, setAuthCustomer] = useState<{ name: string; mobile: string } | null>(() => {
+    if (typeof window === "undefined") return null;
     const saved = localStorage.getItem("bissi_customer_auth");
     if (saved) {
       try { return JSON.parse(saved); } catch (e) { return null; }

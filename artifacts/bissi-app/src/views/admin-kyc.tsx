@@ -21,7 +21,7 @@ export default function AdminKycManagementPage() {
   const { data, isLoading } = useQuery({
     queryKey: ["admin-kyc-pending"],
     queryFn: async () => {
-      const token = localStorage.getItem("auth_token");
+      const token = typeof window !== "undefined" ? localStorage.getItem("auth_token") : null;
       const res = await fetch("/api/kyc/pending", {
         headers: token ? { Authorization: `Bearer ${token}` } : {},
       });
@@ -32,7 +32,7 @@ export default function AdminKycManagementPage() {
 
   const reviewMutation = useMutation({
     mutationFn: async ({ id, status, reason }: { id: number; status: string; reason?: string }) => {
-      const token = localStorage.getItem("auth_token");
+      const token = typeof window !== "undefined" ? localStorage.getItem("auth_token") : null;
       const res = await fetch(`/api/kyc/${id}/review`, {
         method: "POST",
         headers: {

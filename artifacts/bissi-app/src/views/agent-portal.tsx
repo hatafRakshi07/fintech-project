@@ -21,7 +21,7 @@ export default function AgentPortalPage() {
   const { data: agentData, isLoading: agentLoading } = useQuery({
     queryKey: ["agent-me"],
     queryFn: async () => {
-      const token = localStorage.getItem("auth_token");
+      const token = typeof window !== "undefined" ? localStorage.getItem("auth_token") : null;
       const res = await fetch("/api/agents/me", {
         headers: token ? { Authorization: `Bearer ${token}` } : {},
       });
@@ -34,7 +34,7 @@ export default function AgentPortalPage() {
   const { data: customersData } = useQuery({
     queryKey: ["agent-customers"],
     queryFn: async () => {
-      const token = localStorage.getItem("auth_token");
+      const token = typeof window !== "undefined" ? localStorage.getItem("auth_token") : null;
       const res = await fetch("/api/agents/my-customers", {
         headers: token ? { Authorization: `Bearer ${token}` } : {},
       });
@@ -60,7 +60,7 @@ export default function AgentPortalPage() {
 
   const broadcastMutation = useMutation({
     mutationFn: async () => {
-      const token = localStorage.getItem("auth_token");
+      const token = typeof window !== "undefined" ? localStorage.getItem("auth_token") : null;
       const res = await fetch("/api/broadcast", {
         method: "POST",
         headers: {
@@ -94,7 +94,7 @@ export default function AgentPortalPage() {
 
   const onboardMutation = useMutation({
     mutationFn: async () => {
-      const token = localStorage.getItem("auth_token");
+      const token = typeof window !== "undefined" ? localStorage.getItem("auth_token") : null;
       const res = await fetch("/api/agents/onboard-customer", {
         method: "POST",
         headers: {

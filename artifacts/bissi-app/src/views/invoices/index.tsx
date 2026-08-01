@@ -698,6 +698,7 @@ function InvoiceForm({
 export default function InvoicesPage() {
   const [inv, setInv] = useState<InvoiceData>(SAMPLE_ELECTRICITY_INVOICE);
   const [saved, setSaved] = useState<SavedInvoice[]>(() => {
+    if (typeof window === "undefined") return defaultSampleInvoices;
     try {
       const stored = localStorage.getItem("bissi_invoices");
       if (stored) {
@@ -705,7 +706,9 @@ export default function InvoicesPage() {
         if (Array.isArray(parsed) && parsed.length > 0) return parsed;
       }
     } catch {}
-    localStorage.setItem("bissi_invoices", JSON.stringify(defaultSampleInvoices));
+    if (typeof window !== "undefined") {
+      localStorage.setItem("bissi_invoices", JSON.stringify(defaultSampleInvoices));
+    }
     return defaultSampleInvoices;
   });
   const [preview, setPreview] = useState(false);
