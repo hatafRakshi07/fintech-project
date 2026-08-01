@@ -2,7 +2,7 @@
 
 import React from "react";
 import { Shell } from "@/components/layout/Shell";
-import RecoveryPage from "@/pages/recovery";
+import RecoveryPage from "@/views/recovery";
 
 export default function Page() {
   return (

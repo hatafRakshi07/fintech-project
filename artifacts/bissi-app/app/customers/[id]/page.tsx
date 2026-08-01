@@ -2,7 +2,7 @@
 
 import React from "react";
 import { Shell } from "@/components/layout/Shell";
-import CustomerDetailPage from "@/pages/customers/[id]";
+import CustomerDetailPage from "@/views/customers/[id]";
 
 export default function Page() {
   return (

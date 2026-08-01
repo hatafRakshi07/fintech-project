@@ -5,7 +5,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Link } from "@/lib/router-adapter";
 import { useRole } from "@/hooks/use-role";
 import { customFetch } from "@workspace/api-client-react";
-import CustomerPortalPage from "@/pages/customer-portal";
+import CustomerPortalPage from "@/views/customer-portal";
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";

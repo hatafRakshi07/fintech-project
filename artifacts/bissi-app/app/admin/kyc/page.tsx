@@ -2,7 +2,7 @@
 
 import React from "react";
 import { Shell } from "@/components/layout/Shell";
-import AdminKycPage from "@/pages/admin-kyc";
+import AdminKycPage from "@/views/admin-kyc";
 
 export default function Page() {
   return (
