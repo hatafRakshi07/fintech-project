@@ -289,27 +289,37 @@ function SchemeCard({ scheme, idx, onOpenPending }: {
   const drawText = scheme.id === 1 ? "5th Date" : scheme.id === 2 ? "15th Date" : scheme.id === 3 ? "20th Date" : "10th Date";
 
   const handlePrint = () => {
-    const w = window.open("", "_blank");
-    if (!w) return;
+    // Create an invisible iframe to print without popup blocker issues
+    const iframe = document.createElement("iframe");
+    iframe.style.position = "fixed";
+    iframe.style.width = "0";
+    iframe.style.height = "0";
+    iframe.style.border = "0";
+    document.body.appendChild(iframe);
+    const doc = iframe.contentDocument || iframe.contentWindow?.document;
+    if (!doc) { document.body.removeChild(iframe); return; }
     const rows = months.map(mb =>
       `<tr>
-        <td style="padding:6px 14px;border-bottom:1px solid #eee">${mb.month}</td>
-        <td style="padding:6px 14px;border-bottom:1px solid #eee;text-align:right;font-weight:700;color:#059669">${new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 0 }).format(mb.amount)}</td>
-        <td style="padding:6px 14px;border-bottom:1px solid #eee;text-align:center">${mb.count || 0}</td>
-        <td style="padding:6px 14px;border-bottom:1px solid #eee;text-align:right;color:#e11d48;font-weight:700">${new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 0 }).format(Math.max(0, monthlyPool - mb.amount))}</td>
+        <td style="padding:6px 12px;border-bottom:1px solid #eee">${mb.month}</td>
+        <td style="padding:6px 12px;border-bottom:1px solid #eee;text-align:right;font-weight:700;color:#059669">${new Intl.NumberFormat("en-IN",{style:"currency",currency:"INR",maximumFractionDigits:0}).format(mb.amount)}</td>
+        <td style="padding:6px 12px;border-bottom:1px solid #eee;text-align:center">${mb.count||0}</td>
+        <td style="padding:6px 12px;border-bottom:1px solid #eee;text-align:right;color:#e11d48;font-weight:700">${new Intl.NumberFormat("en-IN",{style:"currency",currency:"INR",maximumFractionDigits:0}).format(Math.max(0,monthlyPool-mb.amount))}</td>
       </tr>`
     ).join("");
-    w.document.write(`<!DOCTYPE html><html><head><title>${scheme.name} - Report</title>
-    <style>body{font-family:Arial;padding:24px;font-size:13px}h2{color:#1e293b}table{width:100%;border-collapse:collapse}th{background:#f1f5f9;padding:8px 14px;text-align:left;border-bottom:2px solid #e2e8f0}p{color:#64748b}button{margin-bottom:16px;padding:8px 20px;background:#6366f1;color:white;border:none;border-radius:6px;cursor:pointer;font-weight:700}@media print{button{display:none}}</style></head>
-    <body>
+    doc.write(`<!DOCTYPE html><html><head><title>${scheme.name} Report</title>
+    <style>body{font-family:Arial;padding:24px;font-size:12px}h2{color:#1e293b;margin-bottom:4px}p{color:#64748b;margin-bottom:12px}table{width:100%;border-collapse:collapse}th{background:#f1f5f9;padding:8px 12px;text-align:left;border-bottom:2px solid #e2e8f0}</style>
+    </head><body>
     <h2>📋 Monthly Collection Report — ${scheme.name}</h2>
-    <p>Monthly Pool: ₹${monthlyPool.toLocaleString("en-IN")} | Installment: ₹${installmentAmt}/member | Members: ${scheme.filledTokens || scheme.tokenCount}/${memberLimit}</p>
-    <button onclick="window.print()">🖨️ Print / Save PDF</button>
+    <p>Pool: ₹${monthlyPool.toLocaleString("en-IN")} | ₹${installmentAmt}/member | ${scheme.filledTokens||scheme.tokenCount}/${memberLimit} members</p>
     <table><thead><tr><th>Month</th><th style="text-align:right">Collected</th><th style="text-align:center">Receipts</th><th style="text-align:right">Pending (Est.)</th></tr></thead>
     <tbody>${rows}</tbody></table>
-    <p style="margin-top:16px;color:#e11d48">Current Pending: ${livePendingCount} tokens | ₹${livePendingAmt.toLocaleString("en-IN")} (Live Data)</p>
+    <p style="margin-top:14px;color:#e11d48">Current Pending: ${livePendingCount} tokens | ₹${livePendingAmt.toLocaleString("en-IN")}</p>
     </body></html>`);
-    w.document.close();
+    doc.close();
+    setTimeout(() => {
+      iframe.contentWindow?.print();
+      setTimeout(() => document.body.removeChild(iframe), 1000);
+    }, 250);
   };
 
   return (
@@ -435,45 +445,40 @@ function PendingTokensModal({ scheme, month, onClose }: { scheme: any; month: st
   const totalPending = pendingList.reduce((s, p) => s + Number(p.installmentAmount || installmentAmt), 0);
 
   const handlePrint = () => {
-    const w = window.open("", "_blank");
-    if (!w) return;
+    const iframe = document.createElement("iframe");
+    iframe.style.cssText = "position:fixed;width:0;height:0;border:0";
+    document.body.appendChild(iframe);
+    const doc = iframe.contentDocument || iframe.contentWindow?.document;
+    if (!doc) { document.body.removeChild(iframe); return; }
     const rows = pendingList.map(p =>
       `<tr>
-        <td style="padding:8px;border-bottom:1px solid #eee;font-weight:700;color:#4f46e5;font-family:monospace">#${p.tokenNumber || "—"}</td>
-        <td style="padding:8px;border-bottom:1px solid #eee;font-weight:700">${p.customerName || "Member"}</td>
-        <td style="padding:8px;border-bottom:1px solid #eee;font-family:monospace">${p.customerMobile || "—"}</td>
-        <td style="padding:8px;border-bottom:1px solid #eee;color:#64748b;font-size:11px">${p.customerAddress || "—"}</td>
-        <td style="padding:8px;border-bottom:1px solid #eee;text-align:right;font-weight:700;color:#e11d48;font-family:monospace">₹${Number(p.installmentAmount || installmentAmt).toLocaleString("en-IN")}</td>
+        <td style="padding:8px;border-bottom:1px solid #eee;font-weight:700;color:#4f46e5;font-family:monospace">#${p.tokenNumber||"—"}</td>
+        <td style="padding:8px;border-bottom:1px solid #eee;font-weight:700">${p.customerName||"Member"}</td>
+        <td style="padding:8px;border-bottom:1px solid #eee;font-family:monospace">${p.customerMobile||"—"}</td>
+        <td style="padding:8px;border-bottom:1px solid #eee;color:#64748b;font-size:11px">${p.customerAddress||"—"}</td>
+        <td style="padding:8px;border-bottom:1px solid #eee;text-align:right;font-weight:700;color:#e11d48;font-family:monospace">₹${Number(p.installmentAmount||installmentAmt).toLocaleString("en-IN")}</td>
         <td style="padding:8px;border-bottom:1px solid #eee;text-align:center;color:#e11d48;font-weight:700">🔴 UNPAID</td>
-        <td style="padding:8px;border-bottom:1px solid #eee;width:120px;border-left:1px dashed #ddd"></td>
+        <td style="padding:8px;border-bottom:1px solid #eee;width:110px;border-left:1px dashed #ddd"></td>
       </tr>`
     ).join("");
-    w.document.write(`<!DOCTYPE html><html><head><title>Pending — ${scheme.name}</title>
-    <style>
-      body{font-family:Arial;padding:24px;font-size:12px;color:#0f172a}
-      .hdr{display:flex;justify-content:space-between;border-bottom:2px solid #e11d48;padding-bottom:12px;margin-bottom:12px}
-      .summary{background:#fff1f2;border:1px solid #fecdd3;padding:10px 16px;border-radius:8px;margin-bottom:14px;display:flex;justify-content:space-between;font-weight:700}
-      table{width:100%;border-collapse:collapse}
-      th{background:#f8fafc;padding:8px;text-align:left;border-bottom:2px solid #e2e8f0;font-size:11px}
-      button{margin-bottom:14px;padding:8px 18px;background:#e11d48;color:white;border:none;border-radius:6px;cursor:pointer;font-weight:700}
-      @media print{button{display:none}}
-    </style></head>
-    <body>
-    <button onclick="window.print()">🖨️ Print / Save PDF</button>
+    doc.write(`<!DOCTYPE html><html><head><title>Pending — ${scheme.name}</title>
+    <style>body{font-family:Arial;padding:24px;font-size:12px;color:#0f172a}.hdr{display:flex;justify-content:space-between;border-bottom:2px solid #e11d48;padding-bottom:12px;margin-bottom:12px}.summary{background:#fff1f2;border:1px solid #fecdd3;padding:10px 16px;border-radius:8px;margin-bottom:14px;display:flex;justify-content:space-between;font-weight:700}table{width:100%;border-collapse:collapse}th{background:#f8fafc;padding:8px;text-align:left;border-bottom:2px solid #e2e8f0;font-size:11px}</style>
+    </head><body>
     <div class="hdr">
-      <div><div style="font-size:18px;font-weight:800;color:#9f1239">SHREE KRISHNA ASSOCIATION</div><div style="font-size:12px;color:#64748b">Pending Members — ${scheme.name} | ${month || "Current Month"}</div></div>
+      <div><div style="font-size:18px;font-weight:800;color:#9f1239">SHREE KRISHNA ASSOCIATION</div><div style="font-size:12px;color:#64748b">Pending Members — ${scheme.name} | ${month||"Current Month"}</div></div>
       <div style="text-align:right;font-size:11px;color:#475569">Date: ${new Date().toLocaleDateString("en-IN")}</div>
     </div>
     <div class="summary">
-      <span>🔴 Pending Tokens: <span style="color:#e11d48">${pendingList.length}</span></span>
-      <span>💸 Total Due: <span style="color:#e11d48">₹${totalPending.toLocaleString("en-IN")}</span></span>
+      <span>🔴 Pending: <strong style="color:#e11d48">${pendingList.length} tokens</strong></span>
+      <span>💸 Total Due: <strong style="color:#e11d48">₹${totalPending.toLocaleString("en-IN")}</strong></span>
     </div>
-    <table>
-      <thead><tr><th>Token #</th><th>Member Name</th><th>Mobile</th><th>Address</th><th style="text-align:right">Due Amount</th><th style="text-align:center">Status</th><th style="text-align:center">Collector Sign</th></tr></thead>
-      <tbody>${rows}</tbody>
-    </table>
+    <table><thead><tr><th>Token #</th><th>Member Name</th><th>Mobile</th><th>Address</th><th style="text-align:right">Due Amount</th><th style="text-align:center">Status</th><th style="text-align:center">Sign</th></tr></thead><tbody>${rows}</tbody></table>
     </body></html>`);
-    w.document.close();
+    doc.close();
+    setTimeout(() => {
+      iframe.contentWindow?.print();
+      setTimeout(() => document.body.removeChild(iframe), 1000);
+    }, 250);
   };
 
   return (
