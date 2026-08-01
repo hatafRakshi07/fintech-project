@@ -21,6 +21,29 @@ export function useLocation(): [string, (to: string) => void] {
   return [pathname || '/', setLocation];
 }
 
-export function useParams<T extends Record<string, string | string[]>>() {
-  return useNextParams() as T;
+export function useParams<T extends Record<string, string | string[]>>(): T {
+  const nextParams = useNextParams();
+  const pathname = usePathname();
+
+  if (nextParams && Object.keys(nextParams).length > 0 && nextParams.id) {
+    return nextParams as unknown as T;
+  }
+
+  if (pathname) {
+    const parts = pathname.split('/').filter(Boolean);
+    const lastPart = parts[parts.length - 1];
+    if (lastPart && /^\d+$/.test(lastPart)) {
+      return { id: lastPart, ...nextParams } as unknown as T;
+    }
+  }
+
+  if (typeof window !== 'undefined') {
+    const parts = window.location.pathname.split('/').filter(Boolean);
+    const lastPart = parts[parts.length - 1];
+    if (lastPart && /^\d+$/.test(lastPart)) {
+      return { id: lastPart, ...nextParams } as unknown as T;
+    }
+  }
+
+  return (nextParams || {}) as unknown as T;
 }
