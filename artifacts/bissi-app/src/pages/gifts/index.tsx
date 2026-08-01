@@ -444,9 +444,10 @@ export default function GiftsPage() {
   const [search, setSearch] = useState("");
   const [committeeId, setCommitteeId] = useState("all");
   const [rewardType, setRewardType] = useState("all");
+  const [monthFilter, setMonthFilter] = useState("all");
   const [page, setPage] = useState(0);
   const [activeTab, setActiveTab] = useState("list");
-  const PER_PAGE = 100;
+  const PER_PAGE = 5000;
 
   const params = new URLSearchParams();
   if (committeeId !== "all") params.set("committeeId", committeeId);
@@ -461,12 +462,32 @@ export default function GiftsPage() {
     staleTime: 30000,
   });
 
-  const winners = data?.winners || [];
+  const winners = (data?.winners as Winner[]) || [];
   const total = data?.total || 0;
+
+  // Extract unique months for Month Filter dropdown
+  const availableMonths = Array.from(
+    new Set(
+      winners.map(w =>
+        w.drawDate
+          ? new Date(w.drawDate).toLocaleDateString("en-IN", { month: "long", year: "numeric" })
+          : "Gift / Reward Records"
+      )
+    )
+  );
+
+  const displayWinners = monthFilter === "all"
+    ? winners
+    : winners.filter(w => {
+        const mKey = w.drawDate
+          ? new Date(w.drawDate).toLocaleDateString("en-IN", { month: "long", year: "numeric" })
+          : "Gift / Reward Records";
+        return mKey === monthFilter;
+      });
 
   // Group by month for display
   const grouped: Record<string, Winner[]> = {};
-  winners.forEach(w => {
+  displayWinners.forEach(w => {
     const monthKey = w.drawDate
       ? new Date(w.drawDate).toLocaleDateString("en-IN", { month: "long", year: "numeric" })
       : "Gift / Reward Records";
@@ -642,6 +663,19 @@ export default function GiftsPage() {
                     <SelectItem value="all">🎁💵 All Rewards</SelectItem>
                     <SelectItem value="gift">🎁 Gift Items Only</SelectItem>
                     <SelectItem value="cash">💵 Cash Only</SelectItem>
+                  </SelectContent>
+                </Select>
+
+                <Select value={monthFilter} onValueChange={v => setMonthFilter(v)}>
+                  <SelectTrigger className="w-full sm:w-56">
+                    <Calendar className="w-4 h-4 mr-2 text-purple-600" />
+                    <SelectValue placeholder="Filter by Month" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">🗓️ All Months (2024 - 2026)</SelectItem>
+                    {availableMonths.map(m => (
+                      <SelectItem key={m} value={m}>{m}</SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
               </div>
