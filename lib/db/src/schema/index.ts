@@ -14,3 +14,5 @@ export * from './employees';
 export * from './notifications';
 export * from './audit';
 export * from './relations';
+export * from './daily_diary';
+

@@ -42,9 +42,13 @@ import SalesLedgerPage from "@/pages/ledgers/sales";
 import PurchaseLedgerPage from "@/pages/ledgers/purchase";
 import CashbookPage from "@/pages/ledgers/cashbook";
 import CalendarPage from "@/pages/calendar";
+import DailyDiaryDashboardPage from "@/pages/daily-diary";
+import DailyDiaryDetailPage from "@/pages/daily-diary/[id]";
+import DailyDiaryReportsPage from "@/pages/daily-diary/reports";
 import NotFound from "@/pages/not-found";
 
 import { Shell } from "@/components/layout/Shell";
+
 
 /**
  * Wraps a route so that only users with one of the given roles can access it.
@@ -105,8 +109,28 @@ function AppRoutes() {
       <Switch>
         <Route path="/" component={DashboardPage} />
 
+        {/* Daily Diary Loan Collection */}
+        <Route path="/daily-diary">
+          <RoleGate roles={[...COLLECTOR_UP, "accountant", "agent"]}>
+            <DailyDiaryDashboardPage />
+          </RoleGate>
+        </Route>
+        <Route path="/daily-diary/reports">
+          <RoleGate roles={[...COLLECTOR_UP, "accountant", "agent"]}>
+            <DailyDiaryReportsPage />
+          </RoleGate>
+        </Route>
+        <Route path="/daily-diary/:id">
+          {() => (
+            <RoleGate roles={[...COLLECTOR_UP, "accountant", "agent"]}>
+              <DailyDiaryDetailPage />
+            </RoleGate>
+          )}
+        </Route>
+
         {/* Customers — all except pure customer role */}
         <Route path="/customers">
+
           <RoleGate roles={COLLECTOR_UP}>
             <CustomersPage />
           </RoleGate>
