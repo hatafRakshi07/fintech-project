@@ -1,6 +1,8 @@
+'use client';
+
 import React, { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Link } from "wouter";
+import { Link } from "@/lib/router-adapter";
 import { useRole } from "@/hooks/use-role";
 import { customFetch } from "@workspace/api-client-react";
 import CustomerPortalPage from "@/pages/customer-portal";

@@ -7,7 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from "@/components/ui/table";
-import { Users, UserPlus, ShieldCheck, DollarSign, Award, ArrowUpRight, CheckCircle2, QrCode } from "lucide-react";
+import { Users, UserPlus, ShieldCheck, DollarSign, Award, ArrowUpRight, CheckCircle2, QrCode, Bell, Send } from "lucide-react";
 import { KycStatusBadge } from "@/components/kyc/KycStatusBadge";
 import { KycSubmissionForm } from "@/components/kyc/KycSubmissionForm";
 import { useToast } from "@/hooks/use-toast";
@@ -53,6 +53,44 @@ export default function AgentPortalPage() {
   const [city, setCity] = useState("");
   const [nomineeName, setNomineeName] = useState("");
   const [nomineeRelation, setNomineeRelation] = useState("");
+
+  // Broadcast & Alerts form state
+  const [msgTitle, setMsgTitle] = useState("");
+  const [msgBody, setMsgBody] = useState("");
+
+  const broadcastMutation = useMutation({
+    mutationFn: async () => {
+      const token = localStorage.getItem("auth_token");
+      const res = await fetch("/api/broadcast", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({ title: msgTitle, body: msgBody }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({ error: "Failed to send message" }));
+        throw new Error(err.error || "Failed to send message");
+      }
+      return res.json();
+    },
+    onSuccess: () => {
+      toast({
+        title: "Message Sent!",
+        description: `Notification broadcasted to all active customers.`,
+      });
+      setMsgTitle("");
+      setMsgBody("");
+    },
+    onError: (err: any) => {
+      toast({
+        variant: "destructive",
+        title: "Broadcast Failed",
+        description: err.message || "Could not send notification",
+      });
+    },
+  });
 
   const onboardMutation = useMutation({
     mutationFn: async () => {
@@ -224,12 +262,15 @@ export default function AgentPortalPage() {
 
       {/* Main Tabs */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-        <TabsList className="grid grid-cols-3 max-w-md">
+        <TabsList className="grid grid-cols-4 max-w-xl">
           <TabsTrigger value="onboard" className="gap-2">
             <UserPlus className="w-4 h-4" /> Onboard
           </TabsTrigger>
           <TabsTrigger value="customers" className="gap-2">
             <Users className="w-4 h-4" /> My Customers
+          </TabsTrigger>
+          <TabsTrigger value="broadcast" className="gap-2">
+            <Send className="w-4 h-4" /> Broadcast
           </TabsTrigger>
           <TabsTrigger value="kyc" className="gap-2">
             <ShieldCheck className="w-4 h-4" /> Agent KYC
@@ -399,7 +440,53 @@ export default function AgentPortalPage() {
           </Card>
         </TabsContent>
 
-        {/* Tab 3: Agent KYC */}
+        {/* Tab 3: Send Message / Broadcast */}
+        <TabsContent value="broadcast">
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-xl flex items-center gap-2">
+                <Send className="w-5 h-5 text-primary" /> Send Message to Customers
+              </CardTitle>
+              <CardDescription>
+                Broadcast announcements, collection alerts, or custom messages directly to your assigned customer base.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="msgTitle">Notification Title *</Label>
+                <Input
+                  id="msgTitle"
+                  placeholder="e.g. Monthly Due Payment Reminder"
+                  value={msgTitle}
+                  onChange={(e) => setMsgTitle(e.target.value)}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="msgBody">Message Content *</Label>
+                <textarea
+                  id="msgBody"
+                  rows={4}
+                  className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm shadow-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                  placeholder="Type your message to customers..."
+                  value={msgBody}
+                  onChange={(e) => setMsgBody(e.target.value)}
+                />
+              </div>
+              <div className="flex justify-end pt-2">
+                <Button
+                  onClick={() => broadcastMutation.mutate()}
+                  disabled={broadcastMutation.isPending || !msgTitle || !msgBody}
+                  className="gap-2 px-6"
+                >
+                  <Send className="w-4 h-4" />
+                  {broadcastMutation.isPending ? "Sending..." : "Send Broadcast"}
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* Tab 4: Agent KYC */}
         <TabsContent value="kyc">
           <KycSubmissionForm />
         </TabsContent>

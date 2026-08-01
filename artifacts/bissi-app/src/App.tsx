@@ -311,7 +311,7 @@ function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
-        <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, "")}>
+        <WouterRouter base={(process.env.NEXT_PUBLIC_BASE_PATH || "").replace(/\/$/, "")}>
           <AppRoutes />
         </WouterRouter>
         <Toaster />

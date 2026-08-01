@@ -1,5 +1,7 @@
+'use client';
+
 import React from "react";
-import { Link, useLocation } from "wouter";
+import { Link, useLocation } from "@/lib/router-adapter";
 import { SkaAppLogo } from "@/components/SkaAppLogo";
 import { useGetMe, useLogout } from "@workspace/api-client-react";
 import { useRole } from "@/hooks/use-role";

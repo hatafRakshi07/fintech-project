@@ -1,6 +1,8 @@
+'use client';
+
 import React, { useState } from "react";
 import { safeArray } from "@/lib/utils";
-import { useParams, Link } from "wouter";
+import { useParams, Link } from "@/lib/router-adapter";
 import { 
   useGetCustomer, 
   useGetCustomerPassbook, 

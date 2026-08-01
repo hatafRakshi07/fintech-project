@@ -4,9 +4,10 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "vite --config vite.config.ts --host 0.0.0.0",
-    "build": "vite build --config vite.config.ts",
-    "serve": "vite preview --config vite.config.ts --host 0.0.0.0",
+    "dev": "next dev -p 5000",
+    "dev:vite": "vite --config vite.config.ts --host 0.0.0.0",
+    "build": "next build",
+    "start": "next start -p 5000",
     "typecheck": "tsc --noEmit",
     "cap:sync": "cap sync",
     "cap:add:android": "cap add android",
@@ -65,6 +66,7 @@
     "framer-motion": "^12.23.24",
     "input-otp": "^1.4.2",
     "lucide-react": "^0.545.0",
+    "next": "^15.1.7",
     "next-themes": "^0.4.6",
     "react": "^19.0.0",
     "react-day-picker": "^9.11.1",
@@ -83,6 +85,7 @@
     "zod": "^3.25.76"
   },
   "dependencies": {
-    "firebase": "^12.16.0"
+    "firebase": "^12.16.0",
+    "next": "^15.1.7"
   }
 }

@@ -10,11 +10,14 @@
     "dev:all": "cmd /c START.bat",
     "build": "pnpm run typecheck && pnpm -r --if-present run build && node ./scripts/copy-assets.mjs",
     "typecheck:libs": "tsc --build",
-    "typecheck": "pnpm run typecheck:libs && pnpm -r --filter \"./artifacts/**\" --filter \"./scripts\" --if-present run typecheck"
-
+    "typecheck": "pnpm run typecheck:libs && pnpm -r --filter \"./artifacts/**\" --filter \"./scripts\" --if-present run typecheck",
+    "seed": "node ./scripts/seed-complete-db.mjs",
+    "db:push": "pnpm --filter @workspace/db run push",
+    "test:api": "node ./scripts/smoke-test-api.mjs"
   },
   "private": true,
   "devDependencies": {
+    "next": "^15.1.7",
     "prettier": "^3.8.4"
   },
   "dependencies": {
