@@ -22,7 +22,14 @@ async function copyDir(src, dest) {
 }
 
 async function main() {
-  const bissiSrc = path.join(root, 'artifacts', 'bissi-app', 'dist', 'public');
+  const bissiDistPublic = path.join(root, 'artifacts', 'bissi-app', 'dist', 'public');
+  const bissiDist = path.join(root, 'artifacts', 'bissi-app', 'dist');
+  const bissiOut = path.join(root, 'artifacts', 'bissi-app', 'out');
+
+  const bissiHasDistPublic = await fs.stat(bissiDistPublic).then(s => s.isDirectory()).catch(() => false);
+  const bissiHasDist = await fs.stat(bissiDist).then(s => s.isDirectory()).catch(() => false);
+
+  const bissiSrc = bissiHasDistPublic ? bissiDistPublic : bissiHasDist ? bissiDist : bissiOut;
   const bissiDest = path.join(root, 'artifacts', 'api-server', 'dist', 'public');
 
   const collectorSrc = path.join(root, 'artifacts', 'collector-app', 'dist');
