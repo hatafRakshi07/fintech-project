@@ -580,9 +580,11 @@ export default function CommitteeDetailPage() {
       });
     }
     const tokenNum = m.tokenNumber || m.token_number || String(m.id);
+    const rawSt = (m.status || "active").toString().toUpperCase();
+    const isLucky = rawSt === "LUCKY" || rawSt === "OUT" || rawSt === "WINNER" || (m as any).isWinner;
     grouped.get(custId)!.tokens.push({
       number: tokenNum,
-      status: m.status || "active",
+      status: isLucky ? "lucky" : rawSt.toLowerCase(),
     });
   }
 
@@ -861,23 +863,24 @@ export default function CommitteeDetailPage() {
                           <TableCell className="pr-5">
                             <div className="flex flex-wrap items-center gap-1.5 py-1">
                               {g.tokens.map((t) => {
-                                const isLucky = t.status === "lucky";
-                                const isOut = t.status === "out" || t.status === "closed";
+                                const isLucky = t.status === "lucky" || t.status === "out" || t.status === "closed";
                                 return (
                                   <span
                                     key={t.number}
-                                    className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-mono font-bold border transition-all shadow-2xs ${
+                                    className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-mono font-bold border transition-all shadow-xs ${
                                       isLucky
-                                        ? "bg-amber-500/15 text-amber-800 dark:text-amber-300 border-amber-400/50 ring-1 ring-amber-400/20"
-                                        : isOut
-                                        ? "bg-muted text-muted-foreground border-muted-foreground/20"
+                                        ? "bg-amber-500/20 text-amber-900 dark:text-amber-300 border-amber-500/40 ring-1 ring-amber-400/30"
                                         : "bg-card text-foreground border-border hover:border-primary/40"
                                     }`}
                                   >
                                     <span className="text-primary font-black">#{t.number}</span>
-                                    {isLucky && <span className="text-[10px] text-amber-600 dark:text-amber-400 font-sans font-semibold">✨ Lucky</span>}
-                                    {!isLucky && !isOut && <span className="text-[10px] text-muted-foreground font-sans font-normal">Active</span>}
-                                    {isOut && <span className="text-[10px] text-muted-foreground font-sans font-normal">Out</span>}
+                                    {isLucky ? (
+                                      <span className="inline-flex items-center gap-1 text-[10px] text-amber-700 dark:text-amber-400 font-sans font-bold bg-amber-400/20 px-1.5 py-0.5 rounded">
+                                        ✨ Lucky Winner (Out)
+                                      </span>
+                                    ) : (
+                                      <span className="text-[10px] text-muted-foreground font-sans font-normal">Active</span>
+                                    )}
                                   </span>
                                 );
                               })}
