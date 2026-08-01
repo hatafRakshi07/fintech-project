@@ -1044,7 +1044,7 @@ router.post("/collections", async (req, res) => {
       const insertQuery = `
         INSERT INTO collections (
           customer_id, collector_id, committee_id, loan_id, amount, payment_mode, receipt_number, notes, verification_status, collected_at, created_at
-        ) VALUES ($1, $2, $3, $4, $5, $6::payment_mode, $7, $8, 'verified'::collection_verification_status, NOW(), NOW())
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'verified', NOW(), NOW())
         RETURNING *
       `;
       const insertedRecords = await Promise.all(
@@ -1071,7 +1071,7 @@ router.post("/collections", async (req, res) => {
       INSERT INTO collections (
         customer_id, collector_id, committee_id, loan_id, amount, payment_mode, receipt_number, notes, 
         billing_name, billing_phone, billing_address, billing_gstin, verification_status, collected_at, created_at
-      ) VALUES ($1, $2, $3, $4, $5, $6::payment_mode, $7, $8, $9, $10, $11, $12, 'verified'::collection_verification_status, NOW(), NOW())
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, 'verified', NOW(), NOW())
       RETURNING *
     `;
     const params = [
@@ -1117,7 +1117,7 @@ const handleVerifyCollection = async (req: any, res: any) => {
 
     const result = await pool.query(`
       UPDATE collections
-      SET verification_status = $1::collection_verification_status, 
+      SET verification_status = $1, 
           verification_notes = $2,
           verified_at = NOW()
       WHERE id = $3

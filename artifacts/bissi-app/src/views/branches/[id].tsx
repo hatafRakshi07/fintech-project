@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState } from "react";
-import { useParams, Link } from "wouter";
+import { useParams, Link } from "@/lib/router-adapter";
 import {
   useGetBranch,
   useUpdateBranch,

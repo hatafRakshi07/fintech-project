@@ -1,7 +1,7 @@
 'use client';
 
 import React from "react";
-import { Link } from "wouter";
+import { Link } from "@/lib/router-adapter";
 import { Button } from "@/components/ui/button";
 
 export default function NotFound() {

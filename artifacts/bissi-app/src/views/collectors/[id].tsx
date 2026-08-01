@@ -1,7 +1,7 @@
 'use client';
 
 import React from "react";
-import { useParams, Link } from "wouter";
+import { useParams, Link } from "@/lib/router-adapter";
 import {
   useGetCollector,
   useGetCollectorPerformance,

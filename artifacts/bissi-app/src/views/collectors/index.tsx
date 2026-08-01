@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState } from "react";
-import { Link } from "wouter";
+import { Link } from "@/lib/router-adapter";
 import { useListCollectors, useCreateCollector, useListBranches } from "@workspace/api-client-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";

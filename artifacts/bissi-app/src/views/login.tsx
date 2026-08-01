@@ -2,7 +2,7 @@
 
 import React, { useState } from "react";
 import { SkaAppLogo } from "@/components/SkaAppLogo";
-import { useLocation } from "wouter";
+import { useLocation } from "@/lib/router-adapter";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Input } from "@/components/ui/input";
