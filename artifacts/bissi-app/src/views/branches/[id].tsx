@@ -1,3 +1,5 @@
+'use client';
+
 import React, { useState } from "react";
 import { useParams, Link } from "wouter";
 import {

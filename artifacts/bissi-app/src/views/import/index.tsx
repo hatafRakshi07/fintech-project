@@ -1,3 +1,5 @@
+'use client';
+
 import React, { useState, useRef } from "react";
 import { useMutation } from "@tanstack/react-query";
 import { customFetch } from "@workspace/api-client-react";

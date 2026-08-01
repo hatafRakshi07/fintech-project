@@ -1,3 +1,5 @@
+'use client';
+
 import React, { useRef, useState } from "react";
 import { safeArray } from "@/lib/utils";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";

@@ -1,3 +1,5 @@
+'use client';
+
 import React from "react";
 import { Link } from "wouter";
 import { Button } from "@/components/ui/button";

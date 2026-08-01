@@ -1,3 +1,5 @@
+'use client';
+
 import React, { useState } from "react";
 import { Link } from "wouter";
 import { useListCommittees, useCreateCommittee, useListBranches } from "@workspace/api-client-react";
