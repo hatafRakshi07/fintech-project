@@ -28,13 +28,209 @@ type Winner = {
   status: string;
 };
 
+import {
+  Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger,
+} from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
+import { useToast } from "@/hooks/use-toast";
+import { useQueryClient } from "@tanstack/react-query";
+
 const COMMITTEES = [
   { id: "all", name: "Sabhi Bissi" },
   { id: "1", name: "Sawariya Seth Bissi (5th Date)" },
-  { id: "4", name: "Shree Krishna Associate Bissi (10th Date)" },
   { id: "2", name: "Pyare Mohan Bissi (15th Date)" },
   { id: "3", name: "Hare Ka Sahara Bissi (20th Date)" },
+  { id: "4", name: "Shree Krishna Associate Bissi (10th Date)" },
 ];
+
+function RecordGiftModal({
+  isOpen,
+  onOpenChange,
+  defaultCommitteeId = "1",
+  defaultTokenId,
+  defaultMonth,
+}: {
+  isOpen: boolean;
+  onOpenChange: (open: boolean) => void;
+  defaultCommitteeId?: string;
+  defaultTokenId?: string;
+  defaultMonth?: string;
+}) {
+  const [commId, setCommId] = useState(defaultCommitteeId === "all" ? "1" : defaultCommitteeId);
+  const [tokenId, setTokenId] = useState(defaultTokenId || "");
+  const [month, setMonth] = useState(defaultMonth || "Jun-24");
+  const [claimMode, setClaimMode] = useState<"GIFT" | "CASH">("GIFT");
+  const [giftItem, setGiftItem] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+
+  // Fetch tokens for selected committee
+  const { data: matrixData } = useQuery<any>({
+    queryKey: ["committee-gift-matrix-modal", commId],
+    queryFn: () => customFetch(`/committees/${commId}/gift-matrix`),
+    enabled: isOpen && !!commId,
+  });
+
+  const members: any[] = matrixData?.members || [];
+  const availableMonths: string[] = matrixData?.months || [
+    "Jun-24", "Jul-24", "Aug-24", "Sep-24", "Oct-24", "Nov-24", "Dec-24", "Jan-25",
+    "Feb-25", "Mar-25", "Apr-25", "May-25", "Jun-25", "Jul-25", "Aug-25", "Sep-25",
+    "Oct-25", "Nov-25", "Dec-25", "Jan-26", "Feb-26", "Mar-26", "Apr-26", "May-26",
+    "Jun-26", "Jul-26", "Aug-26"
+  ];
+
+  React.useEffect(() => {
+    if (defaultCommitteeId && defaultCommitteeId !== "all") setCommId(defaultCommitteeId);
+    if (defaultTokenId) setTokenId(defaultTokenId);
+    if (defaultMonth) setMonth(defaultMonth);
+  }, [defaultCommitteeId, defaultTokenId, defaultMonth, isOpen]);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!commId || !tokenId || !month || !giftItem.trim()) {
+      toast({ title: "Please fill all required fields", variant: "destructive" });
+      return;
+    }
+
+    setIsSubmitting(true);
+    try {
+      const selectedMember = members.find(m => String(m.tokenId) === String(tokenId));
+      const res = await customFetch("/gifts/record", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          committeeId: parseInt(commId, 10),
+          tokenId: parseInt(tokenId, 10),
+          customerId: selectedMember?.customerId ? parseInt(selectedMember.customerId, 10) : undefined,
+          month,
+          claimMode,
+          giftItem: giftItem.trim(),
+        }),
+      });
+
+      if (res && res.success) {
+        toast({ title: "Gift record saved successfully (उपहार दर्ज हो गया) ✓" });
+        queryClient.invalidateQueries({ queryKey: ["committee-gift-matrix"] });
+        queryClient.invalidateQueries({ queryKey: ["gifts-bissi-winners"] });
+        setGiftItem("");
+        onOpenChange(false);
+      } else {
+        toast({ title: res?.error || "Failed to record gift", variant: "destructive" });
+      }
+    } catch (err: any) {
+      toast({ title: err.message || "Failed to record gift", variant: "destructive" });
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  return (
+    <Dialog open={isOpen} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-md">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2 text-purple-700">
+            <Gift className="w-5 h-5 text-purple-500" />
+            Record New Gift / Cash (उपहार / नकद दर्ज करें)
+          </DialogTitle>
+        </DialogHeader>
+
+        <form onSubmit={handleSubmit} className="space-y-4 pt-2">
+          {/* Select Committee */}
+          <div className="space-y-1">
+            <Label className="text-xs font-semibold">Select Bissi Committee (समिति)</Label>
+            <Select value={commId} onValueChange={setCommId}>
+              <SelectTrigger className="h-9 text-xs">
+                <SelectValue placeholder="Select Bissi" />
+              </SelectTrigger>
+              <SelectContent>
+                {COMMITTEES.filter(c => c.id !== "all").map(c => (
+                  <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          {/* Select Token / Member */}
+          <div className="space-y-1">
+            <Label className="text-xs font-semibold">Select Token / Member (सदस्य / टोकन सं.)</Label>
+            <Select value={tokenId} onValueChange={setTokenId}>
+              <SelectTrigger className="h-9 text-xs">
+                <SelectValue placeholder={members.length === 0 ? "Loading members..." : "Select Member Token"} />
+              </SelectTrigger>
+              <SelectContent className="max-h-60">
+                {members.map(m => (
+                  <SelectItem key={m.tokenId} value={String(m.tokenId)}>
+                    #{m.tokenNumber} — {m.customerName} ({m.customerMobile || "No Mobile"})
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          {/* Select Month */}
+          <div className="space-y-1">
+            <Label className="text-xs font-semibold">Select Draw Month (महीना)</Label>
+            <Select value={month} onValueChange={setMonth}>
+              <SelectTrigger className="h-9 text-xs">
+                <SelectValue placeholder="Select Month" />
+              </SelectTrigger>
+              <SelectContent className="max-h-48">
+                {availableMonths.map(m => (
+                  <SelectItem key={m} value={m}>{m}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          {/* Reward Type */}
+          <div className="space-y-1">
+            <Label className="text-xs font-semibold">Reward Type (प्रकार)</Label>
+            <div className="grid grid-cols-2 gap-2">
+              <Button
+                type="button"
+                variant={claimMode === "GIFT" ? "default" : "outline"}
+                className={`h-9 text-xs justify-center ${claimMode === "GIFT" ? "bg-purple-600 hover:bg-purple-700" : ""}`}
+                onClick={() => setClaimMode("GIFT")}
+              >
+                🎁 Physical Gift (उपहार)
+              </Button>
+              <Button
+                type="button"
+                variant={claimMode === "CASH" ? "default" : "outline"}
+                className={`h-9 text-xs justify-center ${claimMode === "CASH" ? "bg-emerald-600 hover:bg-emerald-700" : ""}`}
+                onClick={() => setClaimMode("CASH")}
+              >
+                💵 Cash Claim (नकद)
+              </Button>
+            </div>
+          </div>
+
+          {/* Gift Item Input */}
+          <div className="space-y-1">
+            <Label className="text-xs font-semibold">Gift Item Name / Cash Amount (उपहार / राशि का नाम)</Label>
+            <Input
+              placeholder={claimMode === "GIFT" ? "e.g. Gas Stove, Juicer Mixer, Trolley Bag" : "e.g. 5000 Cash, 1000 Cash for nose pin"}
+              value={giftItem}
+              onChange={e => setGiftItem(e.target.value)}
+              className="h-9 text-xs"
+              required
+            />
+          </div>
+
+          <div className="flex justify-end gap-2 pt-2 border-t">
+            <Button type="button" variant="outline" size="sm" onClick={() => onOpenChange(false)}>
+              Cancel
+            </Button>
+            <Button type="submit" size="sm" disabled={isSubmitting} className="bg-purple-600 hover:bg-purple-700 text-white">
+              {isSubmitting ? "Saving..." : "Save Record (दर्ज करें)"}
+            </Button>
+          </div>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+}
 
 const formatDate = (d: string) => {
   if (!d) return "—";
@@ -62,12 +258,21 @@ const formatGiftName = (name: string, rewardType: string) => {
 function GiftMatrixView({ selectedCommitteeId }: { selectedCommitteeId: string }) {
   const commId = selectedCommitteeId === "all" ? "1" : selectedCommitteeId;
   const [matrixSearch, setMatrixSearch] = useState("");
+  const [isRecordModalOpen, setIsRecordModalOpen] = useState(false);
+  const [modalTokenId, setModalTokenId] = useState<string | undefined>(undefined);
+  const [modalMonth, setModalMonth] = useState<string | undefined>(undefined);
 
   const { data, isLoading } = useQuery<any>({
     queryKey: ["committee-gift-matrix", commId, matrixSearch],
     queryFn: () => customFetch(`/committees/${commId}/gift-matrix${matrixSearch ? `?search=${encodeURIComponent(matrixSearch)}` : ""}`),
     staleTime: 30000,
   });
+
+  const handleOpenModal = (tokenId?: string, month?: string) => {
+    setModalTokenId(tokenId);
+    setModalMonth(month);
+    setIsRecordModalOpen(true);
+  };
 
   if (isLoading) {
     return (
@@ -115,6 +320,14 @@ function GiftMatrixView({ selectedCommitteeId }: { selectedCommitteeId: string }
 
   return (
     <div className="space-y-4">
+      <RecordGiftModal
+        isOpen={isRecordModalOpen}
+        onOpenChange={setIsRecordModalOpen}
+        defaultCommitteeId={commId}
+        defaultTokenId={modalTokenId}
+        defaultMonth={modalMonth}
+      />
+
       {/* Top bar for Matrix */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
         <div className="relative flex-1 w-full sm:max-w-xs">
@@ -126,10 +339,16 @@ function GiftMatrixView({ selectedCommitteeId }: { selectedCommitteeId: string }
             className="pl-9 h-9 text-xs"
           />
         </div>
-        <Button onClick={handleExportCSV} variant="outline" size="sm" className="gap-2 text-xs h-9 text-purple-600 border-purple-200">
-          <Download className="w-3.5 h-3.5" />
-          Export Gift Sheet CSV
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button onClick={() => handleOpenModal()} size="sm" className="gap-1.5 text-xs h-9 bg-purple-600 hover:bg-purple-700 text-white shadow-sm">
+            <Plus className="w-4 h-4" />
+            Add Gift Record (उपहार दर्ज करें)
+          </Button>
+          <Button onClick={handleExportCSV} variant="outline" size="sm" className="gap-2 text-xs h-9 text-purple-600 border-purple-200">
+            <Download className="w-3.5 h-3.5" />
+            Export Gift Sheet CSV
+          </Button>
+        </div>
       </div>
 
       {/* Excel Sheet Matrix Table */}
@@ -178,7 +397,12 @@ function GiftMatrixView({ selectedCommitteeId }: { selectedCommitteeId: string }
                         {m.customerMobile || "—"}
                       </TableCell>
                       {m.monthlyGifts.map((mg: any, idx: number) => (
-                        <TableCell key={idx} className="text-center px-1 py-1.5">
+                        <TableCell
+                          key={idx}
+                          className="text-center px-1 py-1.5 cursor-pointer hover:bg-purple-500/10 transition-colors"
+                          onClick={() => handleOpenModal(m.tokenId, mg.month)}
+                          title={`Click to add/edit gift for #${m.tokenNumber} in ${mg.month}`}
+                        >
                           {mg.gift ? (
                             <Badge
                               className={`text-[10px] font-medium px-2 py-0.5 whitespace-nowrap shadow-none ${
@@ -191,7 +415,7 @@ function GiftMatrixView({ selectedCommitteeId }: { selectedCommitteeId: string }
                               {mg.gift}
                             </Badge>
                           ) : (
-                            <span className="text-muted-foreground/30 text-[11px]">—</span>
+                            <span className="text-muted-foreground/20 text-[11px] hover:text-purple-600 transition-colors">+</span>
                           )}
                         </TableCell>
                       ))}
@@ -294,8 +518,16 @@ export default function GiftsPage() {
     w.document.close();
   };
 
+  const [isHeaderModalOpen, setIsHeaderModalOpen] = useState(false);
+
   return (
     <div className="space-y-6">
+      <RecordGiftModal
+        isOpen={isHeaderModalOpen}
+        onOpenChange={setIsHeaderModalOpen}
+        defaultCommitteeId={committeeId}
+      />
+
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div>
@@ -307,10 +539,16 @@ export default function GiftsPage() {
             Complete records of all physical gifts and cash claimed across all 4 Bissi schemes
           </p>
         </div>
-        <Button onClick={handlePrint} variant="outline" className="gap-2 text-purple-600 border-purple-500/30 hover:bg-purple-50">
-          <Printer className="w-4 h-4" />
-          Print Report
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button onClick={() => setIsHeaderModalOpen(true)} className="gap-2 bg-purple-600 hover:bg-purple-700 text-white shadow-sm">
+            <Plus className="w-4 h-4" />
+            Record New Gift (नया उपहार दर्ज करें)
+          </Button>
+          <Button onClick={handlePrint} variant="outline" className="gap-2 text-purple-600 border-purple-500/30 hover:bg-purple-50">
+            <Printer className="w-4 h-4" />
+            Print Report
+          </Button>
+        </div>
       </div>
 
       {/* Stats */}

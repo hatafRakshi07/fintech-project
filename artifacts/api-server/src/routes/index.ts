@@ -1746,7 +1746,7 @@ router.get("/dashboard/all", async (req, res) => {
 // NEW: Bissi gift winners from gift_distributions & lotteries table - date-wise sorted
 router.get("/gifts/bissi-winners", async (req, res) => {
   try {
-    const { committeeId, rewardType, search, limit = "200", offset = "0" } = req.query as any;
+    const { committeeId, rewardType, search, limit = "5000", offset = "0" } = req.query as any;
 
     const conditions: string[] = ["gd.customer_id IS NOT NULL"];
     const params: any[] = [];
@@ -1878,9 +1878,19 @@ router.get("/committees/:id/gift-matrix", async (req, res): Promise<void> => {
       ORDER BY gd.distribution_date ASC, gd.id ASC
     `, [committeeId]);
 
-    // Dynamically extract distinct months in chronological order based on distribution_date
+    // Default full sequence of months by committee
+    const defaultMonthsByCommittee: Record<number, string[]> = {
+      1: ["Nov-25", "Dec-25", "Jan-26", "Feb-26", "Mar-26", "Apr-26", "May-26", "Jun-26", "Jul-26", "Aug-26"],
+      2: ["Apr-25", "May-25", "Jun-25", "Jul-25", "Aug-25", "Sep-25", "Oct-25", "Nov-25", "Dec-25", "Jan-26", "Feb-26", "Mar-26", "Apr-26", "May-26", "Jun-26", "Jul-26", "Aug-26"],
+      3: ["Jun-24", "Jul-24", "Aug-24", "Sep-24", "Oct-24", "Nov-24", "Dec-24", "Jan-25", "Feb-25", "Mar-25", "Apr-25", "May-25", "Jun-25", "Jul-25", "Aug-25", "Sep-25", "Oct-25", "Nov-25", "Dec-25", "Jan-26", "Feb-26", "Mar-26", "Apr-26", "May-26", "Jun-26", "Jul-26", "Aug-26"],
+      4: ["Jun-26", "Jul-26", "Aug-26", "Sep-26", "Oct-26", "Nov-26", "Dec-26", "Jan-27", "Feb-27"]
+    };
+
     const monthMap = new Map<string, string>(); // monthLabel -> formatted
-    const tokenGiftsMap = new Map<string, Map<string, { gift: string; isCash: boolean }>>();
+    const defaultMonths = defaultMonthsByCommittee[committeeId] || [];
+    defaultMonths.forEach(m => monthMap.set(m, m));
+
+    const tokenGiftsMap = new Map<string, Map<string, { gift: string; isCash: boolean; id?: number }>>();
 
     for (const g of giftsRes.rows) {
       if (!g.tokenId) continue;
@@ -1948,6 +1958,79 @@ router.get("/committees/:id/gift-matrix", async (req, res): Promise<void> => {
   } catch (err: any) {
     console.error("Error fetching gift matrix:", err);
     res.status(500).json({ success: false, error: "Failed to fetch gift matrix: " + err.message });
+  }
+});
+
+// POST /gifts/record — Add/Record a new Gift or Cash claim for a member token & month
+router.post("/gifts/record", async (req, res): Promise<void> => {
+  try {
+    const { committeeId, tokenId, customerId, month, giftItem, claimMode = "GIFT", distributionDate } = req.body;
+
+    if (!committeeId || !giftItem || !month) {
+      res.status(400).json({ success: false, error: "Committee, month, and gift item are required" });
+      return;
+    }
+
+    let targetCustomerId = customerId;
+    let targetTokenId = tokenId;
+
+    if (!targetCustomerId && targetTokenId) {
+      const tokRes = await pool.query("SELECT customer_id FROM tokens WHERE id = $1", [targetTokenId]);
+      if (tokRes.rows.length > 0) {
+        targetCustomerId = tokRes.rows[0].customer_id;
+      }
+    }
+
+    if (!targetCustomerId || !targetTokenId) {
+      res.status(400).json({ success: false, error: "Customer and Token are required" });
+      return;
+    }
+
+    let dateStr = distributionDate;
+    if (!dateStr) {
+      const drawDayMap: Record<number, number> = { 1: 5, 2: 15, 3: 20, 4: 10 };
+      const drawDay = drawDayMap[Number(committeeId)] || 15;
+      dateStr = `2026-06-${String(drawDay).padStart(2, "0")}`;
+    }
+
+    // Get or create gift inventory item
+    const giRes = await pool.query("SELECT id FROM gift_inventory WHERE LOWER(name) = LOWER($1)", [giftItem.trim()]);
+    let giftId: number;
+    if (giRes.rows.length > 0) {
+      giftId = giRes.rows[0].id;
+    } else {
+      const insGi = await pool.query(`
+        INSERT INTO gift_inventory (branch_id, name, quantity_total, quantity_available, quantity_distributed, status, created_at, updated_at)
+        VALUES (1, $1, 500, 500, 0, 'active', NOW(), NOW())
+        RETURNING id
+      `, [giftItem.trim()]);
+      giftId = insGi.rows[0].id;
+    }
+
+    const notes = `Month: ${month} | Claim Mode = ${claimMode.toUpperCase()} | Gift: ${giftItem.trim()}`;
+
+    await pool.query(`
+      INSERT INTO gift_distributions (
+        gift_id, customer_id, committee_id, token_id, quantity, distribution_date, status, notes, branch_id, created_at, updated_at
+      ) VALUES ($1, $2, $3, $4, 1, $5::date, 'claimed', $6, 1, NOW(), NOW())
+    `, [giftId, targetCustomerId, committeeId, targetTokenId, dateStr, notes]);
+
+    res.json({ success: true, message: "Gift record added successfully" });
+  } catch (err: any) {
+    console.error("Error recording gift:", err);
+    res.status(500).json({ success: false, error: "Failed to record gift: " + err.message });
+  }
+});
+
+// DELETE /gifts/record/:id — Delete a gift distribution entry
+router.delete("/gifts/record/:id", async (req, res): Promise<void> => {
+  try {
+    const id = parseInt(req.params.id, 10);
+    await pool.query("DELETE FROM gift_distributions WHERE id = $1", [id]);
+    res.json({ success: true, message: "Gift record deleted" });
+  } catch (err: any) {
+    console.error("Error deleting gift record:", err);
+    res.status(500).json({ success: false, error: "Failed to delete gift record" });
   }
 });
 
