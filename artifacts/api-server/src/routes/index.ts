@@ -145,7 +145,7 @@ router.get("/customers/:id/bissi-pending", async (req, res) => {
     const result = await pool.query(`
       SELECT
         t.id as "tokenId",
-        t.token_number as "tokenNumber",
+        t.raw_token_number as "tokenNumber",
         t.committee_id as "committeeId",
         comm.name as "committeeName",
         comm.installment_amount as "installmentAmount",
@@ -205,7 +205,7 @@ router.get("/customers/:id/history", async (req, res): Promise<void> => {
         c.name as "committeeName", 
         c.type::text as "type", 
         c.installment_amount::float as "installment",
-        ARRAY_REMOVE(ARRAY_AGG(t.token_number), NULL) as "tokens"
+        ARRAY_REMOVE(ARRAY_AGG(t.raw_token_number), NULL) as "tokens"
       FROM tokens t
       JOIN committees c ON t.committee_id = c.id
       WHERE t.customer_id = $1
@@ -213,7 +213,7 @@ router.get("/customers/:id/history", async (req, res): Promise<void> => {
       [customerId]
     ),
       pool.query(
-        "SELECT id, token_number as \"tokenNumber\", status::text FROM tokens WHERE customer_id = $1",
+        "SELECT id, raw_token_number as \"tokenNumber\", status::text FROM tokens WHERE customer_id = $1",
         [customerId]
       ),
       pool.query(
@@ -237,7 +237,7 @@ router.get("/customers/:id/history", async (req, res): Promise<void> => {
           gd.status::text,
           gd.notes,
           c.name as "committeeName",
-          t.token_number as "tokenNumber"
+          t.raw_token_number as "tokenNumber"
         FROM gift_distributions gd
         LEFT JOIN gift_inventory gi ON gd.gift_id = gi.id
         LEFT JOIN committees c ON c.id = gd.committee_id
@@ -577,7 +577,7 @@ router.get("/committees/:id/members", async (req, res): Promise<void> => {
         t.id,
         t.committee_id as "committeeId",
         t.customer_id as "customerId",
-        t.token_number as "tokenNumber",
+        t.raw_token_number as "tokenNumber",
         t.status::text as "status",
         c.name as "customerName",
         c.reference_number as "customerReferenceNumber",
@@ -586,8 +586,8 @@ router.get("/committees/:id/members", async (req, res): Promise<void> => {
       LEFT JOIN customers c ON t.customer_id = c.id
       WHERE t.committee_id = $1
       ORDER BY 
-        CASE WHEN t.token_number ~ '^[0-9]+' THEN substring(t.token_number from '^[0-9]+')::int ELSE 99999 END ASC,
-        t.token_number ASC
+        CASE WHEN t.raw_token_number ~ '^[0-9]+' THEN substring(t.raw_token_number from '^[0-9]+')::int ELSE 99999 END ASC,
+        t.raw_token_number ASC
     `, [committeeId]);
 
     res.json(result.rows);
@@ -836,13 +836,13 @@ router.get("/committees/:id/payment-history", async (req, res): Promise<void> =>
       const params: any[] = [parseInt(committeeId, 10)];
       if (search) {
         params.push(`%${search}%`);
-        searchCondition = ` AND (cust.name ILIKE $${params.length} OR cust.mobile ILIKE $${params.length} OR t.token_number ILIKE $${params.length})`;
+        searchCondition = ` AND (cust.name ILIKE $${params.length} OR cust.mobile ILIKE $${params.length} OR t.raw_token_number ILIKE $${params.length})`;
       }
 
       const v1Res = await pool.query(
         `SELECT
            t.id::text as "tokenId",
-           t.token_number as "tokenNumber",
+           t.raw_token_number as "tokenNumber",
            t.status::text as "tokenStatus",
            cust.id::text as "customerId",
            cust.name as "customerName",
@@ -857,8 +857,8 @@ router.get("/committees/:id/payment-history", async (req, res): Promise<void> =>
          JOIN customers cust ON cust.id = t.customer_id
          LEFT JOIN collections col ON col.customer_id = cust.id AND col.committee_id = t.committee_id
          WHERE t.committee_id = $1${searchCondition}
-         GROUP BY t.id, t.token_number, t.status, cust.id, cust.name, cust.mobile, cust.address
-         ORDER BY CASE WHEN t.token_number ~ '^[0-9]+$' THEN CAST(t.token_number AS integer) ELSE 99999 END ASC`,
+         GROUP BY t.id, t.raw_token_number, t.status, cust.id, cust.name, cust.mobile, cust.address
+         ORDER BY CASE WHEN t.raw_token_number ~ '^[0-9]+$' THEN CAST(t.raw_token_number AS integer) ELSE 99999 END ASC`,
         params
       );
 
@@ -2056,20 +2056,20 @@ router.get("/committees/:id/gift-matrix", async (req, res): Promise<void> => {
     const params: any[] = [committeeId];
     if (search) {
       params.push(`%${search}%`);
-      searchCond = ` AND (cust.name ILIKE $2 OR cust.mobile ILIKE $2 OR t.token_number ILIKE $2)`;
+      searchCond = ` AND (cust.name ILIKE $2 OR cust.mobile ILIKE $2 OR t.raw_token_number ILIKE $2)`;
     }
 
     const tokensRes = await pool.query(`
       SELECT 
         t.id::text as "tokenId",
-        t.token_number as "tokenNumber",
+        t.raw_token_number as "tokenNumber",
         cust.id::text as "customerId",
         cust.name as "customerName",
         cust.mobile as "customerMobile"
       FROM tokens t
       JOIN customers cust ON cust.id = t.customer_id
       WHERE t.committee_id = $1 ${searchCond}
-      ORDER BY CASE WHEN t.token_number ~ '^[0-9]+$' THEN CAST(t.token_number AS integer) ELSE 99999 END ASC, t.token_number ASC
+      ORDER BY CASE WHEN t.raw_token_number ~ '^[0-9]+$' THEN CAST(t.raw_token_number AS integer) ELSE 99999 END ASC, t.raw_token_number ASC
     `, params);
 
     const members = tokensRes.rows;
@@ -2502,7 +2502,7 @@ router.get("/profile/kyc-lookup", async (req, res) => {
 
     const [tokensRes, installmentsRes, collectionsRes, loansRes, giftsRes, kycRes, pendingBissiRes] = await Promise.all([
       pool.query(`
-        SELECT t.id, t.token_number as "tokenNumber", t.status,
+        SELECT t.id, t.raw_token_number as "tokenNumber", t.status,
                comm.name as "committeeName", comm.installment_amount as "installmentAmount", comm.id as "committeeId"
         FROM tokens t JOIN committees comm ON comm.id = t.committee_id
         WHERE t.customer_id = $1 AND t.deleted_at IS NULL ORDER BY comm.id ASC`, [customerId]),
@@ -2532,7 +2532,7 @@ router.get("/profile/kyc-lookup", async (req, res) => {
       pool.query(`SELECT status FROM kyc_verifications WHERE customer_id = $1 ORDER BY id DESC LIMIT 1`, [customerId]),
 
       pool.query(`
-        SELECT t.token_number as "tokenNumber", comm.name as "committeeName", comm.installment_amount as "installmentAmount",
+        SELECT t.raw_token_number as "tokenNumber", comm.name as "committeeName", comm.installment_amount as "installmentAmount",
           NOT (
             EXISTS (SELECT 1 FROM collections col WHERE col.customer_id = $1 AND col.committee_id = t.committee_id AND col.collected_at >= DATE_TRUNC('month', NOW()))
             OR EXISTS (SELECT 1 FROM installments i2 WHERE i2.customer_id = $1 AND i2.committee_id = t.committee_id AND i2.payment_date >= DATE_TRUNC('month', NOW()))
@@ -2579,7 +2579,7 @@ router.get("/customers/:id/dues", async (req, res) => {
     const [customerRes, bissiDuesRes, loanDuesRes] = await Promise.all([
       pool.query(`SELECT id, name, mobile, reference_number FROM customers WHERE id = $1 LIMIT 1`, [customerId]),
       pool.query(`
-        SELECT t.token_number as "tokenNumber", comm.name as "committeeName",
+        SELECT t.raw_token_number as "tokenNumber", comm.name as "committeeName",
                comm.id as "committeeId", comm.installment_amount::numeric as "dueAmount", 'bissi' as "dueType"
         FROM tokens t JOIN committees comm ON comm.id = t.committee_id
         WHERE t.customer_id = $1 AND t.status = 'active'
