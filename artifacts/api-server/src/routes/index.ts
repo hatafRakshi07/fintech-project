@@ -1884,79 +1884,148 @@ router.get("/dashboard/all", async (req, res) => {
 });
 
 // Gifts & Interests
-// NEW: Bissi gift winners from gift_distributions & lotteries table - date-wise sorted
+// NEW: Bissi gift winners from gift_distributions & lottery_gifts tables - date-wise sorted
 router.get("/gifts/bissi-winners", async (req, res) => {
   try {
     const { committeeId, rewardType, search, limit = "5000", offset = "0" } = req.query as any;
+    const lim = parseInt(limit, 10);
+    const off = parseInt(offset, 10);
 
-    const conditions: string[] = ["gd.customer_id IS NOT NULL"];
-    const params: any[] = [];
+    // Try old gift_distributions table first
+    let oldWinners: any[] = [];
+    let oldTotal = 0;
+    try {
+      const conditions: string[] = ["gd.customer_id IS NOT NULL"];
+      const params: any[] = [];
 
-    if (committeeId && committeeId !== "all") {
-      params.push(parseInt(committeeId, 10));
-      conditions.push(`gd.committee_id = $${params.length}`);
-    }
-    if (rewardType && rewardType !== "all") {
-      if (rewardType === "cash") {
-        conditions.push(`(gd.notes ILIKE '%CASH%' OR gd.notes ILIKE '%MONEY%')`);
-      } else if (rewardType === "gift") {
-        conditions.push(`(gd.notes NOT ILIKE '%CASH%' AND gd.notes NOT ILIKE '%MONEY%')`);
+      if (committeeId && committeeId !== "all") {
+        params.push(parseInt(committeeId, 10));
+        conditions.push(`gd.committee_id = $${params.length}`);
       }
+      if (rewardType && rewardType !== "all") {
+        if (rewardType === "cash") {
+          conditions.push(`(gd.notes ILIKE '%CASH%' OR gd.notes ILIKE '%MONEY%')`);
+        } else if (rewardType === "gift") {
+          conditions.push(`(gd.notes NOT ILIKE '%CASH%' AND gd.notes NOT ILIKE '%MONEY%')`);
+        }
+      }
+      if (search) {
+        params.push(`%${search}%`);
+        conditions.push(`(cust.name ILIKE $${params.length} OR gd.notes ILIKE $${params.length} OR gi.name ILIKE $${params.length})`);
+      }
+      const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(" AND ")}` : "";
+      params.push(lim);
+      params.push(off);
+
+      const result = await pool.query(`
+        SELECT 
+          gd.id,
+          gd.committee_id as "committeeId",
+          c.name as "committeeName",
+          gd.customer_id as "winnerId",
+          cust.name as "winnerName",
+          cust.mobile as "winnerMobile",
+          COALESCE(t.token_number, '') as "tokenNumber",
+          gd.distribution_date as "drawDate",
+          COALESCE(
+            REGEXP_REPLACE(gd.notes, '.*Gift:\\s*', '', 'i'),
+            gi.name,
+            'Gift Item'
+          ) as "giftName",
+          CASE 
+            WHEN gd.notes ILIKE '%CASH%' THEN 'cash'
+            ELSE 'gift'
+          END as "rewardType",
+          gd.status
+        FROM gift_distributions gd
+        JOIN committees c ON c.id = gd.committee_id
+        JOIN customers cust ON cust.id = gd.customer_id
+        LEFT JOIN tokens t ON t.id = gd.token_id
+        LEFT JOIN gift_inventory gi ON gi.id = gd.gift_id
+        ${whereClause}
+        ORDER BY gd.distribution_date DESC, gd.id DESC
+        LIMIT $${params.length - 1} OFFSET $${params.length}
+      `, params);
+      oldWinners = result.rows;
+
+      const countParams = params.slice(0, params.length - 2);
+      const countRes = await pool.query(`
+        SELECT COUNT(*)::int as total
+        FROM gift_distributions gd
+        JOIN committees c ON c.id = gd.committee_id
+        JOIN customers cust ON cust.id = gd.customer_id
+        LEFT JOIN gift_inventory gi ON gi.id = gd.gift_id
+        ${whereClause}
+      `, countParams);
+      oldTotal = countRes.rows[0]?.total || 0;
+    } catch (e) {
+      // gift_distributions doesn't exist — that's fine
     }
-    if (search) {
-      params.push(`%${search}%`);
-      conditions.push(`(cust.name ILIKE $${params.length} OR gd.notes ILIKE $${params.length} OR gi.name ILIKE $${params.length})`);
+
+    // Also query lottery_gifts (new seeded data)
+    let lotteryWinners: any[] = [];
+    try {
+      const lConditions: string[] = [];
+      const lParams: any[] = [];
+
+      if (committeeId && committeeId !== "all") {
+        // Map committeeId to bissi_name
+        const commRes = await pool.query("SELECT name FROM committees WHERE id = $1", [parseInt(committeeId, 10)]);
+        if (commRes.rows.length > 0) {
+          lParams.push(`%${commRes.rows[0].name.split('(')[0].trim().slice(0, 12)}%`);
+          lConditions.push(`lg.bissi_name ILIKE $${lParams.length}`);
+        }
+      }
+      if (rewardType && rewardType !== "all") {
+        if (rewardType === "cash") {
+          lConditions.push(`(lg.gift_name ILIKE '%CASH%' OR lg.gift_name ILIKE '%MONEY%')`);
+        } else if (rewardType === "gift") {
+          lConditions.push(`(lg.gift_name NOT ILIKE '%CASH%' AND lg.gift_name NOT ILIKE '%MONEY%')`);
+        }
+      }
+      if (search) {
+        lParams.push(`%${search}%`);
+        lConditions.push(`(lg.customer_name ILIKE $${lParams.length} OR lg.gift_name ILIKE $${lParams.length} OR lg.token_number ILIKE $${lParams.length})`);
+      }
+
+      const lWhere = lConditions.length > 0 ? `WHERE ${lConditions.join(" AND ")}` : "";
+      lParams.push(lim);
+      lParams.push(off);
+
+      const lResult = await pool.query(`
+        SELECT 
+          lg.id,
+          lg.bissi_name as "committeeName",
+          lg.customer_name as "winnerName",
+          lg.mobile_number as "winnerMobile",
+          lg.token_number as "tokenNumber",
+          ls.lottery_date as "drawDate",
+          ls.lottery_month as "drawMonth",
+          lg.gift_name as "giftName",
+          CASE 
+            WHEN lg.gift_name ILIKE '%CASH%' OR lg.gift_name ILIKE '%MONEY%' THEN 'cash'
+            ELSE 'gift'
+          END as "rewardType",
+          lg.status
+        FROM lottery_gifts lg
+        JOIN lottery_sessions ls ON lg.session_id = ls.id
+        ${lWhere}
+        ORDER BY ls.lottery_date DESC, lg.id DESC
+        LIMIT $${lParams.length - 1} OFFSET $${lParams.length}
+      `, lParams);
+      lotteryWinners = lResult.rows;
+    } catch (e) {
+      // lottery_gifts doesn't exist — fine
     }
 
-    const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(" AND ")}` : "";
-
-    params.push(parseInt(limit, 10));
-    params.push(parseInt(offset, 10));
-
-    const result = await pool.query(`
-      SELECT 
-        gd.id,
-        gd.committee_id as "committeeId",
-        c.name as "committeeName",
-        gd.customer_id as "winnerId",
-        cust.name as "winnerName",
-        cust.mobile as "winnerMobile",
-        COALESCE(t.token_number, '') as "tokenNumber",
-        gd.distribution_date as "drawDate",
-        COALESCE(
-          REGEXP_REPLACE(gd.notes, '.*Gift:\\s*', '', 'i'),
-          gi.name,
-          'Gift Item'
-        ) as "giftName",
-        CASE 
-          WHEN gd.notes ILIKE '%CASH%' THEN 'cash'
-          ELSE 'gift'
-        END as "rewardType",
-        gd.status
-      FROM gift_distributions gd
-      JOIN committees c ON c.id = gd.committee_id
-      JOIN customers cust ON cust.id = gd.customer_id
-      LEFT JOIN tokens t ON t.id = gd.token_id
-      LEFT JOIN gift_inventory gi ON gi.id = gd.gift_id
-      ${whereClause}
-      ORDER BY gd.distribution_date DESC, gd.id DESC
-      LIMIT $${params.length - 1} OFFSET $${params.length}
-    `, params);
-
-    const countParams = params.slice(0, params.length - 2);
-    const countRes = await pool.query(`
-      SELECT COUNT(*)::int as total
-      FROM gift_distributions gd
-      JOIN committees c ON c.id = gd.committee_id
-      JOIN customers cust ON cust.id = gd.customer_id
-      LEFT JOIN gift_inventory gi ON gi.id = gd.gift_id
-      ${whereClause}
-    `, countParams);
+    // Merge both arrays
+    const allWinners = [...oldWinners, ...lotteryWinners];
+    const total = oldTotal + lotteryWinners.length;
 
     res.json({
       success: true,
-      winners: result.rows,
-      total: countRes.rows[0]?.total || result.rows.length
+      winners: allWinners,
+      total
     });
   } catch (err: any) {
     console.error("Error fetching bissi gift winners:", err);
@@ -2005,19 +2074,47 @@ router.get("/committees/:id/gift-matrix", async (req, res): Promise<void> => {
 
     const members = tokensRes.rows;
 
-    // Fetch all gift distributions for this committee ordered by distribution_date ASC
-    const giftsRes = await pool.query(`
-      SELECT 
-        gd.token_id::text as "tokenId",
-        gd.customer_id::text as "customerId",
-        gd.notes,
-        gi.name as gift_name,
-        gd.distribution_date
-      FROM gift_distributions gd
-      LEFT JOIN gift_inventory gi ON gi.id = gd.gift_id
-      WHERE gd.committee_id = $1
-      ORDER BY gd.distribution_date ASC, gd.id ASC
-    `, [committeeId]);
+    // Fetch all gift distributions for this committee ordered by distribution_date ASC (old schema)
+    let giftsFromDistributions: any[] = [];
+    try {
+      const giftsRes = await pool.query(`
+        SELECT 
+          gd.token_id::text as "tokenId",
+          gd.customer_id::text as "customerId",
+          gd.notes,
+          gi.name as gift_name,
+          gd.distribution_date
+        FROM gift_distributions gd
+        LEFT JOIN gift_inventory gi ON gi.id = gd.gift_id
+        WHERE gd.committee_id = $1
+        ORDER BY gd.distribution_date ASC, gd.id ASC
+      `, [committeeId]);
+      giftsFromDistributions = giftsRes.rows;
+    } catch (e) {
+      // gift_distributions table might not exist — that's fine
+    }
+
+    // Also fetch from lottery_gifts + lottery_sessions (new schema — seeded data)
+    let giftsFromLottery: any[] = [];
+    try {
+      const lotteryRes = await pool.query(`
+        SELECT 
+          lg.token_number,
+          lg.customer_name,
+          lg.gift_name,
+          lg.bissi_name,
+          ls.lottery_date,
+          ls.lottery_month
+        FROM lottery_gifts lg
+        JOIN lottery_sessions ls ON lg.session_id = ls.id
+        WHERE lg.bissi_name ILIKE $1 OR ls.bissi_name ILIKE $1
+        ORDER BY ls.lottery_date ASC, lg.id ASC
+      `, [`%${committee.name.split('(')[0].trim().slice(0, 12)}%`]);
+      giftsFromLottery = lotteryRes.rows;
+    } catch (e) {
+      // lottery_gifts table might not exist — that's fine
+    }
+
 
     // Default full sequence of months by committee
     const defaultMonthsByCommittee: Record<number, string[]> = {
@@ -2033,7 +2130,35 @@ router.get("/committees/:id/gift-matrix", async (req, res): Promise<void> => {
 
     const tokenGiftsMap = new Map<string, Map<string, { gift: string; isCash: boolean; id?: number }>>();
 
-    for (const g of giftsRes.rows) {
+    // Helper: normalize month label (e.g. 'April-25' -> 'Apr-25', '2025-06-05' -> 'Jun-25')
+    function normalizeMonth(raw: string): string {
+      let m = raw.replace(/January/i, "Jan")
+                  .replace(/February/i, "Feb")
+                  .replace(/March/i, "Mar")
+                  .replace(/April/i, "Apr")
+                  .replace(/June/i, "Jun")
+                  .replace(/July/i, "Jul")
+                  .replace(/August/i, "Aug")
+                  .replace(/September/i, "Sep")
+                  .replace(/Septmber/i, "Sep")
+                  .replace(/October/i, "Oct")
+                  .replace(/November/i, "Nov")
+                  .replace(/December/i, "Dec")
+                  .replace(/\s+/g, "");
+      
+      // Handle ISO date format: '2025-06-05' -> 'Jun-25'
+      const isoMatch = m.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+      if (isoMatch) {
+        const monthNames = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+        const yearShort = isoMatch[1].slice(2);
+        const monthIdx = parseInt(isoMatch[2], 10) - 1;
+        m = `${monthNames[monthIdx] || "Jan"}-${yearShort}`;
+      }
+      return m;
+    }
+
+    // Process old gift_distributions data (by tokenId)
+    for (const g of giftsFromDistributions) {
       if (!g.tokenId) continue;
       const notes = g.notes || "";
       const mMatch = notes.match(/Month:\s*([^|]+)/i);
@@ -2043,21 +2168,7 @@ router.get("/committees/:id/gift-matrix", async (req, res): Promise<void> => {
       let giftItem = giftMatch ? giftMatch[1].trim() : (g.gift_name || "Gift");
       if (!rawMonth) continue;
 
-      // Normalize month label (e.g. 'April-25' -> 'Apr-25')
-      let normMonth = rawMonth.replace(/January/i, "Jan")
-                              .replace(/February/i, "Feb")
-                              .replace(/March/i, "Mar")
-                              .replace(/April/i, "Apr")
-                              .replace(/June/i, "Jun")
-                              .replace(/July/i, "Jul")
-                              .replace(/August/i, "Aug")
-                              .replace(/September/i, "Sep")
-                              .replace(/Septmber/i, "Sep")
-                              .replace(/October/i, "Oct")
-                              .replace(/November/i, "Nov")
-                              .replace(/December/i, "Dec")
-                              .replace(/\s+/g, "");
-
+      const normMonth = normalizeMonth(rawMonth);
       if (!monthMap.has(normMonth)) {
         monthMap.set(normMonth, normMonth);
       }
@@ -2067,6 +2178,41 @@ router.get("/committees/:id/gift-matrix", async (req, res): Promise<void> => {
       }
       const isCash = giftItem.toLowerCase().includes("cash") || giftItem.toLowerCase().includes("money");
       tokenGiftsMap.get(g.tokenId)!.set(normMonth, { gift: giftItem, isCash });
+    }
+
+    // Process lottery_gifts data (match by token_number -> member tokenId)
+    // Build a token_number -> tokenId lookup from members
+    const tokenNumToIdMap = new Map<string, string>();
+    members.forEach((m: any) => {
+      tokenNumToIdMap.set(String(m.tokenNumber).trim(), m.tokenId);
+    });
+
+    let totalLotteryGiftsMatched = 0;
+    for (const lg of giftsFromLottery) {
+      const rawTokenNum = String(lg.token_number || "").trim();
+      const matchedTokenId = tokenNumToIdMap.get(rawTokenNum);
+      if (!matchedTokenId) continue;
+
+      const rawMonth = lg.lottery_month || lg.lottery_date || "";
+      if (!rawMonth) continue;
+
+      const normMonth = normalizeMonth(rawMonth);
+      if (!monthMap.has(normMonth)) {
+        monthMap.set(normMonth, normMonth);
+      }
+
+      if (!tokenGiftsMap.has(matchedTokenId)) {
+        tokenGiftsMap.set(matchedTokenId, new Map());
+      }
+
+      const giftItem = lg.gift_name || "Gift";
+      const isCash = giftItem.toLowerCase().includes("cash") || giftItem.toLowerCase().includes("money");
+      
+      // Only set if not already set by gift_distributions (old data takes priority)
+      if (!tokenGiftsMap.get(matchedTokenId)!.has(normMonth)) {
+        tokenGiftsMap.get(matchedTokenId)!.set(normMonth, { gift: giftItem, isCash });
+        totalLotteryGiftsMatched++;
+      }
     }
 
     const monthsList = Array.from(monthMap.keys());
@@ -2094,7 +2240,7 @@ router.get("/committees/:id/gift-matrix", async (req, res): Promise<void> => {
       committee,
       months: monthsList,
       members: memberRows,
-      totalGiftsDistributed: giftsRes.rows.length
+      totalGiftsDistributed: giftsFromDistributions.length + totalLotteryGiftsMatched
     });
   } catch (err: any) {
     console.error("Error fetching gift matrix:", err);
