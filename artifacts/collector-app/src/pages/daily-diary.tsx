@@ -27,6 +27,12 @@ import {
   X
 } from "lucide-react";
 
+interface OtherDuesInfo {
+  bissiCommittees: Array<{ committeeName: string; tokenNumber: string; monthlyAmount: number }>;
+  otherDailyLoans: Array<{ id: string; customerName: string; remainingAmount: number }>;
+  totalOtherDuesCount: number;
+}
+
 interface DailyLoan {
   id: string;
   customerName: string;
@@ -44,6 +50,7 @@ interface DailyLoan {
   remainingAmount: number;
   completionPct: number;
   lastPaymentDate: string;
+  otherDues?: OtherDuesInfo;
 }
 
 interface DashboardStats {
@@ -59,6 +66,7 @@ export default function DailyDiaryCollectorPage() {
   const queryClient = useQueryClient();
 
   const [searchTerm, setSearchTerm] = useState("");
+  const [filterTab, setFilterTab] = useState<"ALL" | "PENDING" | "PAID">("ALL");
   const [selectedLoan, setSelectedLoan] = useState<DailyLoan | null>(null);
   const [isCollectModalOpen, setIsCollectModalOpen] = useState(false);
   const [isLedgerOpen, setIsLedgerOpen] = useState(false);
@@ -135,22 +143,33 @@ export default function DailyDiaryCollectorPage() {
   };
 
   const loans = loansData?.loans || [];
+  const todayStr = new Date().toISOString().slice(0, 10);
 
   const filteredLoans = loans.filter((l) => {
-    if (!searchTerm) return true;
-    const term = searchTerm.toLowerCase();
-    return (
-      l.customerName.toLowerCase().includes(term) ||
-      l.mobileNumber.toLowerCase().includes(term) ||
-      (l.address && l.address.toLowerCase().includes(term))
-    );
+    if (searchTerm) {
+      const term = searchTerm.toLowerCase();
+      const matchesSearch =
+        l.customerName.toLowerCase().includes(term) ||
+        l.mobileNumber.toLowerCase().includes(term) ||
+        (l.address && l.address.toLowerCase().includes(term));
+      if (!matchesSearch) return false;
+    }
+
+    const isPaidToday = l.lastPaymentDate && (l.lastPaymentDate === todayStr || l.lastPaymentDate.includes(new Date().getDate().toString()));
+
+    if (filterTab === "PENDING") {
+      return !isPaidToday && l.remainingAmount > 0;
+    }
+    if (filterTab === "PAID") {
+      return isPaidToday;
+    }
+    return true;
   });
 
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 pb-24">
       {/* Top App Bar Header */}
       <Header title="Daily Diary Loan Collection" />
-
 
       {/* Toast Notification */}
       {toastMsg && (
@@ -193,21 +212,36 @@ export default function DailyDiaryCollectorPage() {
           </div>
 
           <div className="grid grid-cols-3 gap-2 text-center">
-            <div className="bg-slate-950/70 border border-slate-800 p-2.5 rounded-xl">
+            <div
+              onClick={() => setFilterTab("ALL")}
+              className={`p-2.5 rounded-xl cursor-pointer transition-all ${
+                filterTab === "ALL" ? "bg-amber-500/20 border-2 border-amber-400" : "bg-slate-950/70 border border-slate-800 hover:border-slate-700"
+              }`}
+            >
               <span className="text-[10px] text-slate-400 font-medium uppercase block">Today Target</span>
               <span className="text-sm font-black text-amber-400 block mt-0.5">
                 ₹{stats.todayTargetCollection.toLocaleString("en-IN")}
               </span>
             </div>
 
-            <div className="bg-slate-950/70 border border-emerald-500/30 p-2.5 rounded-xl">
+            <div
+              onClick={() => setFilterTab("PAID")}
+              className={`p-2.5 rounded-xl cursor-pointer transition-all ${
+                filterTab === "PAID" ? "bg-emerald-500/20 border-2 border-emerald-400" : "bg-slate-950/70 border border-emerald-500/30 hover:border-emerald-400/60"
+              }`}
+            >
               <span className="text-[10px] text-emerald-400 font-medium uppercase block">Collected</span>
               <span className="text-sm font-black text-emerald-400 block mt-0.5">
                 ₹{stats.todayCollection.toLocaleString("en-IN")}
               </span>
             </div>
 
-            <div className="bg-slate-950/70 border border-rose-500/30 p-2.5 rounded-xl">
+            <div
+              onClick={() => setFilterTab("PENDING")}
+              className={`p-2.5 rounded-xl cursor-pointer transition-all ${
+                filterTab === "PENDING" ? "bg-rose-500/20 border-2 border-rose-400" : "bg-slate-950/70 border border-rose-500/30 hover:border-rose-400/60"
+              }`}
+            >
               <span className="text-[10px] text-rose-400 font-medium uppercase block">Pending</span>
               <span className="text-sm font-black text-rose-400 block mt-0.5">
                 ₹{stats.todayPendingCollection.toLocaleString("en-IN")}
@@ -228,10 +262,52 @@ export default function DailyDiaryCollectorPage() {
               />
             </div>
             <div className="flex justify-between text-[11px] text-slate-400 pt-0.5">
-              <span>Paid: <strong className="text-emerald-400">{stats.todayPaidCustomersCount} Customers</strong></span>
-              <span>Pending: <strong className="text-amber-400">{stats.todayUnpaidActiveCustomersCount} Customers</strong></span>
+              <span className="cursor-pointer hover:underline" onClick={() => setFilterTab("PAID")}>
+                Paid: <strong className="text-emerald-400">{stats.todayPaidCustomersCount} Customers</strong>
+              </span>
+              <span className="cursor-pointer hover:underline" onClick={() => setFilterTab("PENDING")}>
+                Pending: <strong className="text-amber-400">{stats.todayUnpaidActiveCustomersCount} Customers</strong>
+              </span>
             </div>
           </div>
+        </div>
+
+        {/* Filter Status Tabs Window: ALL, PENDING DUE, PAID TODAY */}
+        <div className="grid grid-cols-3 gap-2 bg-slate-900 border border-slate-800 p-1.5 rounded-2xl shadow-sm">
+          <button
+            onClick={() => setFilterTab("ALL")}
+            className={`py-2 px-2.5 rounded-xl text-xs font-bold transition-all ${
+              filterTab === "ALL"
+                ? "bg-emerald-600 text-white shadow-md"
+                : "text-slate-400 hover:text-slate-200"
+            }`}
+          >
+            All Loans ({loans.length})
+          </button>
+
+          <button
+            onClick={() => setFilterTab("PENDING")}
+            className={`py-2 px-2.5 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 ${
+              filterTab === "PENDING"
+                ? "bg-rose-600 text-white shadow-md"
+                : "text-rose-400/90 hover:text-rose-300"
+            }`}
+          >
+            <Clock className="h-3.5 w-3.5" />
+            Pending ({stats.todayUnpaidActiveCustomersCount})
+          </button>
+
+          <button
+            onClick={() => setFilterTab("PAID")}
+            className={`py-2 px-2.5 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 ${
+              filterTab === "PAID"
+                ? "bg-emerald-500 text-white shadow-md"
+                : "text-emerald-400/90 hover:text-emerald-300"
+            }`}
+          >
+            <CheckCircle2 className="h-3.5 w-3.5" />
+            Paid ({stats.todayPaidCustomersCount})
+          </button>
         </div>
 
         {/* Search Bar */}
@@ -251,7 +327,7 @@ export default function DailyDiaryCollectorPage() {
           <div className="flex items-center justify-between">
             <h3 className="text-sm font-bold text-slate-200 uppercase tracking-wider flex items-center gap-1.5">
               <User className="h-4 w-4 text-emerald-400" />
-              Active Daily Loans ({filteredLoans.length})
+              {filterTab === "PENDING" ? "Pending Due Today" : filterTab === "PAID" ? "Paid Today" : "All Active Daily Loans"} ({filteredLoans.length})
             </h3>
 
             <span className="text-xs text-slate-400">Tap card for history</span>
@@ -320,6 +396,32 @@ export default function DailyDiaryCollectorPage() {
                   </div>
                 </div>
 
+                {/* Cross-Module Pending Dues Alert Badge / Box */}
+                {loan.otherDues && loan.otherDues.totalOtherDuesCount > 0 && (
+                  <div className="bg-amber-500/10 border border-amber-500/30 p-2.5 rounded-xl space-y-1.5 text-xs">
+                    <div className="flex items-center justify-between text-amber-400 font-bold text-[11px] uppercase tracking-wider">
+                      <span className="flex items-center gap-1.5">
+                        <AlertCircle className="h-3.5 w-3.5 text-amber-400" />
+                        Also Has Other Pending Dues ({loan.otherDues.totalOtherDuesCount})
+                      </span>
+                    </div>
+                    <div className="space-y-1">
+                      {loan.otherDues.bissiCommittees.map((b, idx) => (
+                        <div key={idx} className="flex items-center justify-between bg-slate-950/80 px-2 py-1 rounded-lg border border-amber-500/20 text-[11px]">
+                          <span className="font-semibold text-amber-200">{b.committeeName} (Token #{b.tokenNumber})</span>
+                          <span className="font-bold text-amber-400">₹{b.monthlyAmount.toLocaleString("en-IN")}/mo</span>
+                        </div>
+                      ))}
+                      {loan.otherDues.otherDailyLoans.map((ol, idx) => (
+                        <div key={idx} className="flex items-center justify-between bg-slate-950/80 px-2 py-1 rounded-lg border border-slate-800 text-[11px]">
+                          <span className="font-semibold text-slate-300">Daily Loan: {ol.customerName}</span>
+                          <span className="font-bold text-rose-400">₹{ol.remainingAmount.toLocaleString("en-IN")} Bal</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
                 {/* Action Buttons */}
                 <div className="flex items-center gap-2 pt-1">
                   <button
@@ -375,6 +477,30 @@ export default function DailyDiaryCollectorPage() {
                 <X className="h-5 w-5" />
               </button>
             </div>
+
+            {/* Other Pending Dues Warning Alert in Modal */}
+            {selectedLoan.otherDues && selectedLoan.otherDues.totalOtherDuesCount > 0 && (
+              <div className="bg-amber-500/10 border border-amber-500/30 p-3 rounded-xl space-y-2 text-xs">
+                <div className="flex items-center gap-1.5 text-amber-400 font-bold uppercase tracking-wider text-[11px]">
+                  <AlertCircle className="h-4 w-4 text-amber-400" />
+                  <span>Customer Also Has Other Active Dues!</span>
+                </div>
+                <div className="space-y-1 text-slate-300">
+                  {selectedLoan.otherDues.bissiCommittees.map((b, idx) => (
+                    <div key={idx} className="flex items-center justify-between bg-slate-950 p-1.5 rounded-lg border border-amber-500/20 text-[11px]">
+                      <span className="font-semibold text-amber-200">{b.committeeName} (Token #{b.tokenNumber})</span>
+                      <span className="font-bold text-amber-400">₹{b.monthlyAmount.toLocaleString("en-IN")}/mo</span>
+                    </div>
+                  ))}
+                  {selectedLoan.otherDues.otherDailyLoans.map((ol, idx) => (
+                    <div key={idx} className="flex items-center justify-between bg-slate-950 p-1.5 rounded-lg border border-slate-800 text-[11px]">
+                      <span className="font-semibold text-slate-300">Daily Loan: {ol.customerName}</span>
+                      <span className="font-bold text-rose-400">₹{ol.remainingAmount.toLocaleString("en-IN")} Bal</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
 
             {/* Live Subtraction Calculation Preview Box */}
             {(() => {

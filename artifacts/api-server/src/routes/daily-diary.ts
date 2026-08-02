@@ -233,6 +233,10 @@ router.get("/loans", async (req, res) => {
         ? Math.min(100, Math.round((totalCollected / loanAmount) * 100 * 100) / 100) 
         : 0;
 
+      // Fetch Bissi Committee Tokens & Other Active Daily Loans for cross-module pending alert
+      const cleanName = (l.customer_name || "").split("(")[0].trim().toLowerCase();
+      const cleanMobile = (l.mobile_number || "").trim();
+
       return {
         id: l.id,
         customerName: l.customer_name,
@@ -253,7 +257,50 @@ router.get("/loans", async (req, res) => {
         remainingAmount,
         completionPct,
         totalPaymentsCount: pInfo.count,
-        lastPaymentDate: pInfo.lastDate
+        lastPaymentDate: pInfo.lastDate,
+        // Clean customer search name for cross-module dues
+        searchCleanName: cleanName,
+        searchCleanMobile: cleanMobile
+      };
+    });
+
+    // Cross-module Bissi & Loans Dues Map
+    let bissiTokensByCust: any[] = [];
+    try {
+      const bRes = await pool.query(
+        `SELECT t.raw_token_number, c.name AS committee_name, c.monthly_installment, cust.name AS customer_name, cust.mobile 
+         FROM tokens t 
+         JOIN committees c ON t.committee_id = c.id 
+         JOIN customers cust ON t.customer_id = cust.id`
+      );
+      bissiTokensByCust = bRes.rows;
+    } catch (e) {}
+
+    loans = loans.map(l => {
+      const matchedBissi = bissiTokensByCust.filter(bt => {
+        const btName = (bt.customer_name || "").toLowerCase();
+        return (l.searchCleanName && btName.includes(l.searchCleanName.slice(0, 5))) || (l.searchCleanMobile && l.searchCleanMobile.length > 5 && bt.mobile && bt.mobile.includes(l.searchCleanMobile));
+      }).map(bt => ({
+        committeeName: bt.committee_name,
+        tokenNumber: bt.raw_token_number,
+        monthlyAmount: parseFloat(bt.monthly_installment) || 3000
+      }));
+
+      const otherDailyLoans = loans
+        .filter(ol => ol.id !== l.id && (ol.customerName.toLowerCase().includes(l.searchCleanName.slice(0, 5)) || (l.searchCleanMobile.length > 5 && ol.mobileNumber.includes(l.searchCleanMobile))))
+        .map(ol => ({
+          id: ol.id,
+          customerName: ol.customerName,
+          remainingAmount: ol.remainingAmount
+        }));
+
+      return {
+        ...l,
+        otherDues: {
+          bissiCommittees: matchedBissi,
+          otherDailyLoans: otherDailyLoans,
+          totalOtherDuesCount: matchedBissi.length + otherDailyLoans.length
+        }
       };
     });
 
