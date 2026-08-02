@@ -90,7 +90,7 @@ function CollectorDashboard() {
 // ── Admin dashboard ────────────────────────────────────────────────────────────
 function AdminDashboard() {
   const [pendingModal, setPendingModal] = useState<{ scheme: any; month: string } | null>(null);
-  const [selectedGlobalMonth, setSelectedGlobalMonth] = useState("Jul 2026");
+  const [selectedGlobalMonth, setSelectedGlobalMonth] = useState("Aug 2026");
 
   const { data: statsData } = useGetDashboardStats();
   const stats = (statsData as any) || {};
@@ -98,7 +98,7 @@ function AdminDashboard() {
   const { data: schemeBoxesData, isLoading } = useQuery<any>({
     queryKey: ["dashboard-scheme-boxes", selectedGlobalMonth],
     queryFn: () => customFetch(`/dashboard/scheme-boxes?month=${encodeURIComponent(selectedGlobalMonth)}`),
-    staleTime: 10_000,
+    staleTime: 5_000,
   });
 
   const { data: activity } = useGetRecentActivity();
@@ -113,21 +113,12 @@ function AdminDashboard() {
     ? schemeBoxesData.data
     : [];
 
+  const availableMonths: string[] = Array.isArray(schemeBoxesData?.availableMonths) && schemeBoxesData.availableMonths.length > 0
+    ? schemeBoxesData.availableMonths
+    : ["Jan 2024", "Feb 2024", "Mar 2024", "Apr 2024", "May 2024", "Jun 2024", "Jul 2024", "Aug 2024", "Sep 2024", "Oct 2024", "Nov 2024", "Dec 2024", "Jan 2025", "Feb 2025", "Mar 2025", "Apr 2025", "May 2025", "Jun 2025", "Jul 2025", "Aug 2025", "Nov 2025", "Dec 2025", "Jul 2026", "Aug 2026", "Dec 2026", "Dec 2027"];
+
   const safeActivity = Array.isArray(activity) ? activity : [];
   const pendingKyc = kycData?.pendingCount || 0;
-
-  const monthOptions = [
-    "Jul 2026",
-    "Aug 2026 (Current)",
-    "Sep 2026 (Upcoming)",
-    "Oct 2026 (Upcoming)",
-    "Nov 2026 (Upcoming)",
-    "Dec 2026 (Upcoming)",
-    "Jan 2027 (Upcoming)",
-    "Feb 2027 (Upcoming)",
-    "Dec 2027 (Future)",
-    "all",
-  ];
 
   return (
     <div className="space-y-8 pb-12">
@@ -138,7 +129,7 @@ function AdminDashboard() {
             <h1 className="text-2xl md:text-3xl font-extrabold tracking-tight">Operational Dashboard</h1>
             <Badge variant="outline" className="bg-indigo-500/20 text-indigo-300 border-indigo-500/40 text-xs">4 BISSI SCHEMES</Badge>
           </div>
-          <p className="text-xs text-purple-200/80 mt-1">Real-time overview of all active Bissi schemes & member tokens</p>
+          <p className="text-xs text-purple-200/80 mt-1">Real-time database overview of all active Bissi schemes & member tokens</p>
         </div>
 
         <div className="flex items-center gap-3 flex-wrap">
@@ -151,8 +142,8 @@ function AdminDashboard() {
               onChange={e => setSelectedGlobalMonth(e.target.value)}
               className="bg-transparent text-xs font-bold text-white focus:outline-none cursor-pointer"
             >
-              {monthOptions.map(m => (
-                <option key={m} value={m.replace(" (Current)", "").replace(" (Upcoming)", "").replace(" (Future)", "")} className="bg-slate-900 text-white">
+              {availableMonths.map(m => (
+                <option key={m} value={m} className="bg-slate-900 text-white">
                   {m}
                 </option>
               ))}
@@ -188,8 +179,8 @@ function AdminDashboard() {
             <div className="p-2 rounded-xl bg-purple-500/10 text-purple-600"><Users className="h-4 w-4" /></div>
           </CardHeader>
           <CardContent className="p-4 pt-1">
-            <div className="text-2xl lg:text-3xl font-extrabold text-purple-600 dark:text-purple-400 font-mono">{(stats?.totalTokens || 2617).toLocaleString("en-IN")}</div>
-            <p className="text-[11px] text-muted-foreground mt-1 truncate">1116 SKA + 502 Sawariya + 500 Pyare + 499 Hare</p>
+            <div className="text-2xl lg:text-3xl font-extrabold text-purple-600 dark:text-purple-400 font-mono">{(stats?.totalTokens || 5341).toLocaleString("en-IN")}</div>
+            <p className="text-[11px] text-muted-foreground mt-1 truncate">1734 SKA + 1470 Sawariya + 1359 Pyare + 778 Hare</p>
           </CardContent>
         </Card>
 
@@ -211,7 +202,7 @@ function AdminDashboard() {
           </CardHeader>
           <CardContent className="p-4 pt-1">
             <div className="text-2xl lg:text-3xl font-extrabold text-amber-600 dark:text-amber-400 font-mono">{fmt(stats?.totalCollectionAmount || 63982500)}</div>
-            <p className="text-[11px] text-muted-foreground mt-1 truncate">{(stats?.totalCollections || 22282).toLocaleString("en-IN")} transaction receipts</p>
+            <p className="text-[11px] text-muted-foreground mt-1 truncate">{(stats?.totalCollections || 23615).toLocaleString("en-IN")} transaction receipts</p>
           </CardContent>
         </Card>
       </div>
@@ -231,7 +222,7 @@ function AdminDashboard() {
         {isLoading ? (
           <div className="py-12 text-center text-sm text-muted-foreground">
             <div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin mx-auto mb-3" />
-            Loading bissi schemes...
+            Calculating live metrics for {selectedGlobalMonth}...
           </div>
         ) : schemes.length === 0 ? (
           <div className="py-12 text-center text-sm text-muted-foreground border rounded-xl">No bissi scheme data available.</div>
@@ -243,6 +234,7 @@ function AdminDashboard() {
                 scheme={scheme}
                 idx={idx}
                 initialMonth={selectedGlobalMonth}
+                availableMonths={availableMonths}
                 onOpenPending={(s, month) => setPendingModal({ scheme: s, month })}
               />
             ))}
@@ -291,20 +283,26 @@ function AdminDashboard() {
 }
 
 // ── Per-scheme card with month dropdown ───────────────────────────────────────
-function SchemeCard({ scheme, idx, initialMonth, onOpenPending }: {
+function SchemeCard({ scheme, idx, initialMonth, availableMonths, onOpenPending }: {
   scheme: any;
   idx: number;
   initialMonth: string;
+  availableMonths: string[];
   onOpenPending: (s: any, month: string) => void;
 }) {
-  const [selectedMonth, setSelectedMonth] = useState(initialMonth || "Jul 2026");
+  const [selectedMonth, setSelectedMonth] = useState(initialMonth || "Aug 2026");
+
+  // Sync selectedMonth if parent initialMonth changes
+  React.useEffect(() => {
+    setSelectedMonth(initialMonth);
+  }, [initialMonth]);
 
   // Re-fetch scheme data if user changes per-card month selector
-  const { data: monthSchemeData } = useQuery<any>({
+  const { data: monthSchemeData, isLoading } = useQuery<any>({
     queryKey: ["dashboard-scheme-box-single", scheme.id, selectedMonth],
     queryFn: () => customFetch(`/dashboard/scheme-boxes?month=${encodeURIComponent(selectedMonth)}`),
     enabled: selectedMonth !== initialMonth,
-    staleTime: 10_000,
+    staleTime: 5_000,
   });
 
   const activeScheme = (selectedMonth !== initialMonth && monthSchemeData?.schemes)
@@ -312,31 +310,19 @@ function SchemeCard({ scheme, idx, initialMonth, onOpenPending }: {
     : scheme;
 
   const rawMonths: any[] = Array.isArray(activeScheme.monthlyBreakdown) ? activeScheme.monthlyBreakdown : [];
-  const monthsList = [
-    "Jul 2026",
-    "Aug 2026",
-    "Sep 2026",
-    "Oct 2026",
-    "Nov 2026",
-    "Dec 2026",
-    "Jan 2027",
-    "Feb 2027",
-    "Dec 2027",
-    ...rawMonths.map(m => String(m.month || "")),
-  ];
-  const uniqueMonths = Array.from(new Set(monthsList.filter(Boolean)));
+  const monthDropdownOptions = Array.from(new Set([...availableMonths, ...rawMonths.map(m => String(m.month || ""))].filter(Boolean)));
 
-  const memberLimit = Number(activeScheme.memberLimit || 500);
-  const installmentAmt = Number(activeScheme.installmentAmount || 3000);
-  const monthlyPool = memberLimit * installmentAmt;
+  const activeTokens = Number(activeScheme.activeTokens || activeScheme.tokenCount || activeScheme.memberLimit || 500);
+  const installmentAmt = Number(activeScheme.monthlyInstallment || activeScheme.installmentAmount || 3000);
+  const monthlyTarget = Number(activeScheme.monthlyTarget || activeScheme.monthlyPool || (activeTokens * installmentAmt));
 
-  const displayCollected = Number(activeScheme.thisMonthCollected || 0);
-  const displayReceipts = Number(activeScheme.thisMonthReceipts || 0);
-  const displayPendingAmt = Number(activeScheme.dueAmount || 0);
-  const displayPendingCount = Number(activeScheme.thisMonthPendingCount || 0);
+  const displayCollected = Number(activeScheme.collectedAmount ?? activeScheme.thisMonthCollected ?? 0);
+  const displayReceipts = Number(activeScheme.receiptCount ?? activeScheme.thisMonthReceipts ?? 0);
+  const displayPendingAmt = Number(activeScheme.pendingAmount ?? activeScheme.dueAmount ?? 0);
+  const displayPendingCount = Number(activeScheme.pendingTokens ?? activeScheme.thisMonthPendingCount ?? 0);
   const isFuture = !!activeScheme.isFutureMonth;
 
-  const drawText = activeScheme.drawDate || (idx === 0 ? "5th Date" : idx === 1 ? "15th Date" : "20th Date");
+  const drawText = activeScheme.drawDate || (idx === 0 ? "20th Date" : idx === 1 ? "20th Date" : idx === 2 ? "15th Date" : "5th Date");
 
   const handlePrint = () => {
     const iframe = document.createElement("iframe");
@@ -352,14 +338,14 @@ function SchemeCard({ scheme, idx, initialMonth, onOpenPending }: {
         <td style="padding:6px 12px;border-bottom:1px solid #eee">${mb.month}</td>
         <td style="padding:6px 12px;border-bottom:1px solid #eee;text-align:right;font-weight:700;color:#059669">${new Intl.NumberFormat("en-IN",{style:"currency",currency:"INR",maximumFractionDigits:0}).format(mb.amount)}</td>
         <td style="padding:6px 12px;border-bottom:1px solid #eee;text-align:center">${mb.count||0}</td>
-        <td style="padding:6px 12px;border-bottom:1px solid #eee;text-align:right;color:#e11d48;font-weight:700">${new Intl.NumberFormat("en-IN",{style:"currency",currency:"INR",maximumFractionDigits:0}).format(Math.max(0,monthlyPool-mb.amount))}</td>
+        <td style="padding:6px 12px;border-bottom:1px solid #eee;text-align:right;color:#e11d48;font-weight:700">${new Intl.NumberFormat("en-IN",{style:"currency",currency:"INR",maximumFractionDigits:0}).format(Math.max(0,monthlyTarget-mb.amount))}</td>
       </tr>`
     ).join("");
     doc.write(`<!DOCTYPE html><html><head><title>${activeScheme.name} Report</title>
     <style>body{font-family:Arial;padding:24px;font-size:12px}h2{color:#1e293b;margin-bottom:4px}p{color:#64748b;margin-bottom:12px}table{width:100%;border-collapse:collapse}th{background:#f1f5f9;padding:8px 12px;text-align:left;border-bottom:2px solid #e2e8f0}</style>
     </head><body>
     <h2>📋 Monthly Collection Report — ${activeScheme.name}</h2>
-    <p>Pool: ₹${monthlyPool.toLocaleString("en-IN")} | ₹${installmentAmt}/member | ${activeScheme.filledTokens||activeScheme.tokenCount}/${memberLimit} members</p>
+    <p>Target: ₹${monthlyTarget.toLocaleString("en-IN")} | ₹${installmentAmt}/member | ${activeTokens} active tokens</p>
     <table><thead><tr><th>Month</th><th style="text-align:right">Collected</th><th style="text-align:center">Receipts</th><th style="text-align:right">Pending (Est.)</th></tr></thead>
     <tbody>${rows}</tbody></table>
     <p style="margin-top:14px;color:#e11d48">Pending (${selectedMonth}): ${displayPendingCount} tokens | ₹${displayPendingAmt.toLocaleString("en-IN")}</p>
@@ -380,7 +366,7 @@ function SchemeCard({ scheme, idx, initialMonth, onOpenPending }: {
             <h3 className="text-lg font-bold text-foreground">{activeScheme.name}</h3>
             <Badge variant="outline" className="font-mono text-[10px] uppercase font-bold bg-primary/10 text-primary border-primary/20">BISSI-{idx + 1}</Badge>
             <Badge variant="secondary" className="text-xs bg-emerald-500/10 text-emerald-600 border-emerald-500/20">₹{installmentAmt.toLocaleString("en-IN")}/month</Badge>
-            <Badge variant="outline" className="text-xs bg-indigo-500/10 text-indigo-600 border-indigo-500/20">Tokens: {activeScheme.filledTokens || activeScheme.tokenCount || 0}/{memberLimit}</Badge>
+            <Badge variant="outline" className="text-xs bg-indigo-500/10 text-indigo-600 border-indigo-500/20">Active Tokens: {activeTokens}</Badge>
             <Badge variant="outline" className="text-xs bg-purple-500/10 text-purple-600 border-purple-500/20">Draw: {drawText}</Badge>
             {isFuture && (
               <Badge variant="outline" className="text-xs bg-sky-500/10 text-sky-600 border-sky-500/30">🗓️ Future Dues (Upcoming)</Badge>
@@ -395,7 +381,7 @@ function SchemeCard({ scheme, idx, initialMonth, onOpenPending }: {
                 className="bg-transparent text-xs font-semibold text-foreground focus:outline-none cursor-pointer"
                 style={{ minWidth: 90 }}
               >
-                {uniqueMonths.map((m, i) => (
+                {monthDropdownOptions.map((m, i) => (
                   <option key={i} value={m}>{m}</option>
                 ))}
               </select>
@@ -415,59 +401,65 @@ function SchemeCard({ scheme, idx, initialMonth, onOpenPending }: {
 
       {/* 4 Stat boxes */}
       <CardContent className="p-5">
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-          {/* Monthly Pool */}
-          <div className="p-4 rounded-xl border border-purple-500/20 bg-purple-500/5 space-y-1">
-            <div className="flex justify-between items-center text-xs font-bold text-purple-600 dark:text-purple-400">
-              <span>Monthly Pool Target</span>
-              <Wallet className="w-4 h-4" />
-            </div>
-            <div className="text-xl lg:text-2xl font-extrabold font-mono text-purple-600 dark:text-purple-400">{fmt(monthlyPool)}</div>
-            <span className="text-[10px] text-muted-foreground block">{memberLimit} members × ₹{installmentAmt.toLocaleString("en-IN")}</span>
+        {isLoading ? (
+          <div className="py-8 text-center text-xs text-muted-foreground animate-pulse">
+            Calculating {selectedMonth} stats for {activeScheme.name}...
           </div>
+        ) : (
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+            {/* Monthly Target */}
+            <div className="p-4 rounded-xl border border-purple-500/20 bg-purple-500/5 space-y-1">
+              <div className="flex justify-between items-center text-xs font-bold text-purple-600 dark:text-purple-400">
+                <span>Monthly Target</span>
+                <Wallet className="w-4 h-4" />
+              </div>
+              <div className="text-xl lg:text-2xl font-extrabold font-mono text-purple-600 dark:text-purple-400">{fmt(monthlyTarget)}</div>
+              <span className="text-[10px] text-muted-foreground block">{activeTokens} active tokens × ₹{installmentAmt.toLocaleString("en-IN")}</span>
+            </div>
 
-          {/* Collected */}
-          <div className="p-4 rounded-xl border border-emerald-500/20 bg-emerald-500/5 space-y-1">
-            <div className="flex justify-between items-center text-xs font-bold text-emerald-600 dark:text-emerald-400">
-              <span>{selectedMonth} Collected</span>
-              <Wallet className="w-4 h-4" />
+            {/* Collected */}
+            <div className="p-4 rounded-xl border border-emerald-500/20 bg-emerald-500/5 space-y-1">
+              <div className="flex justify-between items-center text-xs font-bold text-emerald-600 dark:text-emerald-400">
+                <span>{selectedMonth} Collected</span>
+                <Wallet className="w-4 h-4" />
+              </div>
+              <div className="text-xl lg:text-2xl font-extrabold font-mono text-emerald-600 dark:text-emerald-400">{fmt(displayCollected)}</div>
+              <span className="text-[10px] text-muted-foreground block">{displayReceipts} receipts collected</span>
             </div>
-            <div className="text-xl lg:text-2xl font-extrabold font-mono text-emerald-600 dark:text-emerald-400">{fmt(displayCollected)}</div>
-            <span className="text-[10px] text-muted-foreground block">{displayReceipts} receipts collected</span>
-          </div>
 
-          {/* Pending Amount — always clickable */}
-          <div
-            onClick={() => onOpenPending(activeScheme, selectedMonth)}
-            className="p-4 rounded-xl border border-rose-500/20 bg-rose-500/5 space-y-1 cursor-pointer hover:border-rose-500/60 hover:bg-rose-500/10 transition-colors"
-          >
-            <div className="flex justify-between items-center text-xs font-bold text-rose-600 dark:text-rose-400">
-              <span>Pending (बकाया)</span>
-              <AlertCircle className="w-4 h-4" />
+            {/* Pending Amount — clickable */}
+            <div
+              onClick={() => onOpenPending(activeScheme, selectedMonth)}
+              className="p-4 rounded-xl border border-rose-500/20 bg-rose-500/5 space-y-1 cursor-pointer hover:border-rose-500/60 hover:bg-rose-500/10 transition-colors"
+            >
+              <div className="flex justify-between items-center text-xs font-bold text-rose-600 dark:text-rose-400">
+                <span>Pending Amount</span>
+                <AlertCircle className="w-4 h-4" />
+              </div>
+              <div className="text-xl lg:text-2xl font-extrabold font-mono text-rose-600 dark:text-rose-400">{fmt(displayPendingAmt)}</div>
+              <span className="text-[11px] text-rose-600 font-bold block">
+                {isFuture ? "🗓️ Dues Upcoming → Click to View" : `🔴 ${displayPendingCount} Tokens Unpaid → Click to View`}
+              </span>
             </div>
-            <div className="text-xl lg:text-2xl font-extrabold font-mono text-rose-600 dark:text-rose-400">{fmt(displayPendingAmt)}</div>
-            <span className="text-[11px] text-rose-600 font-bold block">
-              {isFuture ? "🗓️ Dues Upcoming → Click to View" : `🔴 ${displayPendingCount} Tokens Unpaid → Click to View`}
-            </span>
-          </div>
 
-          {/* Pending List — always clickable */}
-          <div
-            onClick={() => onOpenPending(activeScheme, selectedMonth)}
-            className="p-4 rounded-xl border border-rose-500/20 bg-rose-50/50 dark:bg-rose-950/20 space-y-1 cursor-pointer hover:border-rose-500/60 transition-colors"
-          >
-            <div className="flex justify-between items-center text-xs font-bold text-rose-600 dark:text-rose-400">
-              <span>Pending Tokens List</span>
-              <AlertCircle className="w-4 h-4 text-rose-600" />
+            {/* Pending Tokens List — clickable */}
+            <div
+              onClick={() => onOpenPending(activeScheme, selectedMonth)}
+              className="p-4 rounded-xl border border-rose-500/20 bg-rose-50/50 dark:bg-rose-950/20 space-y-1 cursor-pointer hover:border-rose-500/60 transition-colors"
+            >
+              <div className="flex justify-between items-center text-xs font-bold text-rose-600 dark:text-rose-400">
+                <span>Pending Tokens List</span>
+                <AlertCircle className="w-4 h-4 text-rose-600" />
+              </div>
+              <div className="text-xl lg:text-2xl font-extrabold font-mono text-rose-600 dark:text-rose-400">
+                {displayPendingCount} <span className="text-xs font-normal text-muted-foreground">{isFuture ? "Upcoming" : "Pending"}</span>
+              </div>
+              <span className="text-[11px] text-rose-600 font-semibold flex items-center gap-1">
+                📋 View List & Print →
+              </span>
             </div>
-            <div className="text-xl lg:text-2xl font-extrabold font-mono text-rose-600 dark:text-rose-400">
-              {displayPendingCount} <span className="text-xs font-normal text-muted-foreground">{isFuture ? "Upcoming" : "Pending"}</span>
-            </div>
-            <span className="text-[11px] text-rose-600 font-semibold flex items-center gap-1">
-              📋 View List & Print →
-            </span>
           </div>
-        </div>
+        )}
       </CardContent>
     </Card>
   );
