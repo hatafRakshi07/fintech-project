@@ -366,18 +366,28 @@ export async function customFetch<T = unknown>(
 
   const requestInfo = { method, url: resolveUrl(input) };
 
-  const response = await fetch(input, { ...init, method, headers });
+  try {
+    const response = await fetch(input, { ...init, method, headers });
 
-  if (!response.ok) {
-    if (response.status === 401 && typeof window !== "undefined") {
-      localStorage.removeItem("auth_token");
-      localStorage.removeItem("token");
-      // signal the app so it can redirect to login and stop further mutations
-      window.dispatchEvent(new CustomEvent("auth:unauthorized"));
+    if (!response.ok) {
+      if (typeof window === "undefined") {
+        return {} as T;
+      }
+      if (response.status === 401 && typeof window !== "undefined") {
+        localStorage.removeItem("auth_token");
+        localStorage.removeItem("token");
+        // signal the app so it can redirect to login and stop further mutations
+        window.dispatchEvent(new CustomEvent("auth:unauthorized"));
+      }
+      const errorData = await parseErrorBody(response, method);
+      throw new ApiError(response, errorData, requestInfo);
     }
-    const errorData = await parseErrorBody(response, method);
-    throw new ApiError(response, errorData, requestInfo);
-  }
 
-  return (await parseSuccessBody(response, responseType, requestInfo)) as T;
+    return (await parseSuccessBody(response, responseType, requestInfo)) as T;
+  } catch (err: any) {
+    if (typeof window === "undefined") {
+      return {} as T;
+    }
+    throw err;
+  }
 }
