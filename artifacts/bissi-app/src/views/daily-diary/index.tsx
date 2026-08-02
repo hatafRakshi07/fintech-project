@@ -103,9 +103,10 @@ export default function DailyDiaryDashboardPage() {
     loanAmount: "",
     startDate: new Date().toISOString().slice(0, 10),
     expectedCompleteDate: "",
-    collectionPlan: "100/day",
-    notes: "",
+    collectionPlan: "500/day",
+    customPlanAmount: "",
     initialPaymentAmount: "",
+    notes: "",
   });
 
   // Quick Payment Form State
@@ -117,32 +118,32 @@ export default function DailyDiaryDashboardPage() {
     allowAdminOverride: false,
   });
 
-  // Fetch Dashboard Stats
-  const { data: statsData, isLoading: isStatsLoading } = useQuery<{ success: boolean; stats: DashboardStats }>({
+  // Query: Stats Summary
+  const { data: statsData } = useQuery<{ stats: DashboardStats }>({
     queryKey: ["daily-diary-dashboard"],
     queryFn: async () => {
       const res = await fetch("/api/daily-diary/dashboard");
-      if (!res.ok) throw new Error("Failed to fetch dashboard stats");
+      if (!res.ok) throw new Error("Failed to fetch Daily Diary stats");
       return res.json();
     },
   });
 
-  // Fetch Loans Directory
-  const { data: loansData, isLoading: isLoansLoading } = useQuery<{ success: boolean; loans: DailyDiaryLoan[] }>({
+  // Query: Loan Accounts List
+  const { data: loansData, isLoading: isLoansLoading } = useQuery<{ loans: DailyDiaryLoan[] }>({
     queryKey: ["daily-diary-loans", searchTerm, statusFilter, planFilter],
     queryFn: async () => {
-      const queryParams = new URLSearchParams();
-      if (searchTerm) queryParams.set("search", searchTerm);
-      if (statusFilter !== "ALL") queryParams.set("status", statusFilter);
-      if (planFilter !== "ALL") queryParams.set("plan", planFilter);
+      const params = new URLSearchParams();
+      if (searchTerm) params.set("search", searchTerm);
+      if (statusFilter !== "ALL") params.set("status", statusFilter);
+      if (planFilter !== "ALL") params.set("collectionPlan", planFilter);
 
-      const res = await fetch(`/api/daily-diary/loans?${queryParams.toString()}`);
+      const res = await fetch(`/api/daily-diary/loans?${params.toString()}`);
       if (!res.ok) throw new Error("Failed to fetch loans");
       return res.json();
     },
   });
 
-  // Mutation: Create Customer Loan
+  // Mutation: Create Loan Customer Account
   const createLoanMutation = useMutation({
     mutationFn: async (payload: typeof newCustomer) => {
       const res = await fetch("/api/daily-diary/loans", {
@@ -151,11 +152,11 @@ export default function DailyDiaryDashboardPage() {
         body: JSON.stringify(payload),
       });
       const data = await res.json();
-      if (!res.ok || !data.success) throw new Error(data.error || "Failed to create loan");
+      if (!res.ok) throw new Error(data.error || "Failed to create account");
       return data;
     },
     onSuccess: () => {
-      toast({ title: "Loan Account Created", description: "Daily Diary customer loan added successfully!" });
+      toast({ title: "Success", description: "Daily Diary customer loan account created!" });
       queryClient.invalidateQueries({ queryKey: ["daily-diary-dashboard"] });
       queryClient.invalidateQueries({ queryKey: ["daily-diary-loans"] });
       setIsAddCustomerOpen(false);
@@ -168,9 +169,10 @@ export default function DailyDiaryDashboardPage() {
         loanAmount: "",
         startDate: new Date().toISOString().slice(0, 10),
         expectedCompleteDate: "",
-        collectionPlan: "100/day",
-        notes: "",
+        collectionPlan: "500/day",
+        customPlanAmount: "",
         initialPaymentAmount: "",
+        notes: "",
       });
     },
     onError: (err: any) => {
@@ -259,18 +261,18 @@ export default function DailyDiaryDashboardPage() {
 
   return (
     <div className="space-y-6 pb-12">
-      {/* Header Banner */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-gradient-to-r from-slate-900 via-emerald-950 to-slate-900 p-6 rounded-2xl border border-emerald-500/20 text-white shadow-xl">
+      {/* Header Banner - Matches SKA Brand Theme */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-card border border-border/80 p-6 rounded-2xl shadow-sm">
         <div className="space-y-1">
           <div className="flex items-center gap-3">
-            <div className="p-2.5 bg-emerald-500/20 border border-emerald-500/30 rounded-xl text-emerald-400">
+            <div className="p-2.5 bg-amber-500/10 text-amber-600 rounded-xl border border-amber-500/20">
               <BookOpen className="h-6 w-6" />
             </div>
             <div>
-              <h1 className="text-2xl font-bold tracking-tight text-white flex items-center gap-2">
-                Daily Diary <span className="text-xs bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 px-2 py-0.5 rounded-full font-medium">Daily Loan Collection</span>
+              <h1 className="text-2xl font-bold tracking-tight text-foreground flex items-center gap-2">
+                Daily Diary <span className="text-xs bg-amber-500/10 text-amber-700 dark:text-amber-400 border border-amber-500/20 px-2.5 py-0.5 rounded-full font-medium">Daily Loan Collection</span>
               </h1>
-              <p className="text-sm text-slate-300">
+              <p className="text-sm text-muted-foreground">
                 Flexible loan recovery ledger with daily, weekly, and custom repayment tracking.
               </p>
             </div>
@@ -280,26 +282,26 @@ export default function DailyDiaryDashboardPage() {
         <div className="flex flex-wrap items-center gap-3">
           <Button
             variant="outline"
-            className="bg-slate-800/80 border-slate-700 text-slate-200 hover:bg-slate-700 hover:text-white"
+            className="border-border text-foreground hover:bg-muted"
             onClick={() => seedCsvMutation.mutate()}
             disabled={seedCsvMutation.isPending}
           >
-            <FileSpreadsheet className="h-4 w-4 mr-2 text-emerald-400" />
+            <FileSpreadsheet className="h-4 w-4 mr-2 text-emerald-600" />
             {seedCsvMutation.isPending ? "Importing CSV..." : "Import CSV"}
           </Button>
 
           <Button
             variant="outline"
-            className="bg-slate-800/80 border-slate-700 text-slate-200 hover:bg-slate-700 hover:text-white"
+            className="border-border text-foreground hover:bg-muted"
             onClick={() => setLocation("/daily-diary/reports")}
           >
-            <FileText className="h-4 w-4 mr-2 text-blue-400" />
+            <FileText className="h-4 w-4 mr-2 text-blue-600" />
             Collection Reports
           </Button>
 
           <Dialog open={isAddCustomerOpen} onOpenChange={setIsAddCustomerOpen}>
             <DialogTrigger asChild>
-              <Button className="bg-emerald-600 hover:bg-emerald-500 text-white shadow-lg shadow-emerald-900/30 font-medium">
+              <Button className="bg-primary text-primary-foreground hover:bg-primary/90 shadow-sm font-medium">
                 <Plus className="h-4 w-4 mr-2" />
                 Add Loan Customer
               </Button>
@@ -307,7 +309,7 @@ export default function DailyDiaryDashboardPage() {
             <DialogContent className="max-w-xl max-h-[90vh] overflow-y-auto">
               <DialogHeader>
                 <DialogTitle className="flex items-center gap-2 text-xl">
-                  <Users className="h-5 w-5 text-emerald-600" />
+                  <Users className="h-5 w-5 text-amber-600" />
                   New Daily Diary Loan Account
                 </DialogTitle>
                 <DialogDescription>
@@ -354,7 +356,7 @@ export default function DailyDiaryDashboardPage() {
                 </div>
 
                 <div className="space-y-2">
-                  <Label>Collection Plan</Label>
+                  <Label>Collection Plan <span className="text-red-500">*</span></Label>
                   <Select
                     value={newCustomer.collectionPlan}
                     onValueChange={(val) => setNewCustomer({ ...newCustomer, collectionPlan: val })}
@@ -366,6 +368,7 @@ export default function DailyDiaryDashboardPage() {
                       <SelectItem value="100/day">100/day</SelectItem>
                       <SelectItem value="250/day">250/day</SelectItem>
                       <SelectItem value="500/day">500/day</SelectItem>
+                      <SelectItem value="1000/day">1000/day</SelectItem>
                       <SelectItem value="1400/week">1400/week</SelectItem>
                       <SelectItem value="3500/week">3500/week</SelectItem>
                       <SelectItem value="Custom">Custom</SelectItem>
@@ -373,8 +376,19 @@ export default function DailyDiaryDashboardPage() {
                   </Select>
                 </div>
 
+                {newCustomer.collectionPlan === "Custom" && (
+                  <div className="space-y-2 col-span-1 md:col-span-2">
+                    <Label>Custom Plan Amount / Frequency Note</Label>
+                    <Input
+                      placeholder="e.g. 300 every 2 days"
+                      value={newCustomer.customPlanAmount}
+                      onChange={(e) => setNewCustomer({ ...newCustomer, customPlanAmount: e.target.value })}
+                    />
+                  </div>
+                )}
+
                 <div className="space-y-2">
-                  <Label>Start Date <span className="text-red-500">*</span></Label>
+                  <Label>Start Date</Label>
                   <Input
                     type="date"
                     value={newCustomer.startDate}
@@ -383,7 +397,7 @@ export default function DailyDiaryDashboardPage() {
                 </div>
 
                 <div className="space-y-2">
-                  <Label>Expected Complete Date</Label>
+                  <Label>Expected Completion Date</Label>
                   <Input
                     type="date"
                     value={newCustomer.expectedCompleteDate}
@@ -432,7 +446,7 @@ export default function DailyDiaryDashboardPage() {
               <DialogFooter>
                 <Button variant="outline" onClick={() => setIsAddCustomerOpen(false)}>Cancel</Button>
                 <Button
-                  className="bg-emerald-600 hover:bg-emerald-500 text-white"
+                  className="bg-primary text-primary-foreground hover:bg-primary/90"
                   onClick={() => createLoanMutation.mutate(newCustomer)}
                   disabled={createLoanMutation.isPending}
                 >
@@ -445,30 +459,29 @@ export default function DailyDiaryDashboardPage() {
       </div>
 
       {/* Daily Collection Live Tracker — Prominent Total Summary Section */}
-      <div className="bg-gradient-to-r from-slate-950 via-slate-900 to-slate-950 border-2 border-emerald-500/30 rounded-2xl p-5 shadow-2xl space-y-4">
-
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-800/80 pb-3">
+      <Card className="bg-card border border-border shadow-sm rounded-2xl p-5 space-y-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-border pb-3">
           <div className="flex items-center gap-2.5">
-            <div className="p-2.5 bg-emerald-500/20 text-emerald-400 rounded-xl border border-emerald-500/30">
+            <div className="p-2.5 bg-emerald-500/10 text-emerald-600 rounded-xl border border-emerald-500/20">
               <TrendingUp className="h-5 w-5" />
             </div>
             <div>
-              <h2 className="text-lg font-bold text-white flex items-center gap-2">
+              <h2 className="text-lg font-bold text-foreground flex items-center gap-2">
                 Today's Daily Collection Summary
-                <span className="text-[11px] bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 px-2 py-0.5 rounded-full font-normal">
+                <span className="text-[11px] bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border border-emerald-500/20 px-2.5 py-0.5 rounded-full font-medium">
                   Live Today Tracker
                 </span>
               </h2>
-              <p className="text-xs text-slate-400">
+              <p className="text-xs text-muted-foreground">
                 Tracking today's target collection vs. actual received amount vs. uncollected pending balance.
               </p>
             </div>
           </div>
           <div className="flex items-center gap-2 text-xs">
-            <Badge className="bg-emerald-500/20 text-emerald-300 border-emerald-500/40">
+            <Badge variant="outline" className="bg-emerald-500/10 text-emerald-700 border-emerald-500/30">
               Paid Today: {stats.todayPaidCustomersCount || 0} Customers
             </Badge>
-            <Badge className="bg-amber-500/20 text-amber-300 border-amber-500/40">
+            <Badge variant="outline" className="bg-amber-500/10 text-amber-700 border-amber-500/30">
               Unpaid Today: {stats.todayUnpaidActiveCustomersCount || 0} Customers
             </Badge>
           </div>
@@ -477,118 +490,114 @@ export default function DailyDiaryDashboardPage() {
         {/* 3 Main Daily Metrics Highlight Cards */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           {/* Today's Target Collection */}
-          <div className="bg-slate-900/90 border border-blue-500/30 rounded-xl p-4 flex items-center justify-between shadow-inner">
+          <div className="bg-blue-500/5 border border-blue-200 dark:border-blue-900/40 rounded-xl p-4 flex items-center justify-between shadow-xs">
             <div>
-              <span className="text-xs font-semibold uppercase text-blue-400 tracking-wider">Today's Expected Target</span>
-              <span className="text-2xl font-black text-blue-400 block mt-1">
+              <span className="text-xs font-semibold uppercase text-blue-700 dark:text-blue-400 tracking-wider">Today's Expected Target</span>
+              <span className="text-2xl font-black text-blue-700 dark:text-blue-400 block mt-1">
                 ₹{(stats.todayTargetCollection || 0).toLocaleString('en-IN')}
               </span>
-              <span className="text-[11px] text-slate-400 mt-1 block">Expected recovery for today</span>
+              <span className="text-[11px] text-muted-foreground mt-1 block">Expected recovery for today</span>
             </div>
-            <div className="p-3 bg-blue-500/10 rounded-xl text-blue-400 border border-blue-500/20">
+            <div className="p-3 bg-blue-500/10 rounded-xl text-blue-600 border border-blue-500/20">
               <Calendar className="h-6 w-6" />
             </div>
           </div>
 
           {/* Today's Actual Collected */}
-          <div className="bg-slate-900/90 border border-emerald-500/40 rounded-xl p-4 flex items-center justify-between shadow-inner">
+          <div className="bg-emerald-500/5 border border-emerald-200 dark:border-emerald-900/40 rounded-xl p-4 flex items-center justify-between shadow-xs">
             <div>
-              <span className="text-xs font-semibold uppercase text-emerald-400 tracking-wider">Today's Total Collected</span>
-              <span className="text-2xl font-black text-emerald-400 block mt-1">
+              <span className="text-xs font-semibold uppercase text-emerald-700 dark:text-emerald-400 tracking-wider">Today's Total Collected</span>
+              <span className="text-2xl font-black text-emerald-700 dark:text-emerald-400 block mt-1">
                 ₹{(stats.todayCollection || 0).toLocaleString('en-IN')}
               </span>
-              <span className="text-[11px] text-emerald-300/80 mt-1 block font-medium">✓ Received in ledger today</span>
+              <span className="text-[11px] text-emerald-700 dark:text-emerald-400 mt-1 block font-medium">✓ Received in ledger today</span>
             </div>
-            <div className="p-3 bg-emerald-500/10 rounded-xl text-emerald-400 border border-emerald-500/20">
+            <div className="p-3 bg-emerald-500/10 rounded-xl text-emerald-600 border border-emerald-500/20">
               <CheckCircle2 className="h-6 w-6" />
             </div>
           </div>
 
           {/* Today's Pending / Uncollected */}
-          <div className="bg-slate-900/90 border border-rose-500/40 rounded-xl p-4 flex items-center justify-between shadow-inner">
+          <div className="bg-rose-500/5 border border-rose-200 dark:border-rose-900/40 rounded-xl p-4 flex items-center justify-between shadow-xs">
             <div>
-              <span className="text-xs font-semibold uppercase text-rose-400 tracking-wider">Today's Pending / Uncollected</span>
-              <span className="text-2xl font-black text-rose-400 block mt-1">
+              <span className="text-xs font-semibold uppercase text-rose-700 dark:text-rose-400 tracking-wider">Today's Pending / Uncollected</span>
+              <span className="text-2xl font-black text-rose-700 dark:text-rose-400 block mt-1">
                 ₹{(stats.todayPendingCollection || 0).toLocaleString('en-IN')}
               </span>
-              <span className="text-[11px] text-rose-300/80 mt-1 block font-medium">⚠️ Remaining due for today</span>
+              <span className="text-[11px] text-rose-700 dark:text-rose-400 mt-1 block font-medium">⚠️ Remaining due for today</span>
             </div>
-            <div className="p-3 bg-rose-500/10 rounded-xl text-rose-400 border border-rose-500/20">
+            <div className="p-3 bg-rose-500/10 rounded-xl text-rose-600 border border-rose-500/20">
               <AlertCircle className="h-6 w-6" />
             </div>
           </div>
         </div>
 
-        {/* Progress Bar for Today's Target Recovery */}
+        {/* Progress Bar */}
         <div className="space-y-1.5 pt-1">
-          <div className="flex items-center justify-between text-xs text-slate-300">
-            <span className="font-medium flex items-center gap-1.5">
-              <span>Today's Recovery Rate</span>
-              <span className="text-emerald-400 font-bold">{stats.todayAchievementPct || 0}% Achieved</span>
-            </span>
-            <span className="text-slate-400">
-              Collected ₹{(stats.todayCollection || 0).toLocaleString('en-IN')} of ₹{(stats.todayTargetCollection || 0).toLocaleString('en-IN')}
+          <div className="flex items-center justify-between text-xs">
+            <span className="text-muted-foreground font-medium">Daily Collection Progress</span>
+            <span className="font-bold text-foreground">
+              {(stats.todayAchievementPct || 0)}% — Collected ₹{(stats.todayCollection || 0).toLocaleString('en-IN')} of ₹{(stats.todayTargetCollection || 0).toLocaleString('en-IN')}
             </span>
           </div>
-          <Progress value={stats.todayAchievementPct || 0} className="h-3 bg-slate-950 border border-slate-800" />
+          <Progress value={stats.todayAchievementPct || 0} className="h-3" />
         </div>
-      </div>
+      </Card>
 
       {/* Dashboard KPI Grid */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-
-        <Card className="bg-gradient-to-br from-slate-900 to-slate-800 border-slate-700/60 text-white shadow-md">
+        <Card className="bg-card border border-border/80 shadow-sm hover:shadow-md transition-shadow">
           <CardContent className="p-4 flex items-center justify-between">
             <div>
-              <p className="text-xs text-slate-400 font-medium uppercase tracking-wider">Total Customers</p>
+              <p className="text-xs text-muted-foreground font-medium uppercase tracking-wider">Total Customers</p>
               <div className="flex items-baseline gap-2 mt-1">
-                <span className="text-2xl font-bold text-white">{stats.totalCustomers}</span>
-                <span className="text-xs text-emerald-400 font-medium">Active: {stats.activeCustomers}</span>
+                <span className="text-2xl font-bold text-foreground">{stats.totalCustomers}</span>
+                <span className="text-xs text-emerald-600 font-medium">Active: {stats.activeCustomers}</span>
               </div>
             </div>
-            <div className="p-3 bg-emerald-500/10 rounded-xl text-emerald-400 border border-emerald-500/20">
+            <div className="p-3 bg-emerald-500/10 rounded-xl text-emerald-600 border border-emerald-500/20">
               <Users className="h-5 w-5" />
             </div>
           </CardContent>
         </Card>
 
-        <Card className="bg-gradient-to-br from-slate-900 to-slate-800 border-slate-700/60 text-white shadow-md">
+        <Card className="bg-card border border-border/80 shadow-sm hover:shadow-md transition-shadow">
           <CardContent className="p-4 flex items-center justify-between">
             <div>
-              <p className="text-xs text-slate-400 font-medium uppercase tracking-wider">Total Loan Amount</p>
-              <span className="text-2xl font-bold text-amber-400 mt-1 block">
+              <p className="text-xs text-muted-foreground font-medium uppercase tracking-wider">Total Loan Amount</p>
+              <span className="text-2xl font-bold text-amber-600 dark:text-amber-400 mt-1 block">
                 ₹{stats.totalLoanAmount.toLocaleString('en-IN')}
               </span>
             </div>
-            <div className="p-3 bg-amber-500/10 rounded-xl text-amber-400 border border-amber-500/20">
+            <div className="p-3 bg-amber-500/10 rounded-xl text-amber-600 border border-amber-500/20">
               <CreditCard className="h-5 w-5" />
             </div>
           </CardContent>
         </Card>
 
-        <Card className="bg-gradient-to-br from-slate-900 to-slate-800 border-slate-700/60 text-white shadow-md">
+        <Card className="bg-card border border-border/80 shadow-sm hover:shadow-md transition-shadow">
           <CardContent className="p-4 flex items-center justify-between">
             <div>
-              <p className="text-xs text-slate-400 font-medium uppercase tracking-wider">Total Collected</p>
-              <span className="text-2xl font-bold text-emerald-400 mt-1 block">
+              <p className="text-xs text-muted-foreground font-medium uppercase tracking-wider">Total Collected</p>
+              <span className="text-2xl font-bold text-emerald-600 dark:text-emerald-400 mt-1 block">
                 ₹{stats.totalAmountCollected.toLocaleString('en-IN')}
               </span>
             </div>
-            <div className="p-3 bg-emerald-500/10 rounded-xl text-emerald-400 border border-emerald-500/20">
+            <div className="p-3 bg-emerald-500/10 rounded-xl text-emerald-600 border border-emerald-500/20">
               <TrendingUp className="h-5 w-5" />
             </div>
           </CardContent>
         </Card>
 
-        <Card className="bg-gradient-to-br from-slate-900 to-slate-800 border-slate-700/60 text-white shadow-md">
+        <Card className="bg-card border border-border/80 shadow-sm hover:shadow-md transition-shadow">
           <CardContent className="p-4 flex items-center justify-between">
             <div>
-              <p className="text-xs text-slate-400 font-medium uppercase tracking-wider">Total Remaining Balance</p>
-              <span className="text-2xl font-bold text-rose-400 mt-1 block">
+              <p className="text-xs text-muted-foreground font-medium uppercase tracking-wider">Total Remaining Balance</p>
+              <span className="text-2xl font-bold text-rose-600 dark:text-rose-400 mt-1 block">
                 ₹{stats.totalRemainingAmount.toLocaleString('en-IN')}
               </span>
             </div>
-            <div className="p-3 bg-rose-500/10 rounded-xl text-rose-400 border border-rose-500/20">
+            <div className="p-3 bg-rose-500/10 rounded-xl text-rose-600 border border-rose-500/20">
               <Clock className="h-5 w-5" />
             </div>
           </CardContent>
@@ -597,38 +606,38 @@ export default function DailyDiaryDashboardPage() {
 
       {/* Collection Period Cards */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <div className="bg-slate-900/90 border border-slate-800 rounded-xl p-4 flex items-center justify-between">
+        <Card className="bg-card border border-border shadow-sm p-4 flex items-center justify-between">
           <div>
-            <p className="text-xs text-slate-400 uppercase font-semibold">Today's Collection</p>
-            <p className="text-xl font-bold text-emerald-400 mt-0.5">₹{stats.todayCollection.toLocaleString('en-IN')}</p>
+            <p className="text-xs text-muted-foreground uppercase font-semibold">Today's Collection</p>
+            <p className="text-xl font-bold text-emerald-600 dark:text-emerald-400 mt-0.5">₹{stats.todayCollection.toLocaleString('en-IN')}</p>
           </div>
-          <Badge className="bg-emerald-500/20 text-emerald-300 border-emerald-500/30">Today</Badge>
-        </div>
+          <Badge variant="outline" className="bg-emerald-500/10 text-emerald-700 border-emerald-500/20">Today</Badge>
+        </Card>
 
-        <div className="bg-slate-900/90 border border-slate-800 rounded-xl p-4 flex items-center justify-between">
+        <Card className="bg-card border border-border shadow-sm p-4 flex items-center justify-between">
           <div>
-            <p className="text-xs text-slate-400 uppercase font-semibold">This Week Collection</p>
-            <p className="text-xl font-bold text-blue-400 mt-0.5">₹{stats.weekCollection.toLocaleString('en-IN')}</p>
+            <p className="text-xs text-muted-foreground uppercase font-semibold">This Week Collection</p>
+            <p className="text-xl font-bold text-blue-600 dark:text-blue-400 mt-0.5">₹{stats.weekCollection.toLocaleString('en-IN')}</p>
           </div>
-          <Badge className="bg-blue-500/20 text-blue-300 border-blue-500/30">Last 7 Days</Badge>
-        </div>
+          <Badge variant="outline" className="bg-blue-500/10 text-blue-700 border-blue-500/20">Last 7 Days</Badge>
+        </Card>
 
-        <div className="bg-slate-900/90 border border-slate-800 rounded-xl p-4 flex items-center justify-between">
+        <Card className="bg-card border border-border shadow-sm p-4 flex items-center justify-between">
           <div>
-            <p className="text-xs text-slate-400 uppercase font-semibold">This Month Collection</p>
-            <p className="text-xl font-bold text-purple-400 mt-0.5">₹{stats.monthCollection.toLocaleString('en-IN')}</p>
+            <p className="text-xs text-muted-foreground uppercase font-semibold">This Month Collection</p>
+            <p className="text-xl font-bold text-purple-600 dark:text-purple-400 mt-0.5">₹{stats.monthCollection.toLocaleString('en-IN')}</p>
           </div>
-          <Badge className="bg-purple-500/20 text-purple-300 border-purple-500/30">This Month</Badge>
-        </div>
+          <Badge variant="outline" className="bg-purple-500/10 text-purple-700 border-purple-500/20">This Month</Badge>
+        </Card>
       </div>
 
       {/* Controls & Search Bar */}
-      <div className="flex flex-col md:flex-row items-center justify-between gap-4 bg-slate-900/80 p-4 rounded-xl border border-slate-800">
+      <Card className="bg-card border border-border p-4 rounded-xl shadow-sm flex flex-col md:flex-row items-center justify-between gap-4">
         <div className="relative w-full md:w-96">
-          <Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
+          <Search className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
           <Input
             placeholder="Search Name, Mobile, Reference No..."
-            className="pl-9 bg-slate-950 border-slate-800 text-slate-200 placeholder:text-slate-500"
+            className="pl-9 bg-background border-input text-foreground placeholder:text-muted-foreground"
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
           />
@@ -636,12 +645,12 @@ export default function DailyDiaryDashboardPage() {
 
         <div className="flex flex-wrap items-center gap-3 w-full md:w-auto">
           <div className="flex items-center gap-2">
-            <Filter className="h-4 w-4 text-slate-400" />
-            <span className="text-xs text-slate-400 font-medium">Filter:</span>
+            <Filter className="h-4 w-4 text-muted-foreground" />
+            <span className="text-xs text-muted-foreground font-medium">Filter:</span>
           </div>
 
           <Select value={statusFilter} onValueChange={setStatusFilter}>
-            <SelectTrigger className="w-[130px] bg-slate-950 border-slate-800 text-slate-200">
+            <SelectTrigger className="w-[130px] bg-background border-input text-foreground">
               <SelectValue placeholder="Status" />
             </SelectTrigger>
             <SelectContent>
@@ -652,7 +661,7 @@ export default function DailyDiaryDashboardPage() {
           </Select>
 
           <Select value={planFilter} onValueChange={setPlanFilter}>
-            <SelectTrigger className="w-[150px] bg-slate-950 border-slate-800 text-slate-200">
+            <SelectTrigger className="w-[150px] bg-background border-input text-foreground">
               <SelectValue placeholder="Plan" />
             </SelectTrigger>
             <SelectContent>
@@ -666,47 +675,50 @@ export default function DailyDiaryDashboardPage() {
             </SelectContent>
           </Select>
         </div>
-      </div>
+      </Card>
 
       {/* Customer Directory Cards */}
       {isLoansLoading ? (
-        <div className="text-center py-12 text-slate-400">Loading Daily Diary loans...</div>
+        <div className="text-center py-12 text-muted-foreground">Loading Daily Diary loans...</div>
       ) : loans.length === 0 ? (
-        <div className="text-center py-12 bg-slate-900/40 rounded-xl border border-slate-800 text-slate-400">
-          <BookOpen className="h-10 w-10 mx-auto mb-2 text-slate-600" />
-          <p className="text-base font-medium">No Daily Diary loan accounts found.</p>
-          <p className="text-xs text-slate-500 mt-1">Add a new customer account or click "Import CSV" to populate records.</p>
-        </div>
+        <Card className="text-center py-16 bg-card border border-dashed border-border rounded-xl text-muted-foreground shadow-sm">
+          <BookOpen className="h-12 w-12 mx-auto mb-3 text-amber-500/50" />
+          <h3 className="text-lg font-bold text-foreground">No Daily Diary Loan Accounts Found</h3>
+          <p className="text-sm text-muted-foreground max-w-md mx-auto mt-1">
+            Add a new customer account using "+ Add Loan Customer" button above or click "Import CSV" to populate records.
+          </p>
+        </Card>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {loans.map((loan) => (
             <Card
               key={loan.id}
-              className={`bg-slate-900/90 border transition-all duration-200 hover:border-slate-700 shadow-md ${
-                loan.status === "COMPLETED" ? "border-slate-800 opacity-90" : "border-slate-800"
+              className={`bg-card border transition-all duration-200 hover:border-amber-400/50 shadow-sm hover:shadow-md ${
+                loan.status === "COMPLETED" ? "border-border opacity-85" : "border-border/80"
               }`}
             >
               <CardContent className="p-5 space-y-4">
                 {/* Title & Status */}
                 <div className="flex items-start justify-between gap-2">
                   <div>
-                    <h3 className="font-semibold text-base text-white hover:text-emerald-400 transition-colors">
+                    <h3 className="font-semibold text-base text-foreground hover:text-amber-600 transition-colors">
                       <Link href={`/daily-diary/${loan.id}`} className="flex items-center gap-1.5">
                         {loan.customerName}
-                        <ArrowUpRight className="h-3.5 w-3.5 text-slate-400" />
+                        <ArrowUpRight className="h-3.5 w-3.5 text-muted-foreground" />
                       </Link>
                     </h3>
-                    <div className="flex items-center gap-2 text-xs text-slate-400 mt-1">
-                      <Phone className="h-3.5 w-3.5 text-emerald-400" />
+                    <div className="flex items-center gap-2 text-xs text-muted-foreground mt-1">
+                      <Phone className="h-3.5 w-3.5 text-emerald-600" />
                       <span>{loan.mobileNumber}</span>
                     </div>
                   </div>
 
                   <Badge
+                    variant="outline"
                     className={
                       loan.status === "COMPLETED"
-                        ? "bg-slate-800 text-slate-300 border-slate-700"
-                        : "bg-emerald-500/20 text-emerald-300 border-emerald-500/30"
+                        ? "bg-muted text-muted-foreground border-border"
+                        : "bg-emerald-500/10 text-emerald-700 border-emerald-500/30"
                     }
                   >
                     {loan.status}
@@ -715,39 +727,39 @@ export default function DailyDiaryDashboardPage() {
 
                 {/* Info Pills */}
                 <div className="grid grid-cols-2 gap-2 text-xs">
-                  <div className="bg-slate-950 p-2 rounded-lg border border-slate-800">
-                    <span className="text-slate-400 block">Loan Amount</span>
-                    <span className="font-bold text-amber-400">₹{loan.loanAmount.toLocaleString('en-IN')}</span>
+                  <div className="bg-muted/40 p-2 rounded-lg border border-border/60">
+                    <span className="text-muted-foreground block">Loan Amount</span>
+                    <span className="font-bold text-amber-600 dark:text-amber-400">₹{loan.loanAmount.toLocaleString('en-IN')}</span>
                   </div>
-                  <div className="bg-slate-950 p-2 rounded-lg border border-slate-800">
-                    <span className="text-slate-400 block">Collection Plan</span>
-                    <span className="font-semibold text-emerald-400">{loan.collectionPlan}</span>
+                  <div className="bg-muted/40 p-2 rounded-lg border border-border/60">
+                    <span className="text-muted-foreground block">Collection Plan</span>
+                    <span className="font-semibold text-emerald-600 dark:text-emerald-400">{loan.collectionPlan}</span>
                   </div>
                 </div>
 
                 {/* Progress Bar & Repayment Stats */}
                 <div className="space-y-1.5">
                   <div className="flex items-center justify-between text-xs">
-                    <span className="text-slate-400">
-                      Collected: <strong className="text-emerald-400">₹{loan.totalCollected.toLocaleString('en-IN')}</strong>
+                    <span className="text-muted-foreground">
+                      Collected: <strong className="text-emerald-600 dark:text-emerald-400">₹{loan.totalCollected.toLocaleString('en-IN')}</strong>
                     </span>
-                    <span className="text-slate-400">
-                      Remaining: <strong className="text-rose-400">₹{loan.remainingAmount.toLocaleString('en-IN')}</strong>
+                    <span className="text-muted-foreground">
+                      Remaining: <strong className="text-rose-600 dark:text-rose-400">₹{loan.remainingAmount.toLocaleString('en-IN')}</strong>
                     </span>
                   </div>
-                  <Progress value={loan.completionPct} className="h-2 bg-slate-950" />
-                  <div className="flex items-center justify-between text-[11px] text-slate-500 pt-0.5">
+                  <Progress value={loan.completionPct} className="h-2" />
+                  <div className="flex items-center justify-between text-[11px] text-muted-foreground pt-0.5">
                     <span>{loan.completionPct}% Completed</span>
                     <span>Last Payment: {loan.lastPaymentDate || "-"}</span>
                   </div>
                 </div>
 
                 {/* Card Action Buttons */}
-                <div className="flex items-center gap-2 pt-2 border-t border-slate-800/80">
+                <div className="flex items-center gap-2 pt-2 border-t border-border">
                   <Button
                     variant="outline"
                     size="sm"
-                    className="w-full bg-slate-950 border-slate-800 text-slate-300 hover:bg-slate-800 hover:text-white text-xs"
+                    className="w-full text-xs border-border"
                     onClick={() => setLocation(`/daily-diary/${loan.id}`)}
                   >
                     Profile & History
@@ -784,7 +796,7 @@ export default function DailyDiaryDashboardPage() {
         <DialogContent className="max-w-md">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2 text-lg">
-              <CreditCard className="h-5 w-5 text-emerald-500" />
+              <CreditCard className="h-5 w-5 text-emerald-600" />
               Add Payment — {selectedLoanForPayment?.customerName}
             </DialogTitle>
             <DialogDescription>
@@ -845,9 +857,9 @@ export default function DailyDiaryDashboardPage() {
                 id="adminOverrideCheck"
                 checked={paymentForm.allowAdminOverride}
                 onChange={(e) => setPaymentForm({ ...paymentForm, allowAdminOverride: e.target.checked })}
-                className="rounded border-slate-700 bg-slate-950 text-emerald-500 focus:ring-emerald-500"
+                className="rounded border-input text-emerald-600 focus:ring-emerald-500"
               />
-              <Label htmlFor="adminOverrideCheck" className="text-xs text-slate-300 cursor-pointer">
+              <Label htmlFor="adminOverrideCheck" className="text-xs text-muted-foreground cursor-pointer">
                 Allow Admin Override (if payment exceeds remaining loan balance)
               </Label>
             </div>

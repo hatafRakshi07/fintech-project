@@ -48,13 +48,13 @@ export default function DailyDiaryReportsPage() {
     success: boolean;
     reportType: string;
     totalCollected: number;
-    totalEntries: number;
+    paymentsCount: number;
     payments: ReportPaymentEntry[];
   }>({
     queryKey: ["daily-diary-reports", reportType],
     queryFn: async () => {
       const res = await fetch(`/api/daily-diary/reports?type=${reportType}`);
-      if (!res.ok) throw new Error("Failed to fetch reports data");
+      if (!res.ok) throw new Error("Failed to load collection reports");
       return res.json();
     },
   });
@@ -62,17 +62,18 @@ export default function DailyDiaryReportsPage() {
   const payments = data?.payments || [];
   const totalCollected = data?.totalCollected || 0;
 
-  // Export Excel function
+  // Export to Excel
   const handleExportExcel = () => {
     if (payments.length === 0) {
-      toast({ title: "No Data", description: "No records to export for selected report.", variant: "destructive" });
+      toast({ title: "No Data", description: "No collection records available for export", variant: "destructive" });
       return;
     }
 
     const exportRows = payments.map((p) => ({
+      "Payment ID": p.id,
       "Customer Name": p.customerName,
-      "Mobile Number": p.mobileNumber,
-      "Loan Amount (₹)": p.loanAmount,
+      "Mobile": p.mobileNumber,
+      "Loan Amount": p.loanAmount,
       "Collection Plan": p.collectionPlan,
       "Payment Date": p.paymentDate,
       "Amount Deposited (₹)": p.amountDeposited,
@@ -103,7 +104,7 @@ export default function DailyDiaryReportsPage() {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <Button
           variant="outline"
-          className="bg-slate-900 border-slate-800 text-slate-300 hover:bg-slate-800 hover:text-white self-start"
+          className="border-border text-foreground hover:bg-muted self-start"
           onClick={() => setLocation("/daily-diary")}
         >
           <ArrowLeft className="h-4 w-4 mr-2" />
@@ -113,15 +114,15 @@ export default function DailyDiaryReportsPage() {
         <div className="flex items-center gap-3">
           <Button
             variant="outline"
-            className="bg-slate-900 border-slate-800 text-slate-200 hover:bg-slate-800 hover:text-white"
+            className="border-border text-foreground hover:bg-muted"
             onClick={handleExportExcel}
           >
-            <FileSpreadsheet className="h-4 w-4 mr-2 text-emerald-400" />
+            <FileSpreadsheet className="h-4 w-4 mr-2 text-emerald-600" />
             Export Excel
           </Button>
 
           <Button
-            className="bg-emerald-600 hover:bg-emerald-500 text-white font-medium shadow-md"
+            className="bg-emerald-600 hover:bg-emerald-500 text-white font-medium shadow-sm"
             onClick={handlePrintPDF}
           >
             <Printer className="h-4 w-4 mr-2" />
@@ -130,26 +131,26 @@ export default function DailyDiaryReportsPage() {
         </div>
       </div>
 
-      {/* Main Banner */}
-      <div className="bg-gradient-to-r from-slate-900 via-emerald-950 to-slate-900 p-6 rounded-2xl border border-emerald-500/20 text-white shadow-xl flex flex-col md:flex-row md:items-center justify-between gap-4">
+      {/* Main Banner — Matches SKA Brand Theme */}
+      <Card className="bg-card border border-border/80 p-6 rounded-2xl shadow-sm text-card-foreground flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold flex items-center gap-2">
-            <FileText className="h-6 w-6 text-emerald-400" />
+          <h1 className="text-2xl font-bold flex items-center gap-2 text-foreground">
+            <FileText className="h-6 w-6 text-emerald-600" />
             Daily Diary Collection Reports & Ledgers
           </h1>
-          <p className="text-slate-300 text-sm mt-1">
+          <p className="text-muted-foreground text-sm mt-1">
             Generate and export overall, daily, weekly, and monthly loan collection summaries.
           </p>
         </div>
 
-        <div className="flex items-center gap-3 bg-slate-950/80 p-2.5 rounded-xl border border-slate-800">
-          <Filter className="h-4 w-4 text-slate-400" />
-          <span className="text-xs text-slate-300 font-medium">Select Scope:</span>
+        <div className="flex items-center gap-3 bg-muted/40 p-2.5 rounded-xl border border-border">
+          <Filter className="h-4 w-4 text-muted-foreground" />
+          <span className="text-xs text-foreground font-medium">Select Scope:</span>
           <Select
             value={reportType}
             onValueChange={(val: any) => setReportType(val)}
           >
-            <SelectTrigger className="w-[160px] bg-slate-900 border-slate-700 text-slate-100">
+            <SelectTrigger className="w-[160px] bg-background border-input text-foreground">
               <SelectValue placeholder="Report Type" />
             </SelectTrigger>
             <SelectContent>
@@ -160,138 +161,109 @@ export default function DailyDiaryReportsPage() {
             </SelectContent>
           </Select>
         </div>
-      </div>
+      </Card>
 
       {/* Collection Total Summary Card */}
-      <div className="bg-gradient-to-r from-slate-950 via-slate-900 to-slate-950 border-2 border-emerald-500/30 rounded-2xl p-5 shadow-2xl space-y-4">
-        <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+      <Card className="bg-card border border-border/80 shadow-sm rounded-2xl p-5 space-y-4">
+        <div className="flex items-center justify-between border-b border-border pb-3">
           <div className="flex items-center gap-2.5">
-            <div className="p-2.5 bg-emerald-500/20 text-emerald-400 rounded-xl border border-emerald-500/30">
+            <div className="p-2.5 bg-emerald-500/10 text-emerald-600 rounded-xl border border-emerald-500/20">
               <TrendingUp className="h-5 w-5" />
             </div>
             <div>
-              <h2 className="text-lg font-bold text-white">
+              <h2 className="text-lg font-bold text-foreground">
                 Collection Report Total Summary — Scope: {reportType}
               </h2>
-              <p className="text-xs text-slate-400">
+              <p className="text-xs text-muted-foreground">
                 Detailed collection ledger breakdown showing total entries and collected amount.
               </p>
             </div>
           </div>
-          <Badge className="bg-emerald-500/20 text-emerald-300 border-emerald-500/40 text-xs px-3 py-1">
+          <Badge variant="outline" className="bg-emerald-500/10 text-emerald-700 border-emerald-500/30 text-xs px-3 py-1">
             {payments.length} Transactions Found
           </Badge>
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-          <div className="bg-slate-900/90 border border-slate-800 rounded-xl p-4">
-            <span className="text-xs text-slate-400 font-semibold uppercase">Total Report Transactions</span>
-            <span className="text-2xl font-bold text-white block mt-1">{payments.length}</span>
+          <div className="bg-muted/40 border border-border/60 rounded-xl p-4">
+            <span className="text-xs text-muted-foreground font-semibold uppercase">Total Report Transactions</span>
+            <span className="text-2xl font-bold text-foreground block mt-1">{payments.length}</span>
           </div>
 
-          <div className="bg-slate-900/90 border border-emerald-500/40 rounded-xl p-4">
-            <span className="text-xs text-emerald-400 font-semibold uppercase">Total Amount Collected</span>
-            <span className="text-2xl font-bold text-emerald-400 block mt-1">
+          <div className="bg-emerald-500/5 border border-emerald-200 dark:border-emerald-900/40 rounded-xl p-4">
+            <span className="text-xs text-emerald-700 dark:text-emerald-400 font-semibold uppercase">Total Amount Collected</span>
+            <span className="text-2xl font-bold text-emerald-700 dark:text-emerald-400 block mt-1">
               ₹{totalCollected.toLocaleString('en-IN')}
             </span>
           </div>
 
-          <div className="bg-slate-900/90 border border-blue-500/40 rounded-xl p-4">
-            <span className="text-xs text-blue-400 font-semibold uppercase font-medium">Selected Scope</span>
-            <span className="text-xl font-bold text-blue-300 block mt-1">{reportType} REPORT</span>
+          <div className="bg-blue-500/5 border border-blue-200 dark:border-blue-900/40 rounded-xl p-4">
+            <span className="text-xs text-blue-700 dark:text-blue-400 font-semibold uppercase font-medium">Selected Scope</span>
+            <span className="text-xl font-bold text-blue-700 dark:text-blue-400 block mt-1">{reportType}</span>
           </div>
         </div>
-      </div>
+      </Card>
 
-      {/* Summary KPI Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-
-        <Card className="bg-slate-900 border-slate-800">
-          <CardContent className="p-4">
-            <span className="text-xs text-slate-400 font-medium uppercase">Total Report Entries</span>
-            <span className="text-2xl font-bold text-white block mt-1">{data?.totalEntries || 0}</span>
-          </CardContent>
-        </Card>
-
-        <Card className="bg-slate-900 border-slate-800">
-          <CardContent className="p-4">
-            <span className="text-xs text-slate-400 font-medium uppercase">Total Amount Collected</span>
-            <span className="text-2xl font-bold text-emerald-400 block mt-1">
-              ₹{totalCollected.toLocaleString('en-IN')}
-            </span>
-          </CardContent>
-        </Card>
-
-        <Card className="bg-slate-900 border-slate-800">
-          <CardContent className="p-4">
-            <span className="text-xs text-slate-400 font-medium uppercase">Active Filter</span>
-            <Badge className="mt-2 bg-emerald-500/20 text-emerald-300 border-emerald-500/30 text-xs">
-              {reportType} COLLECTION REPORT
-            </Badge>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Report Table */}
-      <Card className="bg-slate-900 border-slate-800 shadow-xl">
-        <CardHeader className="border-b border-slate-800 pb-4">
-          <CardTitle className="text-lg font-bold text-white flex items-center justify-between">
-            <span>{reportType} Collection Ledger</span>
-            <span className="text-xs font-normal text-slate-400">Total: ₹{totalCollected.toLocaleString('en-IN')}</span>
+      {/* Transactions Data Table */}
+      <Card className="bg-card border border-border shadow-sm rounded-xl overflow-hidden">
+        <CardHeader className="border-b border-border bg-muted/20 pb-4">
+          <CardTitle className="text-lg font-bold text-foreground flex items-center gap-2">
+            <FileSpreadsheet className="h-5 w-5 text-emerald-600" />
+            Detailed Collection Transactions Ledger
           </CardTitle>
         </CardHeader>
 
         <CardContent className="p-0">
           {isLoading ? (
-            <div className="p-8 text-center text-slate-400 text-sm">Loading collection report...</div>
+            <div className="text-center py-12 text-muted-foreground">Loading collection report data...</div>
           ) : payments.length === 0 ? (
-            <div className="p-8 text-center text-slate-500 text-sm">No collection entries found for {reportType} scope.</div>
+            <div className="text-center py-12 text-muted-foreground">
+              <Calendar className="h-10 w-10 mx-auto mb-2 text-muted-foreground/50" />
+              <p className="text-sm font-medium">No collection deposits found for {reportType} scope.</p>
+            </div>
           ) : (
             <div className="overflow-x-auto">
-              <table className="w-full text-left text-sm">
-                <thead className="bg-slate-950 text-slate-400 uppercase text-[11px] font-semibold border-b border-slate-800">
+              <table className="w-full text-sm text-left">
+                <thead className="text-xs text-muted-foreground bg-muted/40 uppercase border-b border-border font-semibold">
                   <tr>
-                    <th className="px-5 py-3">Customer Name</th>
+                    <th className="px-5 py-3">Customer</th>
                     <th className="px-5 py-3">Mobile</th>
                     <th className="px-5 py-3">Payment Date</th>
                     <th className="px-5 py-3">Amount Deposited</th>
-                    <th className="px-5 py-3">Payment Mode</th>
                     <th className="px-5 py-3">Plan</th>
+                    <th className="px-5 py-3">Mode</th>
                     <th className="px-5 py-3">Notes</th>
                     <th className="px-5 py-3">Recorded By</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-800/60 text-slate-200">
+                <tbody className="divide-y divide-border">
                   {payments.map((p) => (
-                    <tr key={p.id} className="hover:bg-slate-800/40 transition-colors">
-                      <td className="px-5 py-3.5 font-medium text-white">{p.customerName}</td>
-                      <td className="px-5 py-3.5 text-slate-400 text-xs">{p.mobileNumber}</td>
-                      <td className="px-5 py-3.5 font-medium text-slate-200">{p.paymentDate}</td>
-                      <td className="px-5 py-3.5 font-bold text-emerald-400">
-                        ₹{p.amountDeposited.toLocaleString('en-IN')}
+                    <tr key={p.id} className="hover:bg-muted/30 transition-colors">
+                      <td className="px-5 py-3.5 font-semibold text-foreground">
+                        <Link href={`/daily-diary/${p.loanId}`} className="hover:underline text-amber-600 dark:text-amber-400">
+                          {p.customerName}
+                        </Link>
+                      </td>
+                      <td className="px-5 py-3.5 text-muted-foreground">{p.mobileNumber}</td>
+                      <td className="px-5 py-3.5 font-medium text-foreground">{p.paymentDate}</td>
+                      <td className="px-5 py-3.5 font-bold text-emerald-600 dark:text-emerald-400">
+                        + ₹{p.amountDeposited.toLocaleString('en-IN')}
                       </td>
                       <td className="px-5 py-3.5">
-                        <Badge variant="outline" className="bg-slate-950 border-slate-800 text-slate-300 text-xs">
+                        <Badge variant="outline" className="bg-background border-border text-foreground font-normal">
+                          {p.collectionPlan}
+                        </Badge>
+                      </td>
+                      <td className="px-5 py-3.5">
+                        <Badge variant="outline" className="bg-background border-border text-foreground font-normal">
                           {p.paymentMode}
                         </Badge>
                       </td>
-                      <td className="px-5 py-3.5 text-slate-400 text-xs">{p.collectionPlan}</td>
-                      <td className="px-5 py-3.5 text-slate-300">{p.notes || "-"}</td>
-                      <td className="px-5 py-3.5 text-slate-400 text-xs">{p.createdBy}</td>
+                      <td className="px-5 py-3.5 text-muted-foreground max-w-xs truncate">{p.notes || "-"}</td>
+                      <td className="px-5 py-3.5 text-xs text-muted-foreground">{p.createdBy || "System"}</td>
                     </tr>
                   ))}
                 </tbody>
-                <tfoot className="bg-slate-950 font-bold border-t-2 border-slate-800 text-slate-100">
-                  <tr>
-                    <td colSpan={3} className="px-5 py-4 text-slate-300">TOTAL {reportType} COLLECTION</td>
-                    <td className="px-5 py-4 text-emerald-400 text-base">
-                      ₹{totalCollected.toLocaleString('en-IN')}
-                    </td>
-                    <td colSpan={4} className="px-5 py-4 text-right text-slate-400">
-                      Total Entries: {payments.length}
-                    </td>
-                  </tr>
-                </tfoot>
               </table>
             </div>
           )}
