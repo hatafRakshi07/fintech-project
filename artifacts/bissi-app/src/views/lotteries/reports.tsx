@@ -19,6 +19,7 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useLocation } from "@/lib/router-adapter";
+import { customFetch } from "@workspace/api-client-react";
 
 export default function LotteryReportsPage() {
   const [, setLocation] = useLocation();
@@ -27,13 +28,9 @@ export default function LotteryReportsPage() {
   const [bissiFilter, setBissiFilter] = useState("ALL");
   const [searchTerm, setSearchTerm] = useState("");
 
-  const { data: reportData, isLoading } = useQuery({
+  const { data: reportData, isLoading } = useQuery<any>({
     queryKey: ["lottery-reports", reportType, bissiFilter],
-    queryFn: async () => {
-      const res = await fetch(`/api/lottery/reports?type=${reportType}&bissi=${bissiFilter}`);
-      if (!res.ok) throw new Error("Failed to fetch reports");
-      return res.json();
-    },
+    queryFn: () => customFetch(`/lottery/reports?type=${reportType}&bissi=${bissiFilter}`),
   });
 
   const gifts = reportData?.gifts || [];

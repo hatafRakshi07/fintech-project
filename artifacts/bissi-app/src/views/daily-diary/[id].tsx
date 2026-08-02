@@ -23,6 +23,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import { customFetch } from "@workspace/api-client-react";
 import { Progress } from "@/components/ui/progress";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import {
@@ -38,7 +39,6 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { useRole } from "@/hooks/use-role";
-import { customFetch } from "@workspace/api-client-react";
 
 interface PaymentEntry {
   id: string;
@@ -135,21 +135,11 @@ export default function DailyDiaryDetailPage() {
 
   // Mutation: Add Payment
   const addPaymentMutation = useMutation({
-    mutationFn: async (payload: typeof paymentForm) => {
-      const res = await fetch(`/api/daily-diary/loans/${loanId}/payments`, {
+    mutationFn: (payload: typeof paymentForm) =>
+      customFetch<any>(`/daily-diary/loans/${loanId}/payments`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
-      });
-      const data = await res.json();
-      if (!res.ok) {
-        if (data.warning) {
-          throw { isWarning: true, message: data.message, remainingAmount: data.remainingAmount };
-        }
-        throw new Error(data.error || "Failed to record payment");
-      }
-      return data;
-    },
+      }),
     onSuccess: () => {
       toast({ title: "Payment Recorded", description: "Deposit entry added to customer history!" });
       queryClient.invalidateQueries({ queryKey: ["daily-diary-loan-detail", loanId] });
@@ -179,16 +169,11 @@ export default function DailyDiaryDetailPage() {
 
   // Mutation: Update Profile
   const updateProfileMutation = useMutation({
-    mutationFn: async (payload: typeof editProfileForm) => {
-      const res = await fetch(`/api/daily-diary/loans/${loanId}`, {
+    mutationFn: (payload: typeof editProfileForm) =>
+      customFetch<any>(`/daily-diary/loans/${loanId}`, {
         method: "PUT",
-        headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
-      });
-      const resData = await res.json();
-      if (!res.ok || !resData.success) throw new Error(resData.error || "Failed to update profile");
-      return resData;
-    },
+      }),
     onSuccess: () => {
       toast({ title: "Profile Updated", description: "Customer details updated successfully!" });
       queryClient.invalidateQueries({ queryKey: ["daily-diary-loan-detail", loanId] });

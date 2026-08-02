@@ -374,11 +374,7 @@ function GiftRecordTab({ committeeId }: { committeeId: string | number }) {
   const [search, setSearch] = useState("");
   const { data, isLoading } = useQuery<any>({
     queryKey: ["committee-gift-matrix", committeeId, search],
-    queryFn: async () => {
-      const res = await fetch(`/api/committees/${committeeId}/gift-matrix${search ? `?search=${encodeURIComponent(search)}` : ""}`, { credentials: "include" });
-      if (!res.ok) throw new Error("Failed to fetch gift matrix");
-      return res.json();
-    },
+    queryFn: () => customFetch(`/committees/${committeeId}/gift-matrix${search ? `?search=${encodeURIComponent(search)}` : ""}`),
     enabled: !!committeeId,
     staleTime: 60_000,
   });

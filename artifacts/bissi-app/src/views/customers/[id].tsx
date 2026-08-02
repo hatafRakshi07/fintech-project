@@ -6,7 +6,8 @@ import { useParams, Link } from "@/lib/router-adapter";
 import { 
   useGetCustomer, 
   useGetCustomerPassbook, 
-  useGetCustomerHistory 
+  useGetCustomerHistory,
+  customFetch
 } from "@workspace/api-client-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -44,13 +45,9 @@ export default function CustomerDetailPage() {
   const { data: passbook } = useGetCustomerPassbook(customerId);
   const { data: history, isLoading: historyLoading } = useGetCustomerHistory(customerId);
 
-  const { data: lotteryHistoryData } = useQuery({
+  const { data: lotteryHistoryData } = useQuery<any>({
     queryKey: ["customer-lottery-history", customerId],
-    queryFn: async () => {
-      const res = await fetch(`/api/lottery/customer/${customerId}/history`);
-      if (!res.ok) return { gifts: [] };
-      return res.json();
-    },
+    queryFn: () => customFetch(`/lottery/customer/${customerId}/history`),
     enabled: Boolean(customerId),
   });
 

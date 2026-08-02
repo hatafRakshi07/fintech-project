@@ -41,6 +41,7 @@ import {
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
+import { customFetch } from "@workspace/api-client-react";
 
 interface LotteryGift {
   id: string;
@@ -135,35 +136,25 @@ export default function LotteriesPage() {
   // Fetch Dashboard Stats
   const { data: statsData } = useQuery<{ success: boolean; stats: DashboardStats }>({
     queryKey: ["lottery-dashboard"],
-    queryFn: async () => {
-      const res = await fetch("/api/lottery/dashboard");
-      if (!res.ok) throw new Error("Failed to fetch lottery stats");
-      return res.json();
-    },
+    queryFn: () => customFetch<{ success: boolean; stats: DashboardStats }>("/lottery/dashboard"),
   });
 
   // Fetch Lottery Sessions
   const { data: sessionsData, isLoading: isSessionsLoading } = useQuery<{ success: boolean; sessions: LotterySession[] }>({
     queryKey: ["lottery-sessions", searchTerm, bissiFilter],
-    queryFn: async () => {
+    queryFn: () => {
       const queryParams = new URLSearchParams();
       if (searchTerm) queryParams.set("search", searchTerm);
       if (bissiFilter !== "ALL") queryParams.set("bissi", bissiFilter);
 
-      const res = await fetch(`/api/lottery/sessions?${queryParams.toString()}`);
-      if (!res.ok) throw new Error("Failed to fetch lottery sessions");
-      return res.json();
+      return customFetch<{ success: boolean; sessions: LotterySession[] }>(`/lottery/sessions?${queryParams.toString()}`);
     },
   });
 
   // Fetch Selected Session Details (with gifts)
   const { data: sessionDetailData, isLoading: isDetailLoading } = useQuery<{ success: boolean; session: LotterySession }>({
     queryKey: ["lottery-session-detail", selectedSession?.id],
-    queryFn: async () => {
-      const res = await fetch(`/api/lottery/sessions/${selectedSession?.id}`);
-      if (!res.ok) throw new Error("Failed to fetch session gifts");
-      return res.json();
-    },
+    queryFn: () => customFetch<{ success: boolean; session: LotterySession }>(`/lottery/sessions/${selectedSession?.id}`),
     enabled: Boolean(selectedSession?.id),
   });
 
@@ -171,21 +162,16 @@ export default function LotteriesPage() {
 
   // Mutation: Create Session
   const createSessionMutation = useMutation({
-    mutationFn: async (payload: typeof newSessionForm) => {
-      const res = await fetch("/api/lottery/sessions", {
+    mutationFn: (payload: typeof newSessionForm) =>
+      customFetch<any>("/lottery/sessions", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
-      });
-      const data = await res.json();
-      if (!res.ok || !data.success) throw new Error(data.error || "Failed to create session");
-      return data;
-    },
+      }),
     onSuccess: (data) => {
-      toast({ title: "Lottery Session Created", description: `Session created for ${data.session.bissiName}!` });
+      toast({ title: "Lottery Session Created", description: `Session created for ${data?.session?.bissiName || 'Bissi'}!` });
       queryClient.invalidateQueries({ queryKey: ["lottery-dashboard"] });
       queryClient.invalidateQueries({ queryKey: ["lottery-sessions"] });
-      setSelectedSession(data.session);
+      if (data?.session) setSelectedSession(data.session);
       setIsCreateSessionOpen(false);
       setNewSessionForm({
         bissiName: "Sanwariya Seth",
@@ -201,16 +187,12 @@ export default function LotteriesPage() {
 
   // Mutation: Add Gift Entry
   const addGiftMutation = useMutation({
-    mutationFn: async (payload: typeof newGiftForm) => {
+    mutationFn: (payload: typeof newGiftForm) => {
       if (!selectedSession?.id) throw new Error("No lottery session selected");
-      const res = await fetch(`/api/lottery/sessions/${selectedSession.id}/gifts`, {
+      return customFetch<any>(`/lottery/sessions/${selectedSession.id}/gifts`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ ...payload, bissiName: payload.bissiName || selectedSession.bissiName }),
       });
-      const data = await res.json();
-      if (!res.ok || !data.success) throw new Error(data.error || "Failed to add gift entry");
-      return data;
     },
     onSuccess: () => {
       toast({ title: "Gift Winning Added!", description: "Gift entry recorded for token winner." });
@@ -240,16 +222,11 @@ export default function LotteriesPage() {
 
   // Mutation: Mark Gift Collected
   const collectGiftMutation = useMutation({
-    mutationFn: async ({ giftId, payload }: { giftId: string; payload: typeof collectForm }) => {
-      const res = await fetch(`/api/lottery/gifts/${giftId}/collect`, {
+    mutationFn: ({ giftId, payload }: { giftId: string; payload: typeof collectForm }) =>
+      customFetch<any>(`/lottery/gifts/${giftId}/collect`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
-      });
-      const data = await res.json();
-      if (!res.ok || !data.success) throw new Error(data.error || "Failed to mark gift as collected");
-      return data;
-    },
+      }),
     onSuccess: () => {
       toast({ title: "Gift Marked as Collected!", description: "Status updated to Collected permanently." });
       queryClient.invalidateQueries({ queryKey: ["lottery-dashboard"] });
@@ -273,9 +250,8 @@ export default function LotteriesPage() {
 
     setIsAutoDetecting(true);
     try {
-      const res = await fetch(`/api/lottery/detect-token?tokenNumber=${encodeURIComponent(tokenVal)}&bissiName=${encodeURIComponent(selectedSession?.bissiName || "")}`);
-      const data = await res.json();
-      if (data.found) {
+      const data = await customFetch<any>(`/lottery/detect-token?tokenNumber=${encodeURIComponent(tokenVal)}&bissiName=${encodeURIComponent(selectedSession?.bissiName || "")}`);
+      if (data?.found) {
         setDetectedInfo(data);
         setNewGiftForm((prev) => ({
           ...prev,
