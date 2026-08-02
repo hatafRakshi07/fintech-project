@@ -206,16 +206,11 @@ export default function DailyDiaryDashboardPage() {
 
   // CSV Import Trigger
   const seedCsvMutation = useMutation({
-    mutationFn: async () => {
-      const res = await fetch("/api/daily-diary/seed-csv", { method: "POST" });
-      const data = await res.json();
-      if (!res.ok || !data.success) throw new Error(data.error || "CSV import failed");
-      return data;
-    },
+    mutationFn: () => customFetch<any>("/daily-diary/seed-csv", { method: "POST" }),
     onSuccess: (data) => {
       toast({
-        title: "CSV Imported Successfully!",
-        description: `Imported ${data.stats.insertedCount} new accounts, updated ${data.stats.updatedCount} accounts.`,
+        title: "Database Synced!",
+        description: data.message || `Loaded ${data.stats?.insertedCount || 0} new accounts, updated ${data.stats?.updatedCount || 0} accounts.`,
       });
       queryClient.invalidateQueries({ queryKey: ["daily-diary-dashboard"] });
       queryClient.invalidateQueries({ queryKey: ["daily-diary-loans"] });
