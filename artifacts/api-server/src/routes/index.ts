@@ -1673,58 +1673,69 @@ router.get("/dashboard/scheme-boxes", async (req, res) => {
 router.get("/dashboard/pending-report", async (req, res) => {
   try {
     const { committeeId, month } = req.query as any;
+    let commFilter = "";
     const params: any[] = [];
-    let commCondition = "";
+
     if (committeeId && committeeId !== "all") {
-      params.push(parseInt(committeeId as string, 10));
-      commCondition = ` AND t.committee_id = $${params.length}`;
+      params.push(String(committeeId));
+      commFilter = `AND (
+        t.committee_id::text = $1 
+        OR (c.id::text = $1)
+        OR ($1 = '1' AND (c.name ILIKE '%Sawariya%' OR c.id::text = 'a3d68b9c-63df-4884-a5ad-eb8a17e3be31'))
+        OR ($1 = '2' AND (c.name ILIKE '%Pyare%' OR c.id::text = '33333333-3333-3333-3333-333333333333'))
+        OR ($1 = '3' AND (c.name ILIKE '%Hare%' OR c.id::text = '11111111-1111-1111-1111-111111111111'))
+        OR ($1 = '4' AND (c.name ILIKE '%Krishna%' OR c.id::text = '22222222-2222-2222-2222-222222222222'))
+      )`;
     }
 
-    // Default: check current month; if month specified, filter by that month label
-    let colMonthFilter = `AND col.collected_at >= DATE_TRUNC('month', NOW())`;
-    let instMonthFilter = `AND i_paid.payment_date >= DATE_TRUNC('month', NOW())`;
+    let monthPattern = "";
     if (month && month !== "all") {
-      params.push(`%${month}%`);
-      const pidx = params.length;
-      colMonthFilter = `AND (TO_CHAR(col.collected_at, 'Mon-YY') ILIKE $${pidx} OR TO_CHAR(col.collected_at, 'Mon YYYY') ILIKE $${pidx})`;
-      instMonthFilter = `AND (TO_CHAR(i_paid.payment_date, 'Mon-YY') ILIKE $${pidx} OR TO_CHAR(i_paid.payment_date, 'Mon YYYY') ILIKE $${pidx})`;
+      const mMatch = String(month).match(/(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)/i);
+      if (mMatch) {
+        monthPattern = `%${mMatch[1]}%`;
+      } else {
+        monthPattern = `%${month}%`;
+      }
     }
 
-    const result = await pool.query(`
+    let monthParamIdx = 0;
+    if (monthPattern) {
+      params.push(monthPattern);
+      monthParamIdx = params.length;
+    }
+
+    const paidSubquery = monthParamIdx > 0
+      ? `AND (TO_CHAR(col.collected_at, 'Mon-YY') ILIKE $${monthParamIdx} OR TO_CHAR(col.collected_at, 'Mon YYYY') ILIKE $${monthParamIdx} OR TO_CHAR(col.collected_at, 'Mon') ILIKE $${monthParamIdx})`
+      : `AND col.collected_at >= DATE_TRUNC('month', NOW())`;
+
+    const sql = `
       WITH paid AS (
-        SELECT DISTINCT col.customer_id, col.committee_id
+        SELECT DISTINCT col.customer_id::text as customer_id, col.committee_id::text as committee_id
         FROM collections col
-        WHERE col.customer_id IS NOT NULL AND col.committee_id IS NOT NULL
-          AND ${month && month !== "all"
-            ? `(TO_CHAR(col.collected_at, 'Mon-YY') ILIKE $${params.length + 1} OR TO_CHAR(col.collected_at, 'Mon YYYY') ILIKE $${params.length + 1})`
-            : `col.collected_at >= DATE_TRUNC('month', NOW())`}
-        UNION
-        SELECT DISTINCT i_paid.customer_id, i_paid.committee_id
-        FROM installments i_paid
-        WHERE i_paid.customer_id IS NOT NULL AND i_paid.committee_id IS NOT NULL
-          AND ${month && month !== "all"
-            ? `(TO_CHAR(i_paid.payment_date, 'Mon-YY') ILIKE $${params.length + 1} OR TO_CHAR(i_paid.payment_date, 'Mon YYYY') ILIKE $${params.length + 1})`
-            : `i_paid.payment_date >= DATE_TRUNC('month', NOW())`}
+        WHERE col.customer_id IS NOT NULL ${paidSubquery}
       )
       SELECT 
-        t.token_number as "tokenNumber",
-        t.committee_id as "committeeId",
+        t.raw_token_number as "tokenNumber",
+        t.committee_id::text as "committeeId",
         c.name as "committeeName",
-        c.installment_amount as "installmentAmount",
+        c.monthly_installment as "installmentAmount",
         cust.name as "customerName",
         cust.mobile as "customerMobile",
         cust.address as "customerAddress",
-        cust.reference_number as "referenceNumber"
+        NULL as "referenceNumber"
       FROM tokens t
-      JOIN committees c ON c.id = t.committee_id
-      JOIN customers cust ON cust.id = t.customer_id
-      LEFT JOIN paid p ON p.customer_id = t.customer_id AND p.committee_id = t.committee_id
-      WHERE t.status = 'active' ${commCondition}
+      JOIN committees c ON c.id::text = t.committee_id::text
+      JOIN customers cust ON cust.id::text = t.customer_id::text
+      LEFT JOIN paid p ON (p.customer_id = cust.id::text OR p.customer_id = t.customer_id::text)
+      WHERE (t.status::text ILIKE 'active' OR t.status IS NULL)
+        ${commFilter}
         AND p.customer_id IS NULL
       ORDER BY c.id ASC, 
-               CASE WHEN t.token_number ~ '^[0-9]+$' THEN CAST(t.token_number AS integer) ELSE 99999 END ASC
+               CASE WHEN t.raw_token_number ~ '^[0-9]+$' THEN CAST(t.raw_token_number AS integer) ELSE 99999 END ASC
       LIMIT 3000
-    `, month && month !== "all" ? [...params, `%${month}%`] : params);
+    `;
+
+    const result = await pool.query(sql, params);
 
     res.json({ success: true, pendingList: result.rows, totalPending: result.rows.length });
   } catch (err: any) {
