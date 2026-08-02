@@ -773,12 +773,31 @@ router.get("/committees/:id/payment-history", async (req, res): Promise<void> =>
               paymentMode: null,
             };
           } else {
-            // Check if this month's due date is in the past
-            const dueDate = new Date(month.dueDate);
-            const now = new Date();
-            const isPastDue = dueDate <= now;
+            // Check if this month's due date / month label is in the past or current
+            let isPastDue = true;
+            if (month.dueDate) {
+              const dueDate = new Date(month.dueDate);
+              if (!isNaN(dueDate.getTime())) {
+                const now = new Date();
+                isPastDue = dueDate <= now;
+              }
+            } else if (month.monthName) {
+              const parts = month.monthName.split("-");
+              if (parts.length === 2) {
+                const monthNames = ["jan","feb","mar","apr","may","jun","jul","aug","sep","oct","nov","dec"];
+                const mIdx = monthNames.findIndex((mn: string) => parts[0].toLowerCase().startsWith(mn));
+                let year = parseInt(parts[1], 10);
+                if (year < 100) year += 2000;
+                if (mIdx !== -1 && !isNaN(year)) {
+                  const mDate = new Date(year, mIdx, 1);
+                  const now = new Date();
+                  const curStart = new Date(now.getFullYear(), now.getMonth(), 1);
+                  isPastDue = mDate <= curStart;
+                }
+              }
+            }
 
-            if (isPastDue && schedule) {
+            if (isPastDue) {
               pendingCount++;
               totalPendingCount++;
             }
@@ -786,7 +805,7 @@ router.get("/committees/:id/payment-history", async (req, res): Promise<void> =>
             return {
               monthNumber: month.monthNumber,
               monthName: month.monthName,
-              status: isPastDue && schedule ? "PENDING" : "UPCOMING",
+              status: isPastDue ? "PENDING" : "UPCOMING",
               amount: 0,
               expectedAmount,
               paymentDate: null,
@@ -862,7 +881,14 @@ router.get("/committees/:id/payment-history", async (req, res): Promise<void> =>
         params
       );
 
-      // Extract unique months from all payments
+      // Default month sequence by committee ID if no custom months exist
+      const defaultMonthsMap: Record<string, string[]> = {
+        "1": ["Nov-25", "Dec-25", "Jan-26", "Feb-26", "Mar-26", "Apr-26", "May-26", "Jun-26", "Jul-26", "Aug-26"],
+        "2": ["Apr-25", "May-25", "Jun-25", "Jul-25", "Aug-25", "Sep-25", "Oct-25", "Nov-25", "Dec-25", "Jan-26", "Feb-26", "Mar-26", "Apr-26", "May-26", "Jun-26", "Jul-26", "Aug-26"],
+        "3": ["Jun-24", "Jul-24", "Aug-24", "Sep-24", "Oct-24", "Nov-24", "Dec-24", "Jan-25", "Feb-25", "Mar-25", "Apr-25", "May-25", "Jun-25", "Jul-25", "Aug-25", "Sep-25", "Oct-25", "Nov-25", "Dec-25", "Jan-26", "Feb-26", "Mar-26", "Apr-26", "May-26", "Jun-26", "Jul-26", "Aug-26"],
+        "4": ["Jun-26", "Jul-26", "Aug-26", "Sep-26", "Oct-26", "Nov-26", "Dec-26", "Jan-27", "Feb-27"]
+      };
+
       const monthSet = new Set<string>();
       for (const row of v1Res.rows) {
         if (row.payments) {
@@ -871,7 +897,14 @@ router.get("/committees/:id/payment-history", async (req, res): Promise<void> =>
           }
         }
       }
-      const monthList = [...monthSet].sort();
+
+      let monthList = defaultMonthsMap[String(committeeId)] || [...monthSet].sort();
+      if (monthList.length === 0) {
+        monthList = ["Jun-25", "Jul-25", "Aug-25", "Sep-25", "Oct-25", "Nov-25", "Dec-25", "Jan-26", "Feb-26", "Mar-26", "Apr-26", "May-26", "Jun-26", "Jul-26", "Aug-26"];
+      }
+
+      let summaryTotalPaid = 0;
+      let summaryTotalPending = 0;
 
       const members = v1Res.rows.map((row: any) => {
         const paymentsByMonth = new Map<string, any>();
@@ -880,19 +913,54 @@ router.get("/committees/:id/payment-history", async (req, res): Promise<void> =>
             paymentsByMonth.set(p.month, p);
           }
         }
-        const paidCount = paymentsByMonth.size;
-        const pendingCount = Math.max(0, monthList.length - paidCount);
+        let paidCount = 0;
+        let pendingCount = 0;
         const totalPaidAmount = row.payments ? row.payments.reduce((s: number, p: any) => s + Number(p.amount || 0), 0) : 0;
 
         const monthlyPayments = monthList.map((monthName, idx) => {
           const payment = paymentsByMonth.get(monthName);
+          if (payment) {
+            paidCount++;
+            summaryTotalPaid++;
+            return {
+              monthNumber: idx + 1,
+              monthName,
+              status: "PAID",
+              amount: Number(payment.amount),
+              expectedAmount: Number(committee.monthlyInstallment || 3000),
+              paymentDate: payment.date || null,
+              paymentMode: null,
+            };
+          }
+
+          // Check if month is past or current
+          let isPastDue = true;
+          const parts = monthName.split("-");
+          if (parts.length === 2) {
+            const monthNames = ["jan","feb","mar","apr","may","jun","jul","aug","sep","oct","nov","dec"];
+            const mIdx = monthNames.findIndex((mn: string) => parts[0].toLowerCase().startsWith(mn));
+            let year = parseInt(parts[1], 10);
+            if (year < 100) year += 2000;
+            if (mIdx !== -1 && !isNaN(year)) {
+              const mDate = new Date(year, mIdx, 1);
+              const now = new Date();
+              const curStart = new Date(now.getFullYear(), now.getMonth(), 1);
+              isPastDue = mDate <= curStart;
+            }
+          }
+
+          if (isPastDue) {
+            pendingCount++;
+            summaryTotalPending++;
+          }
+
           return {
             monthNumber: idx + 1,
             monthName,
-            status: payment ? "PAID" : "PENDING",
-            amount: payment ? Number(payment.amount) : 0,
+            status: isPastDue ? "PENDING" : "UPCOMING",
+            amount: 0,
             expectedAmount: Number(committee.monthlyInstallment || 3000),
-            paymentDate: payment?.date || null,
+            paymentDate: null,
             paymentMode: null,
           };
         });
@@ -917,7 +985,7 @@ router.get("/committees/:id/payment-history", async (req, res): Promise<void> =>
         committee: { id: committee.id, name: committee.name, monthlyInstallment: Number(committee.monthlyInstallment || 3000) },
         months: monthList.map((m, i) => ({ monthNumber: i + 1, monthName: m, dueDate: null })),
         members,
-        summary: { totalMembers: members.length, totalMonths: monthList.length, totalPaid: 0, totalPending: 0 },
+        summary: { totalMembers: members.length, totalMonths: monthList.length, totalPaid: summaryTotalPaid, totalPending: summaryTotalPending },
       });
     }
   } catch (err: any) {

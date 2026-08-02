@@ -9,6 +9,7 @@ import {
   useListCustomers,
   useListCollections,
   getListCommitteeMembersQueryKey,
+  customFetch,
 } from "@workspace/api-client-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -114,16 +115,13 @@ interface PaymentHistoryData {
 function usePaymentHistory(committeeId: string | number, search: string) {
   return useQuery<PaymentHistoryData>({
     queryKey: ["committee-payment-history", committeeId, search],
-    queryFn: async () => {
+    queryFn: () => {
       const params = new URLSearchParams();
       if (search) params.set("search", search);
-      const url = `/api/committees/${committeeId}/payment-history${params.toString() ? `?${params}` : ""}`;
-      const res = await fetch(url, { credentials: "include" });
-      if (!res.ok) throw new Error("Failed to fetch payment history");
-      return res.json();
+      return customFetch<PaymentHistoryData>(`/committees/${committeeId}/payment-history${params.toString() ? `?${params}` : ""}`);
     },
     enabled: !!committeeId,
-    staleTime: 60_000,
+    staleTime: 30_000,
   });
 }
 
