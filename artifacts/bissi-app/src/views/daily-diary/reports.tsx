@@ -22,6 +22,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import * as XLSX from "xlsx";
+import { customFetch } from "@workspace/api-client-react";
 
 interface ReportPaymentEntry {
   id: string;
@@ -52,11 +53,7 @@ export default function DailyDiaryReportsPage() {
     payments: ReportPaymentEntry[];
   }>({
     queryKey: ["daily-diary-reports", reportType],
-    queryFn: async () => {
-      const res = await fetch(`/api/daily-diary/reports?type=${reportType}`);
-      if (!res.ok) throw new Error("Failed to load collection reports");
-      return res.json();
-    },
+    queryFn: () => customFetch(`/daily-diary/reports?type=${reportType}`),
   });
 
   const payments = data?.payments || [];

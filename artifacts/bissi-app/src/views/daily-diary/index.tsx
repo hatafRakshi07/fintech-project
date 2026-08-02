@@ -39,6 +39,7 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 
+import { customFetch } from "@workspace/api-client-react";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
@@ -121,40 +122,29 @@ export default function DailyDiaryDashboardPage() {
   // Query: Stats Summary
   const { data: statsData } = useQuery<{ stats: DashboardStats }>({
     queryKey: ["daily-diary-dashboard"],
-    queryFn: async () => {
-      const res = await fetch("/api/daily-diary/dashboard");
-      if (!res.ok) throw new Error("Failed to fetch Daily Diary stats");
-      return res.json();
-    },
+    queryFn: () => customFetch("/daily-diary/dashboard"),
   });
 
   // Query: Loan Accounts List
   const { data: loansData, isLoading: isLoansLoading } = useQuery<{ loans: DailyDiaryLoan[] }>({
     queryKey: ["daily-diary-loans", searchTerm, statusFilter, planFilter],
-    queryFn: async () => {
+    queryFn: () => {
       const params = new URLSearchParams();
       if (searchTerm) params.set("search", searchTerm);
       if (statusFilter !== "ALL") params.set("status", statusFilter);
       if (planFilter !== "ALL") params.set("collectionPlan", planFilter);
 
-      const res = await fetch(`/api/daily-diary/loans?${params.toString()}`);
-      if (!res.ok) throw new Error("Failed to fetch loans");
-      return res.json();
+      return customFetch(`/daily-diary/loans?${params.toString()}`);
     },
   });
 
   // Mutation: Create Loan Customer Account
   const createLoanMutation = useMutation({
-    mutationFn: async (payload: typeof newCustomer) => {
-      const res = await fetch("/api/daily-diary/loans", {
+    mutationFn: (payload: typeof newCustomer) =>
+      customFetch("/daily-diary/loans", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Failed to create account");
-      return data;
-    },
+      }),
     onSuccess: () => {
       toast({ title: "Success", description: "Daily Diary customer loan account created!" });
       queryClient.invalidateQueries({ queryKey: ["daily-diary-dashboard"] });
@@ -182,21 +172,11 @@ export default function DailyDiaryDashboardPage() {
 
   // Mutation: Add Payment
   const addPaymentMutation = useMutation({
-    mutationFn: async ({ loanId, payload }: { loanId: string; payload: typeof paymentForm }) => {
-      const res = await fetch(`/api/daily-diary/loans/${loanId}/payments`, {
+    mutationFn: ({ loanId, payload }: { loanId: string; payload: typeof paymentForm }) =>
+      customFetch(`/daily-diary/loans/${loanId}/payments`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
-      });
-      const data = await res.json();
-      if (!res.ok) {
-        if (data.warning) {
-          throw { isWarning: true, message: data.message, remainingAmount: data.remainingAmount };
-        }
-        throw new Error(data.error || "Failed to record payment");
-      }
-      return data;
-    },
+      }),
     onSuccess: () => {
       toast({ title: "Payment Recorded", description: "Deposit entry added to customer history!" });
       queryClient.invalidateQueries({ queryKey: ["daily-diary-dashboard"] });

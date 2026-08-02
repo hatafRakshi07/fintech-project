@@ -38,6 +38,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { useRole } from "@/hooks/use-role";
+import { customFetch } from "@workspace/api-client-react";
 
 interface PaymentEntry {
   id: string;
@@ -109,12 +110,7 @@ export default function DailyDiaryDetailPage() {
   // Query: Loan Customer Detail
   const { data: loanData, isLoading, error } = useQuery<{ loan: LoanDetail }>({
     queryKey: ["daily-diary-loan-detail", loanId],
-    queryFn: async () => {
-      if (!loanId) throw new Error("Loan ID missing");
-      const res = await fetch(`/api/daily-diary/loans/${loanId}`);
-      if (!res.ok) throw new Error("Failed to fetch customer profile");
-      return res.json();
-    },
+    queryFn: () => customFetch(`/daily-diary/loans/${loanId}`),
     enabled: !!loanId,
   });
 
