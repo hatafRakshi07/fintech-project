@@ -43,10 +43,12 @@ import SalesLedgerPage from "@/views/ledgers/sales";
 import PurchaseLedgerPage from "@/views/ledgers/purchase";
 import CashbookPage from "@/views/ledgers/cashbook";
 import CalendarPage from "@/views/calendar";
-import DailyDiaryDashboardPage from "@/pages/daily-diary";
-import DailyDiaryDetailPage from "@/pages/daily-diary/[id]";
-import DailyDiaryReportsPage from "@/pages/daily-diary/reports";
+import DailyDiaryDashboardPage from "@/views/daily-diary";
+
+import DailyDiaryDetailPage from "@/views/daily-diary/[id]";
+import DailyDiaryReportsPage from "@/views/daily-diary/reports";
 import NotFound from "@/views/not-found";
+
 
 
 
