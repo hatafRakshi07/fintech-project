@@ -10,12 +10,14 @@ import { ledgerV2Router } from "./ledger-v2";
 import { calendarV2Router } from "./calendar-v2";
 import officeRouter from "./office";
 import dailyDiaryRouter from "./daily-diary";
+import lotteryManagementRouter from "./lottery-management";
 import { pool, queryWithRetry, getPoolStats } from "@workspace/db";
 
 const router: IRouter = Router();
 
 router.use("/daily-diary", dailyDiaryRouter);
 router.use("/office", officeRouter);
+router.use("/lottery", lotteryManagementRouter);
 
 router.use(healthRouter);
 // Public: login, logout, me
@@ -246,6 +248,229 @@ router.get("/customers/:id/history", async (req, res): Promise<void> => {
     });
   } catch (err: any) {
     console.error("Failed to fetch customer history:", err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// ---------------------------------------------------------------------------
+// GIFT RECORDS & GIFT MATRIX ENDPOINTS
+// ---------------------------------------------------------------------------
+
+router.get("/committees/:id/gift-matrix", async (req, res): Promise<void> => {
+  try {
+    const { id } = req.params;
+    const search = ((req.query.search as string) || "").trim().toLowerCase();
+
+    const commRes = await pool.query(
+      `SELECT id, name, bissi_int_id FROM committees WHERE id::text = $1 OR bissi_int_id::text = $1 LIMIT 1`,
+      [id]
+    );
+
+    if (commRes.rows.length === 0) {
+      res.status(404).json({ success: false, error: "Committee not found" });
+      return;
+    }
+
+    const comm = commRes.rows[0];
+    const commUuid = comm.id;
+
+    const tokensRes = await pool.query(
+      `SELECT t.id::text as token_id, t.normalized_token_number as token_number,
+              c.id::text as customer_id, c.name as customer_name, c.mobile as customer_mobile
+       FROM tokens t
+       JOIN customers c ON t.customer_id = c.id
+       WHERE t.committee_id = $1 AND t.deleted_at IS NULL
+       ORDER BY t.normalized_token_number ASC`,
+      [commUuid]
+    );
+
+    const giftsRes = await pool.query(
+      `SELECT id::text, token_number, customer_name, gift_name, distribution_date, status, notes
+       FROM gift_distributions
+       WHERE committee_uuid = $1
+       ORDER BY distribution_date ASC`,
+      [commUuid]
+    );
+
+    const giftsByToken = new Map<number, any[]>();
+    for (const g of giftsRes.rows) {
+      const tn = g.token_number;
+      if (!giftsByToken.has(tn)) giftsByToken.set(tn, []);
+      giftsByToken.get(tn)!.push(g);
+    }
+
+    let members = tokensRes.rows.map(t => {
+      const tn = t.token_number;
+      const tGifts = giftsByToken.get(tn) || [];
+      return {
+        tokenId: t.token_id,
+        tokenNumber: tn,
+        customerId: t.customer_id,
+        customerName: t.customer_name,
+        customerMobile: t.customer_mobile || "",
+        giftCount: tGifts.length,
+        monthlyGifts: tGifts.map(g => ({
+          id: g.id,
+          month: g.distribution_date ? new Date(g.distribution_date).toLocaleDateString('en-US', { month: 'short', year: '2-digit' }) : "N/A",
+          gift: g.gift_name,
+          status: g.status,
+          notes: g.notes
+        }))
+      };
+    });
+
+    if (search) {
+      members = members.filter(m =>
+        m.customerName.toLowerCase().includes(search) ||
+        String(m.tokenNumber).includes(search) ||
+        m.customerMobile.includes(search)
+      );
+    }
+
+    res.json({
+      success: true,
+      committee: comm,
+      months: ["Jun-24", "Jul-24", "Aug-24", "Sep-24", "Oct-24", "Nov-24", "Dec-24", "Jan-25", "Feb-25", "Mar-25", "Apr-25", "May-25", "Jun-25", "Jul-25", "Aug-25", "Sep-25", "Oct-25", "Nov-25", "Dec-25", "Jan-26", "Feb-26", "Mar-26", "Apr-26", "May-26", "Jun-26", "Jul-26", "Aug-26"],
+      members
+    });
+  } catch (err: any) {
+    console.error("Error in GET /committees/:id/gift-matrix:", err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+router.post(["/gifts/record", "/gifts"], async (req, res): Promise<void> => {
+  try {
+    const { committeeId, tokenId, customerId, month, claimMode, giftItem, giftName, remarks, distributionDate, tokenNumber, customerName } = req.body;
+    const item = giftItem || giftName;
+
+    if (!item) {
+      res.status(400).json({ success: false, error: "Gift item name is required" });
+      return;
+    }
+
+    let cUuid: string | null = null;
+    let custUuid: string | null = null;
+    let custName = customerName || "Member";
+    let tokenNo = tokenNumber ? parseInt(String(tokenNumber), 10) : 0;
+
+    if (committeeId) {
+      const cRes = await pool.query(`SELECT id FROM committees WHERE id::text = $1 OR bissi_int_id::text = $1 LIMIT 1`, [String(committeeId)]);
+      if (cRes.rows.length > 0) cUuid = cRes.rows[0].id;
+    }
+
+    if (tokenId) {
+      const tRes = await pool.query(`SELECT customer_id, normalized_token_number, committee_id FROM tokens WHERE id::text = $1 LIMIT 1`, [String(tokenId)]);
+      if (tRes.rows.length > 0) {
+        custUuid = tRes.rows[0].customer_id;
+        tokenNo = tRes.rows[0].normalized_token_number;
+        if (!cUuid) cUuid = tRes.rows[0].committee_id;
+      }
+    }
+
+    if (customerId) {
+      custUuid = customerId;
+    }
+
+    if (custUuid && !customerName) {
+      const custRes = await pool.query(`SELECT name FROM customers WHERE id = $1`, [custUuid]);
+      if (custRes.rows.length > 0) custName = custRes.rows[0].name;
+    }
+
+    const distDate = distributionDate || new Date().toISOString().slice(0, 10);
+    const modeNote = claimMode === "CASH" ? `[CASH CLAIM] ${remarks || ""}` : (remarks || "");
+
+    const insertRes = await pool.query(`
+      INSERT INTO gift_distributions (
+        committee_uuid, customer_uuid, token_number, customer_name, gift_name, distribution_date, status, notes
+      ) VALUES ($1, $2, $3, $4, $5, $6, 'distributed', $7)
+      RETURNING *
+    `, [cUuid, custUuid, tokenNo, custName, item.trim(), distDate, modeNote.trim() || null]);
+
+    res.json({ success: true, gift: insertRes.rows[0], message: "Gift record saved successfully" });
+  } catch (err: any) {
+    console.error("Error recording gift:", err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+router.get(["/gifts/bissi-winners", "/gifts"], async (req, res): Promise<void> => {
+  try {
+    const committeeId = (req.query.committeeId as string) || "all";
+    const search = ((req.query.search as string) || "").trim().toLowerCase();
+    const statusFilter = (req.query.status as string) || "ALL";
+
+    let query = `
+      SELECT gd.id, gd.token_number as "tokenNumber", gd.customer_name as "winnerName",
+             gd.gift_name as "giftName", gd.distribution_date as "drawDate",
+             gd.status, gd.notes, COALESCE(cm.name, 'Bissi Scheme') as "committeeName",
+             cm.bissi_int_id as "committeeId", c.mobile as "winnerMobile"
+      FROM gift_distributions gd
+      LEFT JOIN committees cm ON cm.id = gd.committee_uuid
+      LEFT JOIN customers c ON c.id = gd.customer_uuid
+    `;
+
+    const where: string[] = [];
+    const params: any[] = [];
+
+    if (committeeId !== "all" && committeeId !== "ALL") {
+      params.push(committeeId);
+      where.push(`(cm.id::text = $${params.length} OR cm.bissi_int_id::text = $${params.length})`);
+    }
+
+    if (statusFilter !== "ALL") {
+      params.push(statusFilter.toLowerCase());
+      where.push(`LOWER(gd.status::text) = $${params.length}`);
+    }
+
+    if (search) {
+      params.push(`%${search}%`);
+      where.push(`(gd.customer_name ILIKE $${params.length} OR gd.gift_name ILIKE $${params.length} OR gd.token_number::text ILIKE $${params.length})`);
+    }
+
+    if (where.length > 0) {
+      query += ` WHERE ` + where.join(" AND ");
+    }
+
+    query += ` ORDER BY gd.distribution_date DESC LIMIT 500`;
+
+    const result = await pool.query(query, params);
+
+    res.json({
+      success: true,
+      winners: result.rows,
+      gifts: result.rows,
+      total: result.rows.length
+    });
+  } catch (err: any) {
+    console.error("Error fetching gift winners:", err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+router.post(["/gifts/deliver", "/gifts/:id/deliver"], async (req, res): Promise<void> => {
+  try {
+    const giftId = req.params.id || req.body.giftId || req.body.id;
+    const { collectionDate, remarks, notes } = req.body;
+
+    if (!giftId) {
+      res.status(400).json({ success: false, error: "Gift ID is required" });
+      return;
+    }
+
+    const cDate = collectionDate || new Date().toISOString().slice(0, 10);
+    const updateRes = await pool.query(`
+      UPDATE gift_distributions
+      SET status = 'distributed',
+          distribution_date = $1,
+          notes = COALESCE($2, notes)
+      WHERE id::text = $3
+      RETURNING *
+    `, [cDate, remarks || notes || null, String(giftId)]);
+
+    res.json({ success: true, gift: updateRes.rows[0] });
+  } catch (err: any) {
+    console.error("Error delivering gift:", err);
     res.status(500).json({ success: false, error: err.message });
   }
 });
@@ -1306,7 +1531,7 @@ router.get("/dashboard/recent-activity", async (req, res) => {
       SELECT col.id, col.amount, col.collected_at, col.payment_mode,
              COALESCE(c.name, col.notes, 'Member') as customer_name, col.notes
       FROM collections col
-      LEFT JOIN customers c ON (c.id::text = col.customer_id::text)
+      LEFT JOIN customers c ON (c.id = col.customer_uuid)
       ORDER BY col.id DESC
       LIMIT 12
     `),
@@ -1390,34 +1615,35 @@ router.get("/dashboard/scheme-boxes", async (req, res) => {
 
     // Helper to match committee IDs (UUID or integer)
     const getCommMatchClause = (colAlias: string, commId: string) => {
+      const field = (colAlias === 'col' || colAlias === 'l' || colAlias === 'gd') ? `${colAlias}.committee_uuid::text` : `${colAlias}.committee_id::text`;
       if (commId === '11111111-1111-1111-1111-111111111111' || commId === '1') {
-        return `(${colAlias}.committee_id::text IN ('11111111-1111-1111-1111-111111111111', '1'))`;
+        return `(${field} IN ('11111111-1111-1111-1111-111111111111', '1'))`;
       }
       if (commId === '22222222-2222-2222-2222-222222222222' || commId === '2') {
-        return `(${colAlias}.committee_id::text IN ('22222222-2222-2222-2222-222222222222', '2'))`;
+        return `(${field} IN ('22222222-2222-2222-2222-222222222222', '2'))`;
       }
       if (commId === '33333333-3333-3333-3333-333333333333' || commId === '3') {
-        return `(${colAlias}.committee_id::text IN ('33333333-3333-3333-3333-333333333333', '3'))`;
+        return `(${field} IN ('33333333-3333-3333-3333-333333333333', '3'))`;
       }
       if (commId === 'a3d68b9c-63df-4884-a5ad-eb8a17e3be31' || commId === '4' || commId === '44444444-4444-4444-4444-444444444444') {
-        return `(${colAlias}.committee_id::text IN ('a3d68b9c-63df-4884-a5ad-eb8a17e3be31', '44444444-4444-4444-4444-444444444444', '4'))`;
+        return `(${field} IN ('a3d68b9c-63df-4884-a5ad-eb8a17e3be31', '44444444-4444-4444-4444-444444444444', '4'))`;
       }
-      return `${colAlias}.committee_id::text = '${commId}'`;
+      return `${field} = '${commId}'`;
     };
 
     // Safe latest winners map
     const latestWinnerRes = await pool.query(`
-      SELECT DISTINCT ON (l.committee_id)
-        l.committee_id::text as "committeeId",
+      SELECT DISTINCT ON (l.committee_uuid)
+        l.committee_uuid::text as "committeeId",
         COALESCE(cust.name, 'Member') as "winnerName",
         COALESCE(t.raw_token_number, l.token_number, '') as "winnerToken",
         l.reward_description as "reward",
         l.draw_date as "drawDate"
       FROM lotteries l
       LEFT JOIN customers cust ON cust.id::text = l.winner_customer_uuid::text
-      LEFT JOIN tokens t ON t.customer_id::text = cust.id::text AND t.committee_id::text = l.committee_id::text
+      LEFT JOIN tokens t ON t.customer_id::text = cust.id::text AND t.committee_id::text = l.committee_uuid::text
       WHERE (l.status::text ILIKE 'completed' OR l.status IS NULL)
-      ORDER BY l.committee_id, l.draw_date DESC NULLS LAST, l.id DESC
+      ORDER BY l.committee_uuid, l.draw_date DESC NULLS LAST, l.id DESC
     `).catch(() => ({ rows: [] }));
 
     const latestWinnerMap: Record<string, any> = {};
