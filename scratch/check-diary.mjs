@@ -1,0 +1,16 @@
+import pg from 'pg';
+const { Pool } = pg;
+const pool = new Pool({connectionString:'postgresql://neondb_owner:npg_qSQN29ZxTKzt@ep-frosty-cloud-at51tjed.c-9.us-east-1.aws.neon.tech/neondb?sslmode=require',ssl:{rejectUnauthorized:false}});
+const cols = await pool.query("SELECT column_name, data_type FROM information_schema.columns WHERE table_name='daily_diary_loans' ORDER BY ordinal_position");
+console.log('daily_diary_loans columns:');
+cols.rows.forEach(r => console.log(' ', r.column_name, '-', r.data_type));
+const rows = await pool.query('SELECT * FROM daily_diary_loans ORDER BY created_at LIMIT 5');
+console.log('\nSample data (5 rows):');
+rows.rows.forEach(r => console.log(' ', JSON.stringify(r)));
+const total = await pool.query('SELECT count(*) FROM daily_diary_loans');
+console.log('\nTotal records:', total.rows[0].count);
+const payCol = await pool.query("SELECT column_name FROM information_schema.columns WHERE table_name='daily_diary_payments' ORDER BY ordinal_position");
+console.log('\ndaily_diary_payments columns:', payCol.rows.map(r=>r.column_name).join(', '));
+const payCount = await pool.query('SELECT count(*) FROM daily_diary_payments');
+console.log('daily_diary_payments count:', payCount.rows[0].count);
+await pool.end();
