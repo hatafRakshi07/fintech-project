@@ -1511,20 +1511,26 @@ router.get("/dashboard/scheme-boxes", async (req, res) => {
   try {
     const { month } = req.query as any;
 
-    // 1. Generate availableMonths dynamically from earliest collection/committee date to current/future months
+    // 1. Generate availableMonths dynamically from earliest committee/collection date to current/upcoming months
     const minMonthRes = await pool.query(`
-      SELECT MIN(collected_at) as min_date FROM collections WHERE collected_at IS NOT NULL
+      SELECT MIN(min_date) as min_date FROM (
+        SELECT MIN(created_at) as min_date FROM committees
+        UNION ALL
+        SELECT MIN(collected_at) as min_date FROM collections WHERE collected_at IS NOT NULL
+      ) sub
     `);
     const minDateRaw = minMonthRes.rows[0]?.min_date;
-    const minDate = minDateRaw ? new Date(minDateRaw) : new Date(2024, 0, 1);
+    const minDate = minDateRaw ? new Date(minDateRaw) : new Date(2023, 5, 1);
     const now = new Date();
-    const maxDate = new Date(now.getFullYear() + 1, 11, 1); // 1 year into future
+    const maxDate = new Date(now.getFullYear(), now.getMonth() + 4, 1);
 
     const availableMonths: string[] = [];
     let curr = new Date(minDate.getFullYear(), minDate.getMonth(), 1);
     while (curr <= maxDate) {
       const label = curr.toLocaleDateString("en-US", { month: "short", year: "numeric" });
-      availableMonths.push(label);
+      if (!availableMonths.includes(label)) {
+        availableMonths.push(label);
+      }
       curr.setMonth(curr.getMonth() + 1);
     }
 
