@@ -15,6 +15,22 @@ import { pool, queryWithRetry, getPoolStats } from "@workspace/db";
 
 const router: IRouter = Router();
 
+let committeesColumnsEnsured = false;
+async function ensureCommitteesColumnsExist() {
+  if (committeesColumnsEnsured) return;
+  try {
+    await pool.query(`
+      ALTER TABLE committees ADD COLUMN IF NOT EXISTS monthly_installment NUMERIC DEFAULT 3000;
+      ALTER TABLE committees ADD COLUMN IF NOT EXISTS installment_amount NUMERIC DEFAULT 3000;
+      UPDATE committees SET monthly_installment = COALESCE(monthly_installment, installment_amount, 3000) WHERE monthly_installment IS NULL;
+      UPDATE committees SET installment_amount = COALESCE(installment_amount, monthly_installment, 3000) WHERE installment_amount IS NULL;
+    `);
+    committeesColumnsEnsured = true;
+  } catch (err) {
+    console.error("Error ensuring committees columns:", err);
+  }
+}
+
 router.use("/daily-diary", dailyDiaryRouter);
 router.use("/office", officeRouter);
 router.use("/lottery", lotteryManagementRouter);
@@ -500,6 +516,7 @@ router.get("/customers/:id", async (req, res) => {
 
 // The 4 Bissi Schemes (Committees)
 router.get("/committees", async (req, res) => {
+  await ensureCommitteesColumnsExist();
   try {
     const result = await queryWithRetry(
       () => pool.query(`
@@ -507,7 +524,7 @@ router.get("/committees", async (req, res) => {
           c.id::text AS id,
           c.name,
           c.code,
-          c.monthly_installment::numeric AS "installmentAmount",
+          COALESCE(c.monthly_installment, c.installment_amount, 3000)::numeric AS "installmentAmount",
           c.bissi_int_id,
           c.status::text AS status,
           COALESCE(tok_sub.active_count, 0)::int AS "currentMembers",
@@ -1554,6 +1571,7 @@ router.get("/dashboard/recent-activity", async (req, res) => {
 });
 
 router.get("/dashboard/scheme-boxes", async (req, res) => {
+  await ensureCommitteesColumnsExist();
   try {
     const { month } = req.query as any;
 
@@ -1605,7 +1623,7 @@ router.get("/dashboard/scheme-boxes", async (req, res) => {
       SELECT 
         c.id::text as id,
         c.name as name,
-        c.monthly_installment::numeric as "installmentAmount",
+        COALESCE(c.monthly_installment, c.installment_amount, 3000)::numeric as "installmentAmount",
         c.total_members::int as "memberLimit",
         c.status::text as status
       FROM committees c
@@ -1838,11 +1856,11 @@ router.get("/dashboard/pending-report", async (req, res) => {
         t.raw_token_number as "tokenNumber",
         t.committee_id::text as "committeeId",
         c.name as "committeeName",
-        c.monthly_installment::numeric as "installmentAmount",
-        c.monthly_installment::numeric as "dueAmount",
+        COALESCE(c.monthly_installment, c.installment_amount, 3000)::numeric as "installmentAmount",
+        COALESCE(c.monthly_installment, c.installment_amount, 3000)::numeric as "dueAmount",
         0 as "previousPending",
         0 as "interest",
-        c.monthly_installment::numeric as "currentPending",
+        COALESCE(c.monthly_installment, c.installment_amount, 3000)::numeric as "currentPending",
         cust.name as "customerName",
         cust.mobile as "customerMobile",
         cust.address as "customerAddress",
@@ -1989,7 +2007,7 @@ router.get("/dashboard/all", async (req, res) => {
       `),
       pool.query(`
         SELECT
-          c.id::text AS id, c.name, c.monthly_installment::numeric AS "installmentAmount",
+          c.id::text AS id, c.name, COALESCE(c.monthly_installment, c.installment_amount, 3000)::numeric AS "installmentAmount",
           c.bissi_int_id,
           COALESCE(tok.active_count, 0)::int AS "tokenCount",
           COALESCE(life.total, 0)::numeric AS "collectedAmount",

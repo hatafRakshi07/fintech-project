@@ -8,7 +8,7 @@ const DEFAULT_ORG_ID = "00000000-0000-0000-0000-000000000001";
 router.get("/schemes", async (req, res) => {
   try {
     const result = await pool.query(
-      `SELECT id::text, name, monthly_installment::text as "installmentAmount" 
+      `SELECT id::text, name, COALESCE(monthly_installment, installment_amount, 3000)::text as "installmentAmount" 
        FROM committees 
        WHERE status = 'ACTIVE'`
     );
