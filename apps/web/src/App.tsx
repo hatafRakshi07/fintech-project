@@ -30,6 +30,7 @@ import InterestsPage from "@/pages/interests";
 import RecoveryPage from "@/pages/recovery";
 import OfficePage from "@/pages/office";
 import BankAccountsPage from "@/pages/office/accounts";
+import DailyDiaryPage from "@/pages/daily-diary";
 import ImportPage from "@/pages/import";
 import InvoicesPage from "@/pages/invoices";
 import AccountingPage from "@/pages/accounting";
@@ -104,6 +105,13 @@ function AppRoutes() {
     <Shell>
       <Switch>
         <Route path="/" component={DashboardPage} />
+
+        {/* Daily Diary — Loan Collection */}
+        <Route path="/daily-diary">
+          <RoleGate roles={[...COLLECTOR_UP, "accountant"]}>
+            <DailyDiaryPage />
+          </RoleGate>
+        </Route>
 
         {/* Customers — all except pure customer role */}
         <Route path="/customers">

@@ -8,19 +8,16 @@ import { dashboardV2Router } from "./dashboard-v2";
 import { migrationV2Router } from "./migration-v2";
 import { ledgerV2Router } from "./ledger-v2";
 import { calendarV2Router } from "./calendar-v2";
+import officeRouter from "./office";
 import dailyDiaryRouter from "./daily-diary";
-import lotteryManagementRouter from "./lottery-management";
 import { pool, queryWithRetry, getPoolStats } from "@workspace/db";
 
 const router: IRouter = Router();
 
 router.use("/daily-diary", dailyDiaryRouter);
-router.use("/lottery", lotteryManagementRouter);
-router.use("/lotteries", lotteryManagementRouter);
+router.use("/office", officeRouter);
 
 router.use(healthRouter);
-
-
 // Public: login, logout, me
 router.use("/auth", authRouter);
 router.use(authRouter);
@@ -133,38 +130,39 @@ router.get("/customers", async (req, res) => {
   }
 });
 
-// GET /customers/:id/bissi-pending — all active bissi memberships for a customer with current-month pending status
+// GET /customers/:id/bissi-pending — all active bissi memberships with current-month pending status
 router.get("/customers/:id/bissi-pending", async (req, res) => {
   try {
-    const customerId = parseInt(req.params.id, 10);
-    if (isNaN(customerId)) {
-      res.status(400).json({ success: false, error: "Invalid customer ID" });
-      return;
+    // customers.id is UUID — accept both UUID string and integer for backward compat
+    const idParam = req.params.id;
+    const isUuid = /^[0-9a-f-]{36}$/i.test(idParam);
+    
+    let customerId: any = idParam;
+    if (!isUuid) {
+      const n = parseInt(idParam, 10);
+      if (isNaN(n)) { res.status(400).json({ success: false, error: "Invalid customer ID" }); return; }
+      // Try to find UUID by integer (not supported — return empty)
+      res.json({ success: true, memberships: [] }); return;
     }
 
     const result = await pool.query(`
       SELECT
-        t.id as "tokenId",
-        t.raw_token_number as "tokenNumber",
-        t.committee_id as "committeeId",
+        t.id::text as "tokenId",
+        t.normalized_token_number as "tokenNumber",
+        t.display_token as "displayToken",
+        comm.id::text as "committeeId",
         comm.name as "committeeName",
-        comm.installment_amount as "installmentAmount",
+        comm.monthly_installment as "installmentAmount",
         t.status as "tokenStatus",
         EXISTS (
           SELECT 1 FROM collections col
-          WHERE col.customer_id = t.customer_id
-            AND col.committee_id = t.committee_id
-            AND col.collected_at >= DATE_TRUNC('month', NOW())
-        ) OR EXISTS (
-          SELECT 1 FROM installments i_paid
-          WHERE i_paid.customer_id = t.customer_id
-            AND i_paid.committee_id = t.committee_id
-            AND i_paid.payment_date >= DATE_TRUNC('month', NOW())
+          WHERE col.token_uuid = t.id
+            AND DATE_TRUNC('month', col.collected_at) = DATE_TRUNC('month', CURRENT_DATE)
         ) as "paidThisMonth"
       FROM tokens t
       JOIN committees comm ON comm.id = t.committee_id
-      WHERE t.customer_id = $1 AND t.status = 'active'
-      ORDER BY comm.id ASC
+      WHERE t.customer_id = $1 AND t.status = 'ACTIVE'
+      ORDER BY comm.bissi_int_id ASC NULLS LAST
     `, [customerId]);
 
     res.json({ success: true, memberships: result.rows });
@@ -176,153 +174,92 @@ router.get("/customers/:id/bissi-pending", async (req, res) => {
 
 router.get("/customers/:id/history", async (req, res): Promise<void> => {
   try {
-    const customerId = parseInt(req.params.id, 10);
-    if (isNaN(customerId)) {
-      res.status(400).json({ success: false, error: "Invalid customer ID" });
+    const customerId = req.params.id;
+    const isUuid = /^[0-9a-f-]{36}$/i.test(customerId);
+    if (!isUuid) {
+      res.status(400).json({ success: false, error: "Invalid customer ID (UUID required)" });
       return;
     }
 
-    const [installmentsRes, membershipsCountRes, tokensCountRes, giftsCountRes, membershipsRes, tokensRes, collectionsQueryRes, giftsRes, lotteriesRes] = await Promise.all([
-      pool.query(
-        "SELECT COALESCE(SUM(amount), 0)::float as total_paid, COUNT(*)::int as total_installments FROM installments WHERE customer_id = $1",
-        [customerId]
-      ),
-      pool.query(
-        "SELECT COUNT(DISTINCT committee_id)::int as count FROM tokens WHERE customer_id = $1",
-        [customerId]
-      ),
-      pool.query(
-        "SELECT COUNT(*)::int as count FROM tokens WHERE customer_id = $1",
-        [customerId]
-      ),
-      pool.query(
-        "SELECT COUNT(*)::int as count FROM gift_distributions WHERE customer_id = $1",
-        [customerId]
-      ),
-      pool.query(
-      `SELECT 
-        t.committee_id as "committeeId", 
-        c.name as "committeeName", 
-        c.type::text as "type", 
-        c.installment_amount::float as "installment",
-        ARRAY_REMOVE(ARRAY_AGG(t.raw_token_number), NULL) as "tokens"
-      FROM tokens t
-      JOIN committees c ON t.committee_id = c.id
-      WHERE t.customer_id = $1
-      GROUP BY t.committee_id, c.name, c.type, c.installment_amount`,
-      [customerId]
-    ),
-      pool.query(
-        "SELECT id, raw_token_number as \"tokenNumber\", status::text FROM tokens WHERE customer_id = $1",
-        [customerId]
-      ),
-      pool.query(
-        `SELECT 
-          id, 
-          amount::float, 
-          payment_date as "date", 
-          payment_mode::text as "paymentMode", 
-          remarks as "notes" 
-        FROM installments 
-        WHERE customer_id = $1 
-        ORDER BY payment_date DESC`,
-        [customerId]
-      ),
-      pool.query(
-        `SELECT 
-          gd.id, 
-          gi.name as "giftName", 
-          gd.quantity, 
-          gd.distribution_date as "date", 
-          gd.status::text,
-          gd.notes,
-          c.name as "committeeName",
-          t.raw_token_number as "tokenNumber"
+    const [tokensRes, collectionsRes, giftsRes, lotteriesRes] = await Promise.all([
+      pool.query(`
+        SELECT t.id::text, t.normalized_token_number AS "tokenNumber", t.display_token AS "displayToken",
+               t.status::text, comm.name AS "committeeName", comm.monthly_installment AS "installmentAmount",
+               comm.id::text AS "committeeId"
+        FROM tokens t JOIN committees comm ON comm.id = t.committee_id
+        WHERE t.customer_id = $1 AND t.deleted_at IS NULL
+        ORDER BY comm.bissi_int_id ASC NULLS LAST
+      `, [customerId]),
+      pool.query(`
+        SELECT col.id::text, col.amount::float, col.collected_at AS "date",
+               col.payment_mode AS "paymentMode", col.notes,
+               COALESCE(comm.name, 'Bissi') AS "committeeName",
+               t.normalized_token_number AS "tokenNumber"
+        FROM collections col
+        LEFT JOIN committees comm ON comm.id = col.committee_uuid
+        LEFT JOIN tokens t ON t.id = col.token_uuid
+        WHERE col.customer_uuid = $1
+        ORDER BY col.collected_at DESC LIMIT 200
+      `, [customerId]),
+      pool.query(`
+        SELECT gd.id, gd.gift_name AS "giftName", gd.distribution_date AS "date",
+               gd.status::text, gd.notes,
+               COALESCE(comm.name, 'Bissi') AS "committeeName",
+               gd.token_number AS "tokenNumber"
         FROM gift_distributions gd
-        LEFT JOIN gift_inventory gi ON gd.gift_id = gi.id
-        LEFT JOIN committees c ON c.id = gd.committee_id
-        LEFT JOIN tokens t ON t.id = gd.token_id
-        WHERE gd.customer_id = $1
-        ORDER BY gd.distribution_date DESC`,
-        [customerId]
-      ),
-      pool.query(
-        `SELECT 
-          l.id,
-          l.draw_date as "date",
-          l.prize_amount::float as "prizeAmount",
-          l.notes,
-          l.status::text,
-          c.name as "committeeName"
+        LEFT JOIN committees comm ON comm.id = gd.committee_uuid
+        WHERE gd.customer_uuid = $1
+        ORDER BY gd.distribution_date DESC
+      `, [customerId]),
+      pool.query(`
+        SELECT l.id, l.draw_date AS "date", l.token_number AS "tokenNumber",
+               l.reward_description AS "rewardDescription", l.status::text, l.notes,
+               COALESCE(comm.name, 'Bissi') AS "committeeName"
         FROM lotteries l
-        LEFT JOIN committees c ON c.id = l.committee_id
-        WHERE l.winner_id = $1
-        ORDER BY l.draw_date DESC`,
-        [customerId]
-      ),
+        LEFT JOIN committees comm ON comm.id = l.committee_uuid
+        WHERE l.winner_customer_uuid = $1
+        ORDER BY l.draw_date DESC
+      `, [customerId]),
     ]);
 
-    const totalPaid = installmentsRes.rows[0].total_paid;
-    const totalCollections = installmentsRes.rows[0].total_installments;
-    const committeesJoined = membershipsCountRes.rows[0].count;
-    const totalTokens = tokensCountRes.rows[0].count;
-    const totalGifts = giftsCountRes.rows[0].count;
-
-    const claimedGifts = giftsRes.rows.filter(g => g.status === 'claimed' && !(g.notes || '').includes('CASH')).length;
-    const cashClaims = giftsRes.rows.filter(g => (g.notes || '').includes('CASH')).length;
-    const pendingGifts = giftsRes.rows.filter(g => g.status === 'pending').length;
-
-    const summary = {
-      totalPaid,
-      totalCollections,
-      committeesJoined,
-      totalTokens,
-      totalGifts,
-      claimedGifts,
-      cashClaims,
-      pendingGifts,
-      luckyWins: lotteriesRes.rows.length,
-      totalLoans: 0,
-      totalLoanAmount: 0
-    };
-
-    const memberships = membershipsRes.rows.map(r => ({
-      ...r,
-      tokens: r.tokens || []
-    }));
-    const tokens = tokensRes.rows;
-    const collections = collectionsQueryRes.rows;
-    const gifts = giftsRes.rows;
-    const lotteries = lotteriesRes.rows;
+    const totalPaid = collectionsRes.rows.reduce((s: number, r: any) => s + Number(r.amount || 0), 0);
 
     res.json({
       success: true,
-      summary,
-      memberships,
-      tokens,
-      collections,
+      summary: {
+        totalPaid, totalCollections: collectionsRes.rows.length,
+        committeesJoined: new Set(tokensRes.rows.map((r: any) => r.committeeId)).size,
+        totalTokens: tokensRes.rows.length,
+        totalGifts: giftsRes.rows.length,
+        luckyWins: lotteriesRes.rows.length,
+        claimedGifts: giftsRes.rows.filter((r: any) => r.status === 'DELIVERED').length,
+        cashClaims: 0, pendingGifts: 0, totalLoans: 0, totalLoanAmount: 0,
+      },
+      memberships: tokensRes.rows,
+      tokens: tokensRes.rows,
+      collections: collectionsRes.rows,
       loans: [],
-      gifts,
-      lotteries,
+      gifts: giftsRes.rows,
+      lotteries: lotteriesRes.rows,
       interestAccounts: [],
       recoveryTasks: []
     });
   } catch (err: any) {
     console.error("Failed to fetch customer history:", err);
-    res.status(500).json({ success: false, error: "Failed to fetch customer history: " + err.message });
+    res.status(500).json({ success: false, error: err.message });
   }
 });
 
 router.get("/customers/:id", async (req, res) => {
   try {
     const { id } = req.params;
-    const customerId = parseInt(id, 10);
-    if (isNaN(customerId)) {
+    const isUuid = /^[0-9a-f-]{36}$/i.test(id);
+    if (!isUuid) {
       res.status(400).json({ success: false, error: "Invalid customer ID" });
       return;
     }
     const result = await queryWithRetry(
-      () => pool.query("SELECT * FROM customers WHERE id = $1", [customerId]),
+      () => pool.query("SELECT * FROM customers WHERE id = $1 AND deleted_at IS NULL", [id]),
       { routeName: "GET /customers/:id", retries: 2, delayMs: 500 }
     );
     if (result.rows.length === 0) {
@@ -330,13 +267,7 @@ router.get("/customers/:id", async (req, res) => {
       return;
     }
     const r = result.rows[0];
-    const customer = {
-      ...r,
-      referenceNumber: r.reference_number,
-      branchId: r.branch_id,
-      branchName: "Shree Krishna Associate"
-    };
-    res.json(customer);
+    res.json({ ...r, referenceNumber: r.reference_number, branchId: r.branch_id, branchName: "Shree Krishna Associate" });
   } catch (err) {
     res.status(500).json({ success: false, error: "Failed to fetch customer" });
   }
@@ -347,43 +278,36 @@ router.get("/committees", async (req, res) => {
   try {
     const result = await queryWithRetry(
       () => pool.query(`
-      SELECT 
-        c.id::text as id,
-        c.name,
-        c.type::text as type,
-        c.installment_amount::numeric as "installmentAmount",
-        c.member_limit::int as "memberLimit",
-        c.status::text as status,
-        COALESCE(tok_sub.token_count, 0)::int as "currentMembers"
-      FROM committees c
-      LEFT JOIN (
-        SELECT committee_id, COUNT(*)::int as token_count 
-        FROM tokens 
-        GROUP BY committee_id
-      ) tok_sub ON c.id = tok_sub.committee_id
-      ORDER BY c.id ASC
-    `),
+        SELECT
+          c.id::text AS id,
+          c.name,
+          c.code,
+          c.monthly_installment::numeric AS "installmentAmount",
+          c.bissi_int_id,
+          c.status::text AS status,
+          COALESCE(tok_sub.active_count, 0)::int AS "currentMembers",
+          COALESCE(tok_sub.total_count, 0)::int AS "totalTokens"
+        FROM committees c
+        LEFT JOIN (
+          SELECT committee_id,
+            COUNT(*) FILTER(WHERE status='ACTIVE')::int AS active_count,
+            COUNT(*)::int AS total_count
+          FROM tokens GROUP BY committee_id
+        ) tok_sub ON c.id = tok_sub.committee_id
+        WHERE c.code IN ('BISSI-1','BISSI-2','BISSI-3','BISSI-4')
+        ORDER BY c.bissi_int_id ASC NULLS LAST
+      `),
       { routeName: "GET /committees", retries: 2, delayMs: 500 }
     );
-
-    const formatted = result.rows.map(r => ({
+    const formatted = result.rows.map((r: any) => ({
       ...r,
       installmentAmount: Number(r.installmentAmount || 3000),
-      memberLimit: Number(r.memberLimit || 500),
-      totalMembers: Number(r.memberLimit || 500),
+      memberLimit: r.currentMembers,
+      totalMembers: r.totalTokens,
     }));
-
     res.json({ success: true, committees: formatted, data: formatted });
   } catch (err: any) {
-    const stats = getPoolStats();
-    console.error(`Error fetching committees [Pool stats: total=${stats.total}, active=${stats.active}, idle=${stats.idle}, waiting=${stats.waiting}]:`, err);
-    const fallback = [
-      { id: "1", name: "Sawariya Seth Bissi (5th Date)", installmentAmount: 3000, memberLimit: 500, totalMembers: 500, status: "active", currentMembers: 500 },
-      { id: "2", name: "Pyare Mohan Bissi (15th Date)", installmentAmount: 3000, memberLimit: 500, totalMembers: 500, status: "active", currentMembers: 500 },
-      { id: "3", name: "Hare Ka Sahara Bissi (20th Date)", installmentAmount: 2500, memberLimit: 500, totalMembers: 500, status: "active", currentMembers: 500 },
-      { id: "4", name: "Shree Krishna Associate Bissi", installmentAmount: 3000, memberLimit: 1111, totalMembers: 1111, status: "active", currentMembers: 1111 },
-    ];
-    res.json({ success: true, committees: fallback, data: fallback });
+    res.json({ success: true, committees: [], data: [] });
   }
 });
 
@@ -577,7 +501,7 @@ router.get("/committees/:id/members", async (req, res): Promise<void> => {
         t.id,
         t.committee_id as "committeeId",
         t.customer_id as "customerId",
-        t.raw_token_number as "tokenNumber",
+        t.token_number as "tokenNumber",
         t.status::text as "status",
         c.name as "customerName",
         c.reference_number as "customerReferenceNumber",
@@ -586,8 +510,8 @@ router.get("/committees/:id/members", async (req, res): Promise<void> => {
       LEFT JOIN customers c ON t.customer_id = c.id
       WHERE t.committee_id = $1
       ORDER BY 
-        CASE WHEN t.raw_token_number ~ '^[0-9]+' THEN substring(t.raw_token_number from '^[0-9]+')::int ELSE 99999 END ASC,
-        t.raw_token_number ASC
+        CASE WHEN t.token_number ~ '^[0-9]+' THEN substring(t.token_number from '^[0-9]+')::int ELSE 99999 END ASC,
+        t.token_number ASC
     `, [committeeId]);
 
     res.json(result.rows);
@@ -773,31 +697,12 @@ router.get("/committees/:id/payment-history", async (req, res): Promise<void> =>
               paymentMode: null,
             };
           } else {
-            // Check if this month's due date / month label is in the past or current
-            let isPastDue = true;
-            if (month.dueDate) {
-              const dueDate = new Date(month.dueDate);
-              if (!isNaN(dueDate.getTime())) {
-                const now = new Date();
-                isPastDue = dueDate <= now;
-              }
-            } else if (month.monthName) {
-              const parts = month.monthName.split("-");
-              if (parts.length === 2) {
-                const monthNames = ["jan","feb","mar","apr","may","jun","jul","aug","sep","oct","nov","dec"];
-                const mIdx = monthNames.findIndex((mn: string) => parts[0].toLowerCase().startsWith(mn));
-                let year = parseInt(parts[1], 10);
-                if (year < 100) year += 2000;
-                if (mIdx !== -1 && !isNaN(year)) {
-                  const mDate = new Date(year, mIdx, 1);
-                  const now = new Date();
-                  const curStart = new Date(now.getFullYear(), now.getMonth(), 1);
-                  isPastDue = mDate <= curStart;
-                }
-              }
-            }
+            // Check if this month's due date is in the past
+            const dueDate = new Date(month.dueDate);
+            const now = new Date();
+            const isPastDue = dueDate <= now;
 
-            if (isPastDue) {
+            if (isPastDue && schedule) {
               pendingCount++;
               totalPendingCount++;
             }
@@ -805,7 +710,7 @@ router.get("/committees/:id/payment-history", async (req, res): Promise<void> =>
             return {
               monthNumber: month.monthNumber,
               monthName: month.monthName,
-              status: isPastDue ? "PENDING" : "UPCOMING",
+              status: isPastDue && schedule ? "PENDING" : "UPCOMING",
               amount: 0,
               expectedAmount,
               paymentDate: null,
@@ -855,13 +760,13 @@ router.get("/committees/:id/payment-history", async (req, res): Promise<void> =>
       const params: any[] = [parseInt(committeeId, 10)];
       if (search) {
         params.push(`%${search}%`);
-        searchCondition = ` AND (cust.name ILIKE $${params.length} OR cust.mobile ILIKE $${params.length} OR t.raw_token_number ILIKE $${params.length})`;
+        searchCondition = ` AND (cust.name ILIKE $${params.length} OR cust.mobile ILIKE $${params.length} OR t.token_number ILIKE $${params.length})`;
       }
 
       const v1Res = await pool.query(
         `SELECT
            t.id::text as "tokenId",
-           t.raw_token_number as "tokenNumber",
+           t.token_number as "tokenNumber",
            t.status::text as "tokenStatus",
            cust.id::text as "customerId",
            cust.name as "customerName",
@@ -876,19 +781,12 @@ router.get("/committees/:id/payment-history", async (req, res): Promise<void> =>
          JOIN customers cust ON cust.id = t.customer_id
          LEFT JOIN collections col ON col.customer_id = cust.id AND col.committee_id = t.committee_id
          WHERE t.committee_id = $1${searchCondition}
-         GROUP BY t.id, t.raw_token_number, t.status, cust.id, cust.name, cust.mobile, cust.address
-         ORDER BY CASE WHEN t.raw_token_number ~ '^[0-9]+$' THEN CAST(t.raw_token_number AS integer) ELSE 99999 END ASC`,
+         GROUP BY t.id, t.token_number, t.status, cust.id, cust.name, cust.mobile, cust.address
+         ORDER BY CASE WHEN t.token_number ~ '^[0-9]+$' THEN CAST(t.token_number AS integer) ELSE 99999 END ASC`,
         params
       );
 
-      // Default month sequence by committee ID if no custom months exist
-      const defaultMonthsMap: Record<string, string[]> = {
-        "1": ["Nov-25", "Dec-25", "Jan-26", "Feb-26", "Mar-26", "Apr-26", "May-26", "Jun-26", "Jul-26", "Aug-26"],
-        "2": ["Apr-25", "May-25", "Jun-25", "Jul-25", "Aug-25", "Sep-25", "Oct-25", "Nov-25", "Dec-25", "Jan-26", "Feb-26", "Mar-26", "Apr-26", "May-26", "Jun-26", "Jul-26", "Aug-26"],
-        "3": ["Jun-24", "Jul-24", "Aug-24", "Sep-24", "Oct-24", "Nov-24", "Dec-24", "Jan-25", "Feb-25", "Mar-25", "Apr-25", "May-25", "Jun-25", "Jul-25", "Aug-25", "Sep-25", "Oct-25", "Nov-25", "Dec-25", "Jan-26", "Feb-26", "Mar-26", "Apr-26", "May-26", "Jun-26", "Jul-26", "Aug-26"],
-        "4": ["Jun-26", "Jul-26", "Aug-26", "Sep-26", "Oct-26", "Nov-26", "Dec-26", "Jan-27", "Feb-27"]
-      };
-
+      // Extract unique months from all payments
       const monthSet = new Set<string>();
       for (const row of v1Res.rows) {
         if (row.payments) {
@@ -897,14 +795,7 @@ router.get("/committees/:id/payment-history", async (req, res): Promise<void> =>
           }
         }
       }
-
-      let monthList = defaultMonthsMap[String(committeeId)] || [...monthSet].sort();
-      if (monthList.length === 0) {
-        monthList = ["Jun-25", "Jul-25", "Aug-25", "Sep-25", "Oct-25", "Nov-25", "Dec-25", "Jan-26", "Feb-26", "Mar-26", "Apr-26", "May-26", "Jun-26", "Jul-26", "Aug-26"];
-      }
-
-      let summaryTotalPaid = 0;
-      let summaryTotalPending = 0;
+      const monthList = [...monthSet].sort();
 
       const members = v1Res.rows.map((row: any) => {
         const paymentsByMonth = new Map<string, any>();
@@ -913,54 +804,19 @@ router.get("/committees/:id/payment-history", async (req, res): Promise<void> =>
             paymentsByMonth.set(p.month, p);
           }
         }
-        let paidCount = 0;
-        let pendingCount = 0;
+        const paidCount = paymentsByMonth.size;
+        const pendingCount = Math.max(0, monthList.length - paidCount);
         const totalPaidAmount = row.payments ? row.payments.reduce((s: number, p: any) => s + Number(p.amount || 0), 0) : 0;
 
         const monthlyPayments = monthList.map((monthName, idx) => {
           const payment = paymentsByMonth.get(monthName);
-          if (payment) {
-            paidCount++;
-            summaryTotalPaid++;
-            return {
-              monthNumber: idx + 1,
-              monthName,
-              status: "PAID",
-              amount: Number(payment.amount),
-              expectedAmount: Number(committee.monthlyInstallment || 3000),
-              paymentDate: payment.date || null,
-              paymentMode: null,
-            };
-          }
-
-          // Check if month is past or current
-          let isPastDue = true;
-          const parts = monthName.split("-");
-          if (parts.length === 2) {
-            const monthNames = ["jan","feb","mar","apr","may","jun","jul","aug","sep","oct","nov","dec"];
-            const mIdx = monthNames.findIndex((mn: string) => parts[0].toLowerCase().startsWith(mn));
-            let year = parseInt(parts[1], 10);
-            if (year < 100) year += 2000;
-            if (mIdx !== -1 && !isNaN(year)) {
-              const mDate = new Date(year, mIdx, 1);
-              const now = new Date();
-              const curStart = new Date(now.getFullYear(), now.getMonth(), 1);
-              isPastDue = mDate <= curStart;
-            }
-          }
-
-          if (isPastDue) {
-            pendingCount++;
-            summaryTotalPending++;
-          }
-
           return {
             monthNumber: idx + 1,
             monthName,
-            status: isPastDue ? "PENDING" : "UPCOMING",
-            amount: 0,
+            status: payment ? "PAID" : "PENDING",
+            amount: payment ? Number(payment.amount) : 0,
             expectedAmount: Number(committee.monthlyInstallment || 3000),
-            paymentDate: null,
+            paymentDate: payment?.date || null,
             paymentMode: null,
           };
         });
@@ -985,7 +841,7 @@ router.get("/committees/:id/payment-history", async (req, res): Promise<void> =>
         committee: { id: committee.id, name: committee.name, monthlyInstallment: Number(committee.monthlyInstallment || 3000) },
         months: monthList.map((m, i) => ({ monthNumber: i + 1, monthName: m, dueDate: null })),
         members,
-        summary: { totalMembers: members.length, totalMonths: monthList.length, totalPaid: summaryTotalPaid, totalPending: summaryTotalPending },
+        summary: { totalMembers: members.length, totalMonths: monthList.length, totalPaid: 0, totalPending: 0 },
       });
     }
   } catch (err: any) {
@@ -1032,97 +888,66 @@ router.get("/tokens", async (req, res) => {
 
 router.get("/collections", async (req, res) => {
   try {
-    const limit = parseInt((req.query.limit as string) || "100", 10);
-    const dateQuery = req.query.date;
-    const verificationStatusFilter = req.query.verificationStatus as string;
+    const limit = Math.min(parseInt((req.query.limit as string) || "100", 10), 500);
+    const dateQuery = req.query.date as string;
+    const customerIdParam = req.query.customerId as string;
+    const committeeIdParam = req.query.committeeId as string;
 
+    const conditions: string[] = ["col.committee_uuid IS NOT NULL"];
     const params: any[] = [];
-    let dateCondInst = "";
-    let dateCondCol = "";
-    if (dateQuery) {
-      params.push(dateQuery as string);
-      dateCondInst = ` AND i.payment_date::date = $${params.length}::date`;
-      dateCondCol = ` AND c.collected_at::date = $${params.length}::date`;
-    }
 
-    let verifCondCol = "";
-    if (verificationStatusFilter) {
-      params.push(verificationStatusFilter);
-      verifCondCol = ` AND c.verification_status = $${params.length}`;
+    if (dateQuery) {
+      params.push(dateQuery);
+      conditions.push(`DATE(col.collected_at) = $${params.length}::date`);
+    }
+    if (customerIdParam) {
+      params.push(customerIdParam);
+      conditions.push(`col.customer_uuid = $${params.length}::uuid`);
+    }
+    if (committeeIdParam) {
+      params.push(committeeIdParam);
+      conditions.push(`col.committee_uuid = $${params.length}::uuid`);
     }
 
     params.push(limit);
-    const limitParam = `$${params.length}`;
+    const whereSQL = conditions.length ? `WHERE ${conditions.join(" AND ")}` : "";
 
-    // Combine installments (historical) + collections (new via app)
-    const query = `
-      SELECT * FROM (
-        SELECT 
-          i.id::text as id,
-          i.customer_id::text as "customerId",
-          i.committee_id::text as "committeeId",
-          NULL::text as "collectorId",
-          i.paid_amount::numeric as amount,
-          COALESCE(i.payment_mode::text, 'cash') as "paymentMode",
-          i.remarks as notes,
-          i.receipt_number as "receiptNumber",
-          i.payment_date as "collectedAt",
-          i.created_at as "created_at",
-          'verified' as "verificationStatus",
-          'installment' as "sourceTable",
-          cust.name as "customerName",
-          cust.mobile as "customerMobile",
-          comm.name as "committeeName"
-        FROM installments i
-        JOIN customers cust ON cust.id = i.customer_id
-        JOIN committees comm ON comm.id = i.committee_id
-        WHERE 1=1 ${dateCondInst}
-        ${verificationStatusFilter === 'pending' ? 'AND FALSE' : ''}
+    const result = await pool.query(`
+      SELECT
+        col.id::text          AS id,
+        col.customer_uuid::text AS "customerId",
+        col.committee_uuid::text AS "committeeId",
+        col.token_uuid::text  AS "tokenId",
+        col.amount::numeric   AS amount,
+        col.payment_mode      AS "paymentMode",
+        col.notes,
+        col.receipt_number    AS "receiptNumber",
+        col.collected_at      AS "collectedAt",
+        col.created_at,
+        col.verification_status AS "verificationStatus",
+        COALESCE(cust.name, col.notes) AS "customerName",
+        cust.mobile           AS "customerMobile",
+        COALESCE(comm.name, 'Bissi')   AS "committeeName",
+        t.normalized_token_number       AS "tokenNumber"
+      FROM collections col
+      LEFT JOIN customers cust ON cust.id = col.customer_uuid
+      LEFT JOIN committees comm ON comm.id = col.committee_uuid
+      LEFT JOIN tokens t ON t.id = col.token_uuid
+      ${whereSQL}
+      ORDER BY col.collected_at DESC NULLS LAST
+      LIMIT $${params.length}
+    `, params);
 
-        UNION ALL
-
-        SELECT 
-          c.id::text as id,
-          c.customer_id::text as "customerId",
-          c.committee_id::text as "committeeId",
-          c.collector_id::text as "collectorId",
-          c.amount::numeric as amount,
-          COALESCE(c.payment_mode::text, 'cash') as "paymentMode",
-          c.notes as notes,
-          c.receipt_number as "receiptNumber",
-          c.collected_at as "collectedAt",
-          c.created_at as "created_at",
-          COALESCE(c.verification_status, 'verified') as "verificationStatus",
-          'collection' as "sourceTable",
-          cust.name as "customerName",
-          cust.mobile as "customerMobile",
-          COALESCE(comm.name, 'General Bissi') as "committeeName"
-        FROM collections c
-        JOIN customers cust ON cust.id = c.customer_id
-        LEFT JOIN committees comm ON comm.id = c.committee_id
-        WHERE 1=1 ${dateCondCol} ${verifCondCol}
-      ) combined
-      ORDER BY "collectedAt" DESC NULLS LAST
-      LIMIT ${limitParam}
-    `;
-
-    const result = await pool.query(query, params);
-    const formatted = result.rows.map((r: any) => {
-      const dt = r.collectedAt || r.created_at || new Date().toISOString();
-      return {
-        ...r,
-        amount: Number(r.amount),
-        paymentMode: (r.paymentMode || 'cash').toLowerCase(),
-        collectedAt: dt,
-        paymentDate: dt,
-        createdAt: dt,
-        date: dt,
-        customerName: r.customerName || 'Bissi Member',
-        committeeName: r.committeeName || 'General Bissi'
-      };
-    });
-
-    res.json(formatted);
+    res.json(result.rows.map((r: any) => ({
+      ...r,
+      amount: Number(r.amount),
+      paymentMode: (r.paymentMode || 'cash').toLowerCase(),
+      collectedAt: r.collectedAt,
+      paymentDate: r.collectedAt,
+      createdAt: r.created_at,
+      date: r.collectedAt,
+      customerName: r.customerName || 'Bissi Member',
+    })));
   } catch (err: any) {
     console.error("Error fetching collections:", err);
     res.json([]);
@@ -1331,26 +1156,25 @@ router.post("/collections/:id/status", handleVerifyCollection);
 
 router.get("/collections/today-summary", async (_req, res) => {
   try {
-    const result = await pool.query(
-      `SELECT 
+    const result = await pool.query(`
+      SELECT 
         COALESCE(SUM(amount), 0)::float as total_amount,
         COALESCE(SUM(CASE WHEN LOWER(payment_mode::text) = 'cash' THEN amount ELSE 0 END), 0)::float as cash_amount,
         COALESCE(SUM(CASE WHEN LOWER(payment_mode::text) != 'cash' THEN amount ELSE 0 END), 0)::float as online_amount,
         COUNT(*)::int as total_count
-       FROM collections 
-       WHERE DATE(collected_at) = CURRENT_DATE`
-    );
+      FROM collections 
+      WHERE DATE(collected_at) = CURRENT_DATE
+        AND committee_uuid IS NOT NULL
+    `);
     const row = result.rows[0] || {};
     res.json({
-      success: true,
-      todayTotal: row.total_amount || 0,
-      todayCash: row.cash_amount || 0,
-      todayOnline: row.online_amount || 0,
-      todayCount: row.total_count || 0,
-      data: row
+      success: true, total: row.total_amount || 0, count: row.total_count || 0,
+      cash: row.cash_amount || 0, upi: row.online_amount || 0,
+      todayTotal: row.total_amount || 0, todayCash: row.cash_amount || 0,
+      todayOnline: row.online_amount || 0, todayCount: row.total_count || 0,
     });
   } catch (err) {
-    res.json({ success: true, todayTotal: 0, todayCash: 0, todayOnline: 0, todayCount: 0, data: {} });
+    res.json({ success: true, total: 0, count: 0, cash: 0, upi: 0, todayTotal: 0, todayCash: 0, todayOnline: 0, todayCount: 0 });
   }
 });
 
@@ -1382,46 +1206,43 @@ router.get("/loans", (_req, res) => {
 router.get("/lotteries", async (req, res) => {
   try {
     const { committeeId, status } = req.query;
-    const whereClauses: string[] = [];
+    const conditions: string[] = [];
     const params: any[] = [];
-    let paramIdx = 1;
 
     if (committeeId && committeeId !== "all") {
-      whereClauses.push(`l.committee_id = $${paramIdx++}`);
-      params.push(parseInt(committeeId as string, 10));
+      params.push(committeeId);
+      conditions.push(`l.committee_uuid = $${params.length}::uuid`);
     }
     if (status && status !== "all") {
-      whereClauses.push(`l.status::text = $${paramIdx++}`);
       params.push(status);
+      conditions.push(`l.status::text = $${params.length}`);
     }
 
-    const whereStr = whereClauses.length > 0 ? `WHERE ${whereClauses.join(" AND ")}` : "";
+    const whereStr = conditions.length > 0 ? `WHERE ${conditions.join(" AND ")}` : "";
 
     const result = await pool.query(`
-      SELECT 
+      SELECT
         l.id,
-        l.committee_id as "committeeId",
-        l.draw_date as "drawDate",
-        l.winner_id as "winnerId",
-        l.prize_amount as "prizeAmount",
-        l.status::text as "status",
+        l.committee_uuid::text   AS "committeeId",
+        l.draw_date              AS "drawDate",
+        l.draw_month             AS "drawMonth",
+        l.token_number           AS "tokenNumber",
+        l.reward_description     AS "rewardDescription",
+        l.status::text           AS "status",
         l.notes,
-        l.reward_type as "rewardType",
-        l.cash_taken as "cashTaken",
-        l.created_at as "createdAt",
-        l.updated_at as "updatedAt",
-        c.name as "committeeName",
-        cust.name as "winnerName",
-        t.token_number as "winnerToken"
+        l.created_at             AS "createdAt",
+        c.name                   AS "committeeName",
+        cust.name                AS "winnerName",
+        cust.mobile              AS "winnerMobile"
       FROM lotteries l
-      LEFT JOIN committees c ON l.committee_id = c.id
-      LEFT JOIN customers cust ON l.winner_id = cust.id
-      LEFT JOIN tokens t ON l.winner_id = t.customer_id AND l.committee_id = t.committee_id
+      LEFT JOIN committees c ON c.id = l.committee_uuid
+      LEFT JOIN customers cust ON cust.id = l.winner_customer_uuid
       ${whereStr}
-      ORDER BY l.id DESC
+      ORDER BY l.draw_date DESC NULLS LAST, l.id DESC
+      LIMIT 500
     `, params);
     res.json({ success: true, lotteries: result.rows, data: result.rows });
-  } catch (err) {
+  } catch (err: any) {
     console.error("Error fetching lotteries:", err);
     res.json({ success: true, lotteries: [], data: [] });
   }
@@ -1432,13 +1253,13 @@ router.get("/dashboard/stats", async (req, res) => {
   try {
     const result = await queryWithRetry(
       () => pool.query(`
-        SELECT 
+        SELECT
           (SELECT COUNT(DISTINCT customer_id)::int FROM tokens WHERE customer_id IS NOT NULL) as "totalCustomers",
-          (SELECT COUNT(*)::int FROM committees) as "totalCommittees",
-          (SELECT COUNT(*)::int FROM collections) as "totalCollections",
-          (SELECT COALESCE(SUM(amount), 0)::numeric FROM collections) as "totalCollectionAmount",
+          (SELECT COUNT(*)::int FROM committees WHERE code IN ('BISSI-1','BISSI-2','BISSI-3','BISSI-4')) as "totalCommittees",
+          (SELECT COUNT(*)::int FROM collections WHERE committee_uuid IS NOT NULL) as "totalCollections",
+          (SELECT COALESCE(SUM(amount), 0)::numeric FROM collections WHERE committee_uuid IS NOT NULL) as "totalCollectionAmount",
           (SELECT COUNT(*)::int FROM tokens) as "totalTokens",
-          (SELECT COUNT(*)::int FROM lotteries WHERE status = 'completed' AND winner_id IS NOT NULL) as "totalWinners",
+          (SELECT COUNT(*)::int FROM lotteries WHERE reward_description = 'Lucky' OR status = 'completed') as "totalWinners",
           0 as "pendingKycCount"
       `),
       { routeName: "GET /dashboard/stats", retries: 2, delayMs: 500 }
@@ -1482,9 +1303,11 @@ router.get("/dashboard/recent-activity", async (req, res) => {
   try {
     const result = await queryWithRetry(
       () => pool.query(`
-      SELECT col.id, col.amount, col.collected_at, col.payment_mode, c.name as customer_name, col.notes
+      SELECT col.id, col.amount, col.collected_at, col.payment_mode,
+             COALESCE(c.name, col.notes) as customer_name, col.notes
       FROM collections col
-      LEFT JOIN customers c ON c.id = col.customer_id
+      LEFT JOIN customers c ON c.id = col.customer_uuid
+      WHERE col.committee_uuid IS NOT NULL
       ORDER BY col.id DESC
       LIMIT 12
     `),
@@ -1508,7 +1331,14 @@ router.get("/dashboard/recent-activity", async (req, res) => {
 });
 
 router.get("/dashboard/scheme-boxes", async (req, res) => {
+  // Delegate to v2 router implementation which uses UUID columns correctly
+  const month = (req.query.month as string) || "";
+  const monthCond = month && month !== "all"
+    ? `AND DATE_TRUNC('month', col.collected_at) = DATE_TRUNC('month', '${month}-01'::date)`
+    : `AND DATE_TRUNC('month', col.collected_at) = DATE_TRUNC('month', CURRENT_DATE)`;
+
   try {
+<<<<<<< HEAD
     const { month } = req.query as any;
 
     // 1. Generate availableMonths dynamically from earliest committee/collection date to current/upcoming months
@@ -1561,251 +1391,161 @@ router.get("/dashboard/scheme-boxes", async (req, res) => {
         c.monthly_installment::numeric as "installmentAmount",
         c.total_members::int as "memberLimit",
         c.status::text as status
+=======
+    const result = await pool.query(`
+      SELECT
+        c.id::text                         AS "id",
+        c.name                             AS "name",
+        c.monthly_installment::numeric     AS "installmentAmount",
+        c.bissi_int_id                     AS "bissiIntId",
+        COALESCE(tok.active_count,0)::int  AS "activeTokens",
+        COALESCE(tok.total_count,0)::int   AS "totalTokens",
+        COALESCE(lot.lucky_count,0)::int   AS "luckyTokens",
+        COALESCE(life.total,0)::numeric    AS "lifetimeCollectedAmount",
+        COALESCE(tod.total,0)::numeric     AS "todayCollection",
+        COALESCE(mon.total,0)::numeric     AS "thisMonthCollected",
+        COALESCE(mon.cnt,0)::int           AS "thisMonthReceipts",
+        COALESCE(pend.pending_count,0)::int AS "thisMonthPendingCount"
+>>>>>>> b73611cff8df74e196606b03698cff9134a1060e
       FROM committees c
-      ORDER BY c.id ASC
-    `);
-
-    // Helper to build committee ID match clause (handles UUID vs '1','2','3','4')
-    const getCommMatchClause = (colAlias: string, commId: string) => {
-      if (commId === '11111111-1111-1111-1111-111111111111' || commId === '1') {
-        return `(${colAlias}.committee_id::text IN ('11111111-1111-1111-1111-111111111111', '1'))`;
-      }
-      if (commId === '22222222-2222-2222-2222-222222222222' || commId === '2') {
-        return `(${colAlias}.committee_id::text IN ('22222222-2222-2222-2222-222222222222', '2'))`;
-      }
-      if (commId === '33333333-3333-3333-3333-333333333333' || commId === '3') {
-        return `(${colAlias}.committee_id::text IN ('33333333-3333-3333-3333-333333333333', '3'))`;
-      }
-      if (commId === 'a3d68b9c-63df-4884-a5ad-eb8a17e3be31' || commId === '4' || commId === '44444444-4444-4444-4444-444444444444') {
-        return `(${colAlias}.committee_id::text IN ('a3d68b9c-63df-4884-a5ad-eb8a17e3be31', '44444444-4444-4444-4444-444444444444', '4'))`;
-      }
-      return `${colAlias}.committee_id::text = '${commId}'`;
-    };
-
-    // Latest winners map
-    const latestWinnerRes = await pool.query(`
-      SELECT DISTINCT ON (l.committee_id)
-        l.committee_id::text as "committeeId",
-        cust.name as "winnerName",
-        t.raw_token_number as "winnerToken",
-        l.notes as "reward",
-        l.draw_date as "drawDate"
-      FROM lotteries l
-      JOIN customers cust ON cust.id::text = l.winner_id::text
-      LEFT JOIN tokens t ON t.customer_id::text = l.winner_id::text AND t.committee_id::text = l.committee_id::text
-      WHERE l.status = 'completed' AND l.winner_id IS NOT NULL
-      ORDER BY l.committee_id, l.draw_date DESC, l.id DESC
-    `);
-    const latestWinnerMap: Record<string, any> = {};
-    for (const r of latestWinnerRes.rows) {
-      latestWinnerMap[r.committeeId] = r;
-    }
-
-    const schemes = [];
-
-    for (const comm of committeesRes.rows) {
-      const commId = comm.id;
-      const installAmt = Number(comm.installmentAmount || 3000);
-      const limit = Number(comm.memberLimit || 500);
-
-      // Active tokens count
-      const tokRes = await pool.query(`
-        SELECT COUNT(*)::int as count 
-        FROM tokens t
-        WHERE ${getCommMatchClause('t', commId)}
-          AND (t.status::text ILIKE 'active' OR t.status IS NULL)
-      `);
-      const activeTokensCount = Number(tokRes.rows[0]?.count || limit);
-      const monthlyTarget = activeTokensCount * installAmt;
-
-      // Month collections
-      const colRes = await pool.query(`
-        SELECT 
-          SUM(amount)::numeric as collected_amount,
-          COUNT(id)::int as receipt_count
-        FROM collections col
-        WHERE ${getCommMatchClause('col', commId)}
-          AND (
-            TO_CHAR(col.collected_at, 'Mon YYYY') ILIKE $1
-            OR TO_CHAR(col.collected_at, 'Mon-YY') ILIKE $1
+      LEFT JOIN (
+        SELECT committee_id,
+          COUNT(*) FILTER(WHERE status='ACTIVE')::int AS active_count,
+          COUNT(*)::int                               AS total_count
+        FROM tokens GROUP BY committee_id
+      ) tok ON tok.committee_id = c.id
+      LEFT JOIN (
+        SELECT committee_uuid, COUNT(DISTINCT winner_token_uuid)::int AS lucky_count
+        FROM lotteries WHERE reward_description='Lucky' OR status='completed'
+        GROUP BY committee_uuid
+      ) lot ON lot.committee_uuid = c.id
+      LEFT JOIN (
+        SELECT committee_uuid, SUM(amount)::numeric AS total
+        FROM collections WHERE committee_uuid IS NOT NULL
+        GROUP BY committee_uuid
+      ) life ON life.committee_uuid = c.id
+      LEFT JOIN (
+        SELECT committee_uuid, SUM(amount)::numeric AS total
+        FROM collections
+        WHERE committee_uuid IS NOT NULL AND DATE(collected_at) = CURRENT_DATE
+        GROUP BY committee_uuid
+      ) tod ON tod.committee_uuid = c.id
+      LEFT JOIN (
+        SELECT committee_uuid, SUM(amount)::numeric AS total, COUNT(*)::int AS cnt
+        FROM collections
+        WHERE committee_uuid IS NOT NULL ${monthCond}
+        GROUP BY committee_uuid
+      ) mon ON mon.committee_uuid = c.id
+      LEFT JOIN (
+        SELECT t2.committee_id, COUNT(*)::int AS pending_count
+        FROM tokens t2 WHERE t2.status='ACTIVE'
+          AND NOT EXISTS (
+            SELECT 1 FROM collections col
+            WHERE col.token_uuid=t2.id ${monthCond}
           )
-      `, [selectedMonth]);
+        GROUP BY t2.committee_id
+      ) pend ON pend.committee_id = c.id
+      WHERE c.code IN ('BISSI-1','BISSI-2','BISSI-3','BISSI-4')
+      ORDER BY c.bissi_int_id ASC NULLS LAST
+    `);
 
-      const collectedAmount = Number(colRes.rows[0]?.collected_amount || 0);
-      const receiptCount = Number(colRes.rows[0]?.receipt_count || 0);
+    // Also fetch monthly breakdown per committee
+    const mbRes = await pool.query(`
+      SELECT
+        committee_uuid AS "committeeId",
+        TO_CHAR(DATE_TRUNC('month', collected_at), 'Mon YYYY') AS "month",
+        TO_CHAR(DATE_TRUNC('month', collected_at), 'YYYY-MM') AS "monthKey",
+        SUM(amount)::numeric AS "amount",
+        COUNT(*)::int AS "count"
+      FROM collections
+      WHERE committee_uuid IS NOT NULL
+      GROUP BY committee_uuid, DATE_TRUNC('month', collected_at)
+      ORDER BY DATE_TRUNC('month', collected_at) DESC
+    `);
 
-      let pendingAmount = Math.max(0, monthlyTarget - collectedAmount);
-      let pendingTokens = Math.max(0, activeTokensCount - receiptCount);
-
-      if (isFuture && collectedAmount === 0) {
-        pendingAmount = 0;
-        pendingTokens = 0;
-      }
-
-      const drawDateText = commId === '11111111-1111-1111-1111-111111111111' ? "20th Date"
-        : commId === '22222222-2222-2222-2222-222222222222' ? "20th Date"
-        : commId === '33333333-3333-3333-3333-333333333333' ? "15th Date"
-        : "5th Date";
-
-      // Monthly breakdown list
-      const mbRes = await pool.query(`
-        SELECT 
-          TO_CHAR(collected_at, 'Mon YYYY') as "month",
-          SUM(amount)::numeric as "amount",
-          COUNT(*)::int as "count"
-        FROM collections col
-        WHERE ${getCommMatchClause('col', commId)}
-        GROUP BY TO_CHAR(collected_at, 'Mon YYYY'), DATE_TRUNC('month', collected_at)
-        ORDER BY DATE_TRUNC('month', collected_at) DESC
-      `);
-
-      const monthlyBreakdown = mbRes.rows.map(r => ({
-        month: r.month,
-        amount: Number(r.amount),
-        count: Number(r.count),
-      }));
-
-      const lw = latestWinnerMap[commId];
-
-      schemes.push({
-        id: commId,
-        schemeId: commId,
-        name: comm.name,
-        schemeName: comm.name,
-        selectedMonth,
-        installmentAmount: installAmt,
-        monthlyInstallment: installAmt,
-        memberLimit: limit,
-        activeTokens: activeTokensCount,
-        tokenCount: activeTokensCount,
-        filledTokens: activeTokensCount,
-        monthlyTarget,
-        monthlyPool: monthlyTarget,
-        collected: collectedAmount,
-        collectedAmount,
-        thisMonthCollected: collectedAmount,
-        receiptCount,
-        thisMonthReceipts: receiptCount,
-        pending: pendingAmount,
-        pendingAmount,
-        dueAmount: pendingAmount,
-        pendingTokens,
-        thisMonthPendingCount: pendingTokens,
-        isFutureMonth: isFuture,
-        drawDate: drawDateText,
-        monthlyBreakdown,
-        latestWinnerName: lw?.winnerName || null,
-        latestWinnerToken: lw?.winnerToken || null,
-        latestReward: lw?.reward || null,
-        latestDrawDate: lw?.drawDate || null,
-        status: comm.status || "active",
-      });
+    const mbMap: Record<string, any[]> = {};
+    for (const r of mbRes.rows) {
+      const k = String(r.committeeId);
+      if (!mbMap[k]) mbMap[k] = [];
+      mbMap[k].push({ month: r.month, monthKey: r.monthKey, amount: Number(r.amount), count: r.count });
     }
 
-    console.log(`[GET /dashboard/scheme-boxes] Month: ${selectedMonth}, Loaded Schemes: ${schemes.length}`);
+    const formatted = result.rows.map((r: any) => {
+      const installAmt = Number(r.installmentAmount) || 3000;
+      const activeTokens = Number(r.activeTokens) || 0;
+      const monthlyTarget = activeTokens * installAmt;
+      const thisMonthCollected = Number(r.thisMonthCollected) || 0;
+      const pendingAmount = Math.max(0, monthlyTarget - thisMonthCollected);
+      const collectionPct = monthlyTarget > 0 ? Math.min(100, Math.round((thisMonthCollected / monthlyTarget) * 100)) : 0;
 
-    res.json({
-      success: true,
-      availableMonths,
-      selectedMonth,
-      schemes,
-      data: schemes,
+      return {
+        id: r.id,
+        name: r.name,
+        installmentAmount: installAmt,
+        activeTokens,
+        totalTokens: Number(r.totalTokens) || 0,
+        luckyTokens: Number(r.luckyTokens) || 0,
+        monthlyPool: monthlyTarget,
+        todayCollection: Number(r.todayCollection) || 0,
+        thisMonthCollected,
+        thisMonthReceipts: Number(r.thisMonthReceipts) || 0,
+        lifetimeCollectedAmount: Number(r.lifetimeCollectedAmount) || 0,
+        dueAmount: pendingAmount,
+        thisMonthPendingCount: Number(r.thisMonthPendingCount) || 0,
+        collectionPercentage: collectionPct,
+        monthlyBreakdown: mbMap[r.id] || [],
+      };
     });
+
+    res.json({ success: true, schemes: formatted, data: formatted });
   } catch (err: any) {
-    console.error("Error fetching scheme boxes:", err);
-    // Fallback to default schemes if DB query fails so boxes are NEVER empty
-    const fallback = [
-      { id: "a3d68b9c-63df-4884-a5ad-eb8a17e3be31", schemeId: "a3d68b9c-63df-4884-a5ad-eb8a17e3be31", name: "Sawariya Seth Bissi (5th Date)", schemeName: "Sawariya Seth Bissi (5th Date)", installmentAmount: 3000, monthlyInstallment: 3000, memberLimit: 500, activeTokens: 500, tokenCount: 500, monthlyTarget: 1500000, collected: 0, collectedAmount: 0, thisMonthCollected: 0, receiptCount: 0, pending: 1500000, pendingAmount: 1500000, dueAmount: 1500000, pendingTokens: 500, drawDate: "5th Date", monthlyBreakdown: [], status: "active" },
-      { id: "33333333-3333-3333-3333-333333333333", schemeId: "33333333-3333-3333-3333-333333333333", name: "Pyare Mohan Bissi", schemeName: "Pyare Mohan Bissi", installmentAmount: 3000, monthlyInstallment: 3000, memberLimit: 500, activeTokens: 500, tokenCount: 500, monthlyTarget: 1500000, collected: 0, collectedAmount: 0, thisMonthCollected: 0, receiptCount: 0, pending: 1500000, pendingAmount: 1500000, dueAmount: 1500000, pendingTokens: 500, drawDate: "15th Date", monthlyBreakdown: [], status: "active" },
-      { id: "11111111-1111-1111-1111-111111111111", schemeId: "11111111-1111-1111-1111-111111111111", name: "Hare Ka Sahara Bissi", schemeName: "Hare Ka Sahara Bissi", installmentAmount: 2500, monthlyInstallment: 2500, memberLimit: 500, activeTokens: 500, tokenCount: 500, monthlyTarget: 1250000, collected: 0, collectedAmount: 0, thisMonthCollected: 0, receiptCount: 0, pending: 1250000, pendingAmount: 1250000, dueAmount: 1250000, pendingTokens: 500, drawDate: "20th Date", monthlyBreakdown: [], status: "active" },
-      { id: "22222222-2222-2222-2222-222222222222", schemeId: "22222222-2222-2222-2222-222222222222", name: "Shree Krishna Bissi", schemeName: "Shree Krishna Bissi", installmentAmount: 3000, monthlyInstallment: 3000, memberLimit: 1111, activeTokens: 1111, tokenCount: 1111, monthlyTarget: 3333000, collected: 0, collectedAmount: 0, thisMonthCollected: 0, receiptCount: 0, pending: 3333000, pendingAmount: 3333000, dueAmount: 3333000, pendingTokens: 1111, drawDate: "20th Date", monthlyBreakdown: [], status: "active" },
-    ];
-    res.json({ success: true, schemes: fallback, data: fallback });
+    console.error("Error in scheme-boxes:", err.message);
+    res.status(500).json({ success: false, error: err.message });
   }
 });
 
 router.get("/dashboard/pending-report", async (req, res) => {
   try {
     const { committeeId, month } = req.query as any;
-
-    const now = new Date();
-    const currentMonthLabel = now.toLocaleDateString("en-US", { month: "short", year: "numeric" });
-    const selectedMonth = month && month !== "all" ? String(month) : currentMonthLabel;
-
+    const params: any[] = [];
     let commFilter = "";
+
     if (committeeId && committeeId !== "all") {
-      commFilter = `AND (
-        t.committee_id::text = '${committeeId}'
-        OR ('${committeeId}' IN ('11111111-1111-1111-1111-111111111111', '1') AND t.committee_id::text IN ('11111111-1111-1111-1111-111111111111', '1'))
-        OR ('${committeeId}' IN ('22222222-2222-2222-2222-222222222222', '2') AND t.committee_id::text IN ('22222222-2222-2222-2222-222222222222', '2'))
-        OR ('${committeeId}' IN ('33333333-3333-3333-3333-333333333333', '3') AND t.committee_id::text IN ('33333333-3333-3333-3333-333333333333', '3'))
-        OR ('${committeeId}' IN ('a3d68b9c-63df-4884-a5ad-eb8a17e3be31', '4') AND t.committee_id::text IN ('a3d68b9c-63df-4884-a5ad-eb8a17e3be31', '4'))
-      )`;
+      params.push(committeeId);
+      commFilter = `AND t.committee_id = $${params.length}::uuid`;
     }
 
-    const sql = `
-      WITH paid_in_month AS (
-        SELECT DISTINCT 
-          col.customer_id::text as customer_id,
-          col.committee_id::text as committee_id
-        FROM collections col
-        WHERE (
-          TO_CHAR(col.collected_at, 'Mon YYYY') ILIKE $1
-          OR TO_CHAR(col.collected_at, 'Mon-YY') ILIKE $1
-        )
-      )
-      SELECT 
-        t.raw_token_number as "tokenNumber",
-        t.committee_id::text as "committeeId",
-        c.name as "committeeName",
-        c.monthly_installment::numeric as "installmentAmount",
-        c.monthly_installment::numeric as "dueAmount",
-        0 as "previousPending",
-        0 as "interest",
-        c.monthly_installment::numeric as "currentPending",
-        cust.name as "customerName",
-        cust.mobile as "customerMobile",
-        cust.address as "customerAddress",
-        COALESCE(coll_user.name, 'Admin') as "collectorName",
-        'UNPAID' as "status"
+    const monthSQL = month && month !== "all"
+      ? `DATE_TRUNC('month', col.collected_at) = DATE_TRUNC('month', '${month}-01'::date)`
+      : `DATE_TRUNC('month', col.collected_at) = DATE_TRUNC('month', CURRENT_DATE)`;
+
+    const result = await pool.query(`
+      SELECT
+        t.normalized_token_number  AS "tokenNumber",
+        t.display_token            AS "displayToken",
+        c2.id::text                AS "committeeId",
+        c2.name                    AS "committeeName",
+        c2.monthly_installment     AS "installmentAmount",
+        cust.name                  AS "customerName",
+        cust.mobile                AS "customerMobile",
+        cust.address               AS "customerAddress"
       FROM tokens t
-      JOIN committees c ON (
-        t.committee_id::text = c.id::text
-        OR (t.committee_id::text = '1' AND c.id::text = '11111111-1111-1111-1111-111111111111')
-        OR (t.committee_id::text = '2' AND c.id::text = '22222222-2222-2222-2222-222222222222')
-        OR (t.committee_id::text = '3' AND c.id::text = '33333333-3333-3333-3333-333333333333')
-        OR (t.committee_id::text = '4' AND c.id::text = 'a3d68b9c-63df-4884-a5ad-eb8a17e3be31')
-      )
-      JOIN customers cust ON cust.id::text = t.customer_id::text
-      LEFT JOIN collectors coll_user ON coll_user.id::text = t.organization_id::text
-      LEFT JOIN paid_in_month p ON (
-        p.customer_id = cust.id::text
-        AND (
-          p.committee_id = c.id::text
-          OR (p.committee_id = '1' AND c.id::text = '11111111-1111-1111-1111-111111111111')
-          OR (p.committee_id = '2' AND c.id::text = '22222222-2222-2222-2222-222222222222')
-          OR (p.committee_id = '3' AND c.id::text = '33333333-3333-3333-3333-333333333333')
-          OR (p.committee_id = '4' AND c.id::text = 'a3d68b9c-63df-4884-a5ad-eb8a17e3be31')
-        )
-      )
-      WHERE (t.status::text ILIKE 'active' OR t.status IS NULL)
+      JOIN committees c2 ON c2.id = t.committee_id
+      JOIN customers cust ON cust.id = t.customer_id
+      WHERE t.status = 'ACTIVE'
         ${commFilter}
-        AND p.customer_id IS NULL
-      ORDER BY c.id ASC, 
-               CASE WHEN t.raw_token_number ~ '^[0-9]+$' THEN CAST(t.raw_token_number AS integer) ELSE 99999 END ASC
+        AND NOT EXISTS (
+          SELECT 1 FROM collections col
+          WHERE col.token_uuid = t.id
+            AND ${monthSQL}
+        )
+      ORDER BY c2.bissi_int_id ASC NULLS LAST, t.normalized_token_number ASC
       LIMIT 3000
-    `;
+    `, params);
 
-    const result = await pool.query(sql, [selectedMonth]);
-
-    res.json({ 
-      success: true, 
-      selectedMonth,
-      pendingList: result.rows, 
-      totalPending: result.rows.length 
-    });
+    res.json({ success: true, pendingList: result.rows, totalPending: result.rows.length });
   } catch (err: any) {
-    console.error("Error fetching pending report:", err);
+    console.error("Error in pending-report:", err.message);
     res.json({ success: true, pendingList: [], totalPending: 0 });
   }
 });
@@ -1819,23 +1559,60 @@ router.get("/dashboard/collection-trend", async (req, res) => {
           SUM(c.amount)::numeric as amount,
           COUNT(c.id)::int as count
         FROM collections c
-        WHERE c.collected_at >= NOW() - INTERVAL '30 days'
+        WHERE c.committee_uuid IS NOT NULL
+          AND c.collected_at >= NOW() - INTERVAL '30 days'
         GROUP BY TO_CHAR(c.collected_at, 'Mon DD'), DATE(c.collected_at)
         ORDER BY DATE(c.collected_at) ASC
       `),
       { routeName: "GET /dashboard/collection-trend", retries: 2, delayMs: 500 }
     );
-    res.json(result.rows.length > 0 ? result.rows : [
-      { date: "Mon 1", amount: 150000, count: 50 },
-      { date: "Mon 2", amount: 220000, count: 75 },
-      { date: "Mon 3", amount: 310000, count: 100 },
-    ]);
+    res.json(result.rows.length > 0 ? result.rows : []);
   } catch (err) {
-    res.json([
-      { date: "Mon 1", amount: 150000, count: 50 },
-      { date: "Mon 2", amount: 220000, count: 75 },
-      { date: "Mon 3", amount: 310000, count: 100 },
-    ]);
+    res.json([]);
+  }
+});
+
+router.get("/dashboard/branch-summary", async (req, res) => {
+  res.json({ success: true, data: [] });
+});
+
+router.get("/dashboard/available-months", async (_req, res) => {
+  try {
+    const result = await pool.query(`
+      SELECT DISTINCT
+        TO_CHAR(DATE_TRUNC('month', collected_at), 'YYYY-MM') as value,
+        TO_CHAR(DATE_TRUNC('month', collected_at), 'Mon YYYY') as label
+      FROM collections
+      WHERE committee_uuid IS NOT NULL
+      ORDER BY value ASC
+    `);
+    res.json({ success: true, months: result.rows });
+  } catch (err: any) {
+    res.json({ success: true, months: [] });
+  }
+});
+
+// ── Dashboard available months endpoint (also in v2 router) ──
+
+router.get("/dashboard/collection-trend", async (_req, res) => {
+  try {
+    const result = await queryWithRetry(
+      () => pool.query(`
+        SELECT
+          TO_CHAR(c.collected_at, 'Mon DD') as date,
+          SUM(c.amount)::numeric as amount,
+          COUNT(c.id)::int as count
+        FROM collections c
+        WHERE c.committee_uuid IS NOT NULL
+          AND c.collected_at >= NOW() - INTERVAL '30 days'
+        GROUP BY TO_CHAR(c.collected_at, 'Mon DD'), DATE(c.collected_at)
+        ORDER BY DATE(c.collected_at) ASC
+      `),
+      { routeName: "GET /dashboard/collection-trend", retries: 2, delayMs: 500 }
+    );
+    res.json(result.rows.length > 0 ? result.rows : []);
+  } catch (err) {
+    res.json([]);
   }
 });
 
@@ -1844,136 +1621,99 @@ router.get("/dashboard/branch-summary", async (req, res) => {
 });
 
 // ---------------------------------------------------------------------------
-// /dashboard/all — single CTE query replaces 5 parallel requests from the
-// dashboard page (stats, scheme-boxes, trend, recent-activity, kyc/pending).
-// One connection, one round-trip — eliminates pool exhaustion on page load.
+// /dashboard/all — single query replaces multiple parallel requests
 // ---------------------------------------------------------------------------
 let dashboardAllCache: { data: any; timestamp: number } | null = null;
 
 router.get("/dashboard/all", async (req, res) => {
+  const month = (req.query.month as string) || "";
+  const cacheKey = month || "current";
+
   try {
-    if (dashboardAllCache && Date.now() - dashboardAllCache.timestamp < 30000) {
+    if (dashboardAllCache && dashboardAllCache.data?.month === cacheKey && Date.now() - dashboardAllCache.timestamp < 30000) {
       res.json(dashboardAllCache.data);
       return;
     }
-    const result = await queryWithRetry(
-      () => pool.query(`
-        WITH
-          kpi AS (
-            SELECT
-              (SELECT COUNT(*)::int FROM customers WHERE deleted_at IS NULL)               AS total_customers,
-              (SELECT COUNT(*)::int FROM committees WHERE deleted_at IS NULL)              AS total_committees,
-              (SELECT COUNT(*)::int FROM installments WHERE deleted_at IS NULL)            AS total_collections,
-              (SELECT COALESCE(SUM(paid_amount),0)::numeric FROM installments WHERE deleted_at IS NULL) AS total_collection_amount,
-              (SELECT COUNT(*)::int FROM tokens WHERE deleted_at IS NULL)                  AS total_tokens,
-              (SELECT COUNT(*)::int FROM draw_results WHERE deleted_at IS NULL)            AS total_winners,
-              0                                                                            AS pending_kyc_count
-          ),
-          schemes AS (
-            SELECT json_agg(s ORDER BY s.name ASC) AS data FROM (
-              SELECT c.id::text, c.name,
-                c.monthly_installment::numeric  AS "installmentAmount",
-                c.total_members::int           AS "memberLimit",
-                c.start_date::text              AS "drawDate",
-                c.status::text                 AS status,
-                COALESCE(tk_s.tc,0)::int        AS "tokenCount",
-                COALESCE(col_s.collected_amount,0)::numeric  AS "collectedAmount",
-                COALESCE(col_s.collected_count,0)::int       AS "collectedCount",
-                COALESCE(lot_s.winners_count,0)::int         AS "winnersCount"
-              FROM committees c
-              LEFT JOIN (SELECT committee_id, COUNT(*)::int tc FROM tokens WHERE deleted_at IS NULL GROUP BY committee_id) tk_s ON c.id = tk_s.committee_id
-              LEFT JOIN (
-                SELECT cm.committee_id, SUM(i.paid_amount)::numeric collected_amount, COUNT(i.id)::int collected_count 
-                FROM installments i 
-                JOIN committee_months cm ON cm.id = i.committee_month_id 
-                WHERE i.deleted_at IS NULL 
-                GROUP BY cm.committee_id
-              ) col_s ON c.id = col_s.committee_id
-              LEFT JOIN (
-                SELECT cm.committee_id, COUNT(*)::int winners_count 
-                FROM draw_results dr 
-                JOIN draw_events de ON de.id = dr.draw_event_id 
-                JOIN committee_months cm ON cm.id = de.committee_month_id 
-                WHERE dr.deleted_at IS NULL 
-                GROUP BY cm.committee_id
-              ) lot_s ON c.id = lot_s.committee_id
-              WHERE c.deleted_at IS NULL
-            ) s
-          ),
-          trend AS (
-            SELECT json_agg(t ORDER BY t.dt ASC) AS data FROM (
-              SELECT TO_CHAR(payment_date,'Mon DD') AS date, payment_date AS dt,
-                SUM(paid_amount)::numeric AS amount, COUNT(id)::int AS count
-              FROM installments
-              WHERE payment_date >= CURRENT_DATE - INTERVAL '30 days' AND deleted_at IS NULL
-              GROUP BY TO_CHAR(payment_date,'Mon DD'), payment_date
-            ) t
-          ),
-          recent AS (
-            SELECT json_agg(r) AS data FROM (
-              SELECT i.id::text, i.paid_amount::numeric AS amount, i.payment_date AS collected_at, i.payment_mode::text AS payment_mode,
-                c.name AS customer_name, i.notes
-              FROM installments i
-              JOIN tokens t ON t.id = i.token_id
-              JOIN customers c ON c.id = t.customer_id
-              WHERE i.deleted_at IS NULL
-              ORDER BY i.created_at DESC LIMIT 12
-            ) r
-          )
+
+    const monthCond = month && month !== "all"
+      ? `AND DATE_TRUNC('month', collected_at) = DATE_TRUNC('month', '${month}-01'::date)`
+      : `AND DATE_TRUNC('month', collected_at) = DATE_TRUNC('month', CURRENT_DATE)`;
+
+    const [statsResult, schemesResult, trendResult, recentResult] = await Promise.all([
+      pool.query(`
         SELECT
-          (SELECT row_to_json(k) FROM kpi k)  AS kpi,
-          (SELECT data FROM schemes)           AS schemes,
-          (SELECT data FROM trend)             AS trend,
-          (SELECT data FROM recent)            AS recent
+          (SELECT COUNT(DISTINCT customer_id)::int FROM tokens WHERE customer_id IS NOT NULL) AS total_customers,
+          (SELECT COUNT(*)::int FROM committees WHERE code IN ('BISSI-1','BISSI-2','BISSI-3','BISSI-4')) AS total_committees,
+          (SELECT COUNT(*)::int FROM collections WHERE committee_uuid IS NOT NULL) AS total_collections,
+          (SELECT COALESCE(SUM(amount), 0)::numeric FROM collections WHERE committee_uuid IS NOT NULL) AS total_collection_amount,
+          (SELECT COUNT(*)::int FROM tokens) AS total_tokens,
+          (SELECT COUNT(*)::int FROM lotteries WHERE reward_description = 'Lucky' OR status = 'completed') AS total_winners
       `),
-      { routeName: "GET /dashboard/all", retries: 1, delayMs: 300 }
-    );
+      pool.query(`
+        SELECT
+          c.id::text AS id, c.name, c.monthly_installment::numeric AS "installmentAmount",
+          c.bissi_int_id,
+          COALESCE(tok.active_count, 0)::int AS "tokenCount",
+          COALESCE(life.total, 0)::numeric AS "collectedAmount",
+          COALESCE(mon.total, 0)::numeric AS "thisMonthCollected",
+          COALESCE(pend.pending_count, 0)::int AS "thisMonthPendingCount"
+        FROM committees c
+        LEFT JOIN (SELECT committee_id, COUNT(*) FILTER(WHERE status='ACTIVE')::int AS active_count FROM tokens GROUP BY committee_id) tok ON tok.committee_id = c.id
+        LEFT JOIN (SELECT committee_uuid, SUM(amount)::numeric AS total FROM collections WHERE committee_uuid IS NOT NULL GROUP BY committee_uuid) life ON life.committee_uuid = c.id
+        LEFT JOIN (SELECT committee_uuid, SUM(amount)::numeric AS total FROM collections WHERE committee_uuid IS NOT NULL ${monthCond} GROUP BY committee_uuid) mon ON mon.committee_uuid = c.id
+        LEFT JOIN (SELECT t2.committee_id, COUNT(*)::int AS pending_count FROM tokens t2 WHERE t2.status='ACTIVE' AND NOT EXISTS (SELECT 1 FROM collections col WHERE col.token_uuid = t2.id ${monthCond}) GROUP BY t2.committee_id) pend ON pend.committee_id = c.id
+        WHERE c.code IN ('BISSI-1','BISSI-2','BISSI-3','BISSI-4')
+        ORDER BY c.bissi_int_id ASC NULLS LAST
+      `),
+      pool.query(`
+        SELECT TO_CHAR(DATE(collected_at), 'Mon DD') AS date, SUM(amount)::numeric AS amount, COUNT(*)::int AS count
+        FROM collections WHERE committee_uuid IS NOT NULL AND collected_at >= NOW() - INTERVAL '30 days'
+        GROUP BY DATE(collected_at) ORDER BY DATE(collected_at) ASC
+      `),
+      pool.query(`
+        SELECT col.id::text, col.amount::numeric AS amount, col.collected_at, col.payment_mode,
+               COALESCE(cust.name, col.notes) AS customer_name, col.notes,
+               comm.name AS committee_name
+        FROM collections col
+        LEFT JOIN customers cust ON cust.id = col.customer_uuid
+        LEFT JOIN committees comm ON comm.id = col.committee_uuid
+        WHERE col.committee_uuid IS NOT NULL
+        ORDER BY col.id DESC LIMIT 12
+      `),
+    ]);
 
-    const row = result.rows[0];
-    const kpi = row ? (row.kpi || {}) : {};
-
-    const pendingRes = await pool.query(`
-      SELECT 
-        c2.id::text as committee_id,
-        COUNT(t.id)::int as pending_count,
-        (COUNT(t.id) * c2.monthly_installment)::numeric as pending_amount
-      FROM tokens t
-      JOIN committees c2 ON c2.id = t.committee_id
-      WHERE t.status = 'ACTIVE' AND t.deleted_at IS NULL
-      GROUP BY c2.id, c2.monthly_installment
-    `);
-    const pendingMap: Record<string, any> = {};
-    for (const p of pendingRes.rows) {
-      pendingMap[p.committee_id] = Number(p.pending_amount || 0);
-    }
-
-    const schemes = (row.schemes || []).map((s: any) => {
-      const installAmt = Number(s.installmentAmount || 3000);
-      const limit = Number(s.memberLimit || 500);
-      const tokenCount = Number(s.tokenCount || limit);
-      const pmAmount = pendingMap[s.id] ?? (tokenCount * installAmt);
+    const kpi = statsResult.rows[0] || {};
+    const schemes = schemesResult.rows.map((s: any) => {
+      const inst = Number(s.installmentAmount) || 3000;
+      const active = Number(s.tokenCount) || 0;
+      const monthTarget = active * inst;
+      const thisMonthCollected = Number(s.thisMonthCollected) || 0;
+      const dueAmount = Math.max(0, monthTarget - thisMonthCollected);
       return {
         ...s,
-        installmentAmount: installAmt,
-        collectedAmount: Number(s.collectedAmount || 0),
-        tokenCount: tokenCount,
-        dueAmount: Number(pmAmount),
-        thisMonthPendingCount: Math.round(Number(pmAmount) / installAmt),
+        installmentAmount: inst,
+        collectedAmount: Number(s.collectedAmount) || 0,
+        tokenCount: active,
+        dueAmount,
+        thisMonthPendingCount: Number(s.thisMonthPendingCount) || 0,
+        thisMonthCollected,
       };
     });
-    const trend = row.trend || [];
-    const recent = (row.recent || []).map((r: any) => ({
+
+    const recent = trendResult.rows.length > 0 ? trendResult.rows : [];
+    const recentActivity = recentResult.rows.map((r: any) => ({
       id: r.id,
-      description: r.notes || `Bissi Installment from ${r.customer_name || "Member"}`,
+      description: r.notes || `${r.committee_name || 'Bissi'} from ${r.customer_name || 'Member'}`,
       amount: Number(r.amount),
-      paymentMode: r.payment_mode || "CASH",
+      paymentMode: (r.payment_mode || 'cash').toLowerCase(),
       createdAt: r.collected_at || new Date().toISOString(),
       type: "collection",
       customerName: r.customer_name || "Member",
     }));
 
-    const responsePayload = {
+    const payload = {
       success: true,
+      month: cacheKey,
       stats: {
         totalCustomers: Number(kpi.total_customers || 0),
         totalCommittees: Number(kpi.total_committees || 0),
@@ -1982,199 +1722,181 @@ router.get("/dashboard/all", async (req, res) => {
         totalCollectionAmount: Number(kpi.total_collection_amount || 0),
         totalTokens: Number(kpi.total_tokens || 0),
         totalWinners: Number(kpi.total_winners || 0),
-        pendingKycCount: Number(kpi.pending_kyc_count || 0),
-        totalLoans: 0,
-        totalActiveLoans: 0,
-        outstandingLoanAmount: 0,
+        pendingKycCount: 0,
+        totalLoans: 0, totalActiveLoans: 0, outstandingLoanAmount: 0,
       },
       schemes,
-      trend,
-      recentActivity: recent,
+      trend: trendResult.rows,
+      recentActivity,
     };
 
-    dashboardAllCache = { data: responsePayload, timestamp: Date.now() };
-    res.json(responsePayload);
+    dashboardAllCache = { data: payload, timestamp: Date.now() };
+    res.json(payload);
   } catch (err: any) {
-    if (dashboardAllCache) {
-      res.json(dashboardAllCache.data);
-      return;
+    console.error("dashboard/all error:", err.message);
+    if (dashboardAllCache) { res.json(dashboardAllCache.data); return; }
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+// Gifts & Interests
+// GET /gifts/bissi-winners — gift records from gift_distributions (UUID schema)
+router.get("/gifts/bissi-winners", async (req, res) => {
+  try {
+    const { committeeId, rewardType, search, month, limit = "300", offset = "0" } = req.query as any;
+
+    const conditions: string[] = ["gd.committee_uuid IS NOT NULL"];
+    const params: any[] = [];
+
+    if (committeeId && committeeId !== "all") {
+      params.push(committeeId);
+      conditions.push(`gd.committee_uuid = $${params.length}::uuid`);
     }
-    const stats = getPoolStats();
-    console.error(`Error fetching dashboard/all [Pool: total=${stats.total}, active=${stats.active}, waiting=${stats.waiting}]:`, err);
-    res.json({
-      success: true,
-      stats: {
-        totalCustomers: 2611,
-        totalCommittees: 4,
-        totalActiveCommittees: 4,
-        totalCollections: 0,
-        totalCollectionAmount: 0,
-        totalTokens: 2611,
-        totalWinners: 0,
-        pendingKycCount: 0,
-        totalLoans: 0,
-        totalActiveLoans: 0,
-        outstandingLoanAmount: 0,
-      },
-      schemes: [
-        { id: 4, name: "Shree Krishna Bissi", installmentAmount: 3000, memberLimit: 1111, tokenCount: 1111, collectedAmount: 0, dueAmount: 3333000, thisMonthPendingCount: 1111 },
-        { id: 1, name: "Sawariya Seth Bissi", installmentAmount: 3000, memberLimit: 500, tokenCount: 500, collectedAmount: 0, dueAmount: 1500000, thisMonthPendingCount: 500 },
-        { id: 2, name: "Pyare Mohan Bissi", installmentAmount: 3000, memberLimit: 500, tokenCount: 500, collectedAmount: 0, dueAmount: 1500000, thisMonthPendingCount: 500 },
-        { id: 3, name: "Hare Ka Sahara Bissi", installmentAmount: 2500, memberLimit: 500, tokenCount: 500, collectedAmount: 0, dueAmount: 1250000, thisMonthPendingCount: 500 },
-      ],
-      trend: [],
-      recentActivity: [],
-    });
+    if (month) {
+      params.push(`${month}-01`);
+      conditions.push(`DATE_TRUNC('month', gd.distribution_date) = DATE_TRUNC('month', $${params.length}::date)`);
+    }
+    if (rewardType === "lucky") {
+      conditions.push(`gd.gift_name ILIKE '%lucky%'`);
+    } else if (rewardType === "cash") {
+      conditions.push(`gd.gift_name ILIKE '%cash%'`);
+    }
+    if (search) {
+      params.push(`%${search}%`);
+      conditions.push(`(gd.customer_name ILIKE $${params.length} OR gd.gift_name ILIKE $${params.length})`);
+    }
+
+    const where = conditions.length ? `WHERE ${conditions.join(" AND ")}` : "";
+    params.push(parseInt(limit, 10));
+    params.push(parseInt(offset, 10));
+
+    const result = await pool.query(`
+      SELECT
+        gd.id,
+        gd.committee_uuid::text      AS "committee_id",
+        comm.name                    AS "committee_name",
+        gd.customer_uuid::text       AS "winnerId",
+        COALESCE(gd.customer_name, cust.name) AS "winnerName",
+        cust.mobile                  AS "winnerMobile",
+        gd.token_number              AS "tokenNumber",
+        gd.distribution_date::text   AS "drawDate",
+        gd.gift_name                 AS "giftName",
+        gd.status::text              AS "status",
+        gd.notes
+      FROM gift_distributions gd
+      LEFT JOIN committees comm ON comm.id = gd.committee_uuid
+      LEFT JOIN customers cust ON cust.id = gd.customer_uuid
+      ${where}
+      ORDER BY gd.distribution_date DESC, gd.id DESC
+      LIMIT $${params.length - 1} OFFSET $${params.length}
+    `, params);
+
+    res.json({ success: true, winners: result.rows, total: result.rows.length });
+  } catch (err: any) {
+    console.error("Error fetching gift winners:", err.message);
+    res.json({ success: true, winners: [], total: 0 });
   }
 });
 
-// Gifts & Interests
-// NEW: Bissi gift winners from gift_distributions & lottery_gifts tables - date-wise sorted
-router.get("/gifts/bissi-winners", async (req, res) => {
+// POST /gifts/claim — record a new gift claim/delivery
+router.post("/gifts/claim", async (req, res) => {
   try {
-    const { committeeId, rewardType, search, limit = "5000", offset = "0" } = req.query as any;
-    const lim = parseInt(limit, 10);
-    const off = parseInt(offset, 10);
+    const {
+      customerUuid, customerName, giftName, tokenNumber,
+      committeeUuid, distributionDate, notes
+    } = req.body;
 
-    // Try old gift_distributions table first
-    let oldWinners: any[] = [];
-    let oldTotal = 0;
-    try {
-      const conditions: string[] = ["gd.customer_id IS NOT NULL"];
-      const params: any[] = [];
-
-      if (committeeId && committeeId !== "all") {
-        params.push(parseInt(committeeId, 10));
-        conditions.push(`gd.committee_id = $${params.length}`);
-      }
-      if (rewardType && rewardType !== "all") {
-        if (rewardType === "cash") {
-          conditions.push(`(gd.notes ILIKE '%CASH%' OR gd.notes ILIKE '%MONEY%')`);
-        } else if (rewardType === "gift") {
-          conditions.push(`(gd.notes NOT ILIKE '%CASH%' AND gd.notes NOT ILIKE '%MONEY%')`);
-        }
-      }
-      if (search) {
-        params.push(`%${search}%`);
-        conditions.push(`(cust.name ILIKE $${params.length} OR gd.notes ILIKE $${params.length} OR gi.name ILIKE $${params.length})`);
-      }
-      const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(" AND ")}` : "";
-      params.push(lim);
-      params.push(off);
-
-      const result = await pool.query(`
-        SELECT 
-          gd.id,
-          gd.committee_id as "committeeId",
-          c.name as "committeeName",
-          gd.customer_id as "winnerId",
-          cust.name as "winnerName",
-          cust.mobile as "winnerMobile",
-          COALESCE(t.token_number, '') as "tokenNumber",
-          gd.distribution_date as "drawDate",
-          COALESCE(
-            REGEXP_REPLACE(gd.notes, '.*Gift:\\s*', '', 'i'),
-            gi.name,
-            'Gift Item'
-          ) as "giftName",
-          CASE 
-            WHEN gd.notes ILIKE '%CASH%' THEN 'cash'
-            ELSE 'gift'
-          END as "rewardType",
-          gd.status
-        FROM gift_distributions gd
-        JOIN committees c ON c.id = gd.committee_id
-        JOIN customers cust ON cust.id = gd.customer_id
-        LEFT JOIN tokens t ON t.id = gd.token_id
-        LEFT JOIN gift_inventory gi ON gi.id = gd.gift_id
-        ${whereClause}
-        ORDER BY gd.distribution_date DESC, gd.id DESC
-        LIMIT $${params.length - 1} OFFSET $${params.length}
-      `, params);
-      oldWinners = result.rows;
-
-      const countParams = params.slice(0, params.length - 2);
-      const countRes = await pool.query(`
-        SELECT COUNT(*)::int as total
-        FROM gift_distributions gd
-        JOIN committees c ON c.id = gd.committee_id
-        JOIN customers cust ON cust.id = gd.customer_id
-        LEFT JOIN gift_inventory gi ON gi.id = gd.gift_id
-        ${whereClause}
-      `, countParams);
-      oldTotal = countRes.rows[0]?.total || 0;
-    } catch (e) {
-      // gift_distributions doesn't exist — that's fine
+    if (!giftName) {
+      res.status(400).json({ success: false, error: "giftName is required" });
+      return;
     }
 
-    // Also query lottery_gifts (new seeded data)
-    let lotteryWinners: any[] = [];
-    try {
-      const lConditions: string[] = [];
-      const lParams: any[] = [];
+    // Get customer info if uuid provided
+    let custUuid = customerUuid || null;
+    let custName = customerName || null;
+    let tokUuid: string | null = null;
 
-      if (committeeId && committeeId !== "all") {
-        // Map committeeId to bissi_name
-        const commRes = await pool.query("SELECT name FROM committees WHERE id = $1", [parseInt(committeeId, 10)]);
-        if (commRes.rows.length > 0) {
-          lParams.push(`%${commRes.rows[0].name.split('(')[0].trim().slice(0, 12)}%`);
-          lConditions.push(`lg.bissi_name ILIKE $${lParams.length}`);
-        }
-      }
-      if (rewardType && rewardType !== "all") {
-        if (rewardType === "cash") {
-          lConditions.push(`(lg.gift_name ILIKE '%CASH%' OR lg.gift_name ILIKE '%MONEY%')`);
-        } else if (rewardType === "gift") {
-          lConditions.push(`(lg.gift_name NOT ILIKE '%CASH%' AND lg.gift_name NOT ILIKE '%MONEY%')`);
-        }
-      }
-      if (search) {
-        lParams.push(`%${search}%`);
-        lConditions.push(`(lg.customer_name ILIKE $${lParams.length} OR lg.gift_name ILIKE $${lParams.length} OR lg.token_number ILIKE $${lParams.length})`);
-      }
-
-      const lWhere = lConditions.length > 0 ? `WHERE ${lConditions.join(" AND ")}` : "";
-      lParams.push(lim);
-      lParams.push(off);
-
-      const lResult = await pool.query(`
-        SELECT 
-          lg.id,
-          lg.bissi_name as "committeeName",
-          lg.customer_name as "winnerName",
-          lg.mobile_number as "winnerMobile",
-          lg.token_number as "tokenNumber",
-          ls.lottery_date as "drawDate",
-          ls.lottery_month as "drawMonth",
-          lg.gift_name as "giftName",
-          CASE 
-            WHEN lg.gift_name ILIKE '%CASH%' OR lg.gift_name ILIKE '%MONEY%' THEN 'cash'
-            ELSE 'gift'
-          END as "rewardType",
-          lg.status
-        FROM lottery_gifts lg
-        JOIN lottery_sessions ls ON lg.session_id = ls.id
-        ${lWhere}
-        ORDER BY ls.lottery_date DESC, lg.id DESC
-        LIMIT $${lParams.length - 1} OFFSET $${lParams.length}
-      `, lParams);
-      lotteryWinners = lResult.rows;
-    } catch (e) {
-      // lottery_gifts doesn't exist — fine
+    if (custUuid && tokenNumber && committeeUuid) {
+      const tokRes = await pool.query(
+        'SELECT id FROM tokens WHERE customer_id=$1 AND committee_id=$2 AND normalized_token_number=$3 LIMIT 1',
+        [custUuid, committeeUuid, Number(tokenNumber)]
+      );
+      if (tokRes.rows.length) tokUuid = tokRes.rows[0].id;
     }
 
-    // Merge both arrays
-    const allWinners = [...oldWinners, ...lotteryWinners];
-    const total = oldTotal + lotteryWinners.length;
+    const result = await pool.query(`
+      INSERT INTO gift_distributions
+        (customer_id, committee_id, gift_id, distribution_date, status, notes, branch_id,
+         committee_uuid, customer_uuid, token_uuid, gift_name, token_number, customer_name)
+      VALUES (1, 1, 1, $1, 'given', $2, 1, $3, $4, $5, $6, $7, $8)
+      RETURNING id
+    `, [
+      distributionDate || new Date().toISOString().slice(0, 10),
+      notes || null,
+      committeeUuid || null,
+      custUuid,
+      tokUuid,
+      giftName.trim(),
+      tokenNumber ? Number(tokenNumber) : null,
+      custName,
+    ]);
 
-    res.json({
-      success: true,
-      winners: allWinners,
-      total
-    });
+    res.json({ success: true, id: result.rows[0].id });
   } catch (err: any) {
-    console.error("Error fetching bissi gift winners:", err);
-    res.status(500).json({ success: false, error: "Failed to fetch gift winners", winners: [], total: 0 });
+    console.error("Error recording gift claim:", err.message);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// PATCH /gifts/:id/status — mark gift as delivered/collected
+router.patch("/gifts/:id/status", async (req, res) => {
+  try {
+    const id = parseInt(req.params.id, 10);
+    const { status } = req.body;
+    const allowed = ['given', 'distributed', 'returned', 'pending'];
+    if (!allowed.includes(status)) {
+      res.status(400).json({ success: false, error: "Invalid status. Use: given, distributed, returned, pending" });
+      return;
+    }
+    await pool.query("UPDATE gift_distributions SET status=$1::gift_distribution_status WHERE id=$2", [status, id]);
+    res.json({ success: true });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// GET /gifts/monthly-schedule — all gifts grouped by month for schedule view
+router.get("/gifts/monthly-schedule", async (req, res) => {
+  try {
+    const { committeeId } = req.query as any;
+    const conditions = ["gd.committee_uuid IS NOT NULL"];
+    const params: any[] = [];
+    if (committeeId && committeeId !== "all") {
+      params.push(committeeId);
+      conditions.push(`gd.committee_uuid = $${params.length}::uuid`);
+    }
+    const where = conditions.length ? `WHERE ${conditions.join(" AND ")}` : "";
+
+    const result = await pool.query(`
+      SELECT
+        TO_CHAR(gd.distribution_date, 'YYYY-MM')       AS month,
+        TO_CHAR(gd.distribution_date, 'Month YYYY')    AS month_label,
+        gd.distribution_date                            AS draw_date,
+        gd.committee_uuid::text                         AS committee_id,
+        comm.name                                       AS committee_name,
+        COUNT(*)::int                                   AS total,
+        COUNT(*) FILTER(WHERE gd.gift_name ILIKE '%lucky%')::int AS lucky_count,
+        COUNT(*) FILTER(WHERE gd.status = 'distributed')::int    AS delivered_count,
+        COUNT(*) FILTER(WHERE gd.status = 'given')::int          AS pending_count
+      FROM gift_distributions gd
+      LEFT JOIN committees comm ON comm.id = gd.committee_uuid
+      ${where}
+      GROUP BY month, month_label, gd.distribution_date, gd.committee_uuid, comm.name
+      ORDER BY gd.distribution_date ASC
+    `, params);
+
+    res.json({ success: true, schedule: result.rows });
+  } catch (err: any) {
+    res.json({ success: true, schedule: [] });
   }
 });
 
@@ -2201,65 +1923,37 @@ router.get("/committees/:id/gift-matrix", async (req, res): Promise<void> => {
     const params: any[] = [committeeId];
     if (search) {
       params.push(`%${search}%`);
-      searchCond = ` AND (cust.name ILIKE $2 OR cust.mobile ILIKE $2 OR t.raw_token_number ILIKE $2)`;
+      searchCond = ` AND (cust.name ILIKE $2 OR cust.mobile ILIKE $2 OR t.token_number ILIKE $2)`;
     }
 
     const tokensRes = await pool.query(`
       SELECT 
         t.id::text as "tokenId",
-        t.raw_token_number as "tokenNumber",
+        t.token_number as "tokenNumber",
         cust.id::text as "customerId",
         cust.name as "customerName",
         cust.mobile as "customerMobile"
       FROM tokens t
       JOIN customers cust ON cust.id = t.customer_id
       WHERE t.committee_id = $1 ${searchCond}
-      ORDER BY CASE WHEN t.raw_token_number ~ '^[0-9]+$' THEN CAST(t.raw_token_number AS integer) ELSE 99999 END ASC, t.raw_token_number ASC
+      ORDER BY CASE WHEN t.token_number ~ '^[0-9]+$' THEN CAST(t.token_number AS integer) ELSE 99999 END ASC, t.token_number ASC
     `, params);
 
     const members = tokensRes.rows;
 
-    // Fetch all gift distributions for this committee ordered by distribution_date ASC (old schema)
-    let giftsFromDistributions: any[] = [];
-    try {
-      const giftsRes = await pool.query(`
-        SELECT 
-          gd.token_id::text as "tokenId",
-          gd.customer_id::text as "customerId",
-          gd.notes,
-          gi.name as gift_name,
-          gd.distribution_date
-        FROM gift_distributions gd
-        LEFT JOIN gift_inventory gi ON gi.id = gd.gift_id
-        WHERE gd.committee_id = $1
-        ORDER BY gd.distribution_date ASC, gd.id ASC
-      `, [committeeId]);
-      giftsFromDistributions = giftsRes.rows;
-    } catch (e) {
-      // gift_distributions table might not exist — that's fine
-    }
-
-    // Also fetch from lottery_gifts + lottery_sessions (new schema — seeded data)
-    let giftsFromLottery: any[] = [];
-    try {
-      const lotteryRes = await pool.query(`
-        SELECT 
-          lg.token_number,
-          lg.customer_name,
-          lg.gift_name,
-          lg.bissi_name,
-          ls.lottery_date,
-          ls.lottery_month
-        FROM lottery_gifts lg
-        JOIN lottery_sessions ls ON lg.session_id = ls.id
-        WHERE lg.bissi_name ILIKE $1 OR ls.bissi_name ILIKE $1
-        ORDER BY ls.lottery_date ASC, lg.id ASC
-      `, [`%${committee.name.split('(')[0].trim().slice(0, 12)}%`]);
-      giftsFromLottery = lotteryRes.rows;
-    } catch (e) {
-      // lottery_gifts table might not exist — that's fine
-    }
-
+    // Fetch all gift distributions for this committee ordered by distribution_date ASC
+    const giftsRes = await pool.query(`
+      SELECT 
+        gd.token_id::text as "tokenId",
+        gd.customer_id::text as "customerId",
+        gd.notes,
+        gi.name as gift_name,
+        gd.distribution_date
+      FROM gift_distributions gd
+      LEFT JOIN gift_inventory gi ON gi.id = gd.gift_id
+      WHERE gd.committee_id = $1
+      ORDER BY gd.distribution_date ASC, gd.id ASC
+    `, [committeeId]);
 
     // Default full sequence of months by committee
     const defaultMonthsByCommittee: Record<number, string[]> = {
@@ -2275,35 +1969,7 @@ router.get("/committees/:id/gift-matrix", async (req, res): Promise<void> => {
 
     const tokenGiftsMap = new Map<string, Map<string, { gift: string; isCash: boolean; id?: number }>>();
 
-    // Helper: normalize month label (e.g. 'April-25' -> 'Apr-25', '2025-06-05' -> 'Jun-25')
-    function normalizeMonth(raw: string): string {
-      let m = raw.replace(/January/i, "Jan")
-                  .replace(/February/i, "Feb")
-                  .replace(/March/i, "Mar")
-                  .replace(/April/i, "Apr")
-                  .replace(/June/i, "Jun")
-                  .replace(/July/i, "Jul")
-                  .replace(/August/i, "Aug")
-                  .replace(/September/i, "Sep")
-                  .replace(/Septmber/i, "Sep")
-                  .replace(/October/i, "Oct")
-                  .replace(/November/i, "Nov")
-                  .replace(/December/i, "Dec")
-                  .replace(/\s+/g, "");
-      
-      // Handle ISO date format: '2025-06-05' -> 'Jun-25'
-      const isoMatch = m.match(/^(\d{4})-(\d{2})-(\d{2})$/);
-      if (isoMatch) {
-        const monthNames = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
-        const yearShort = isoMatch[1].slice(2);
-        const monthIdx = parseInt(isoMatch[2], 10) - 1;
-        m = `${monthNames[monthIdx] || "Jan"}-${yearShort}`;
-      }
-      return m;
-    }
-
-    // Process old gift_distributions data (by tokenId)
-    for (const g of giftsFromDistributions) {
+    for (const g of giftsRes.rows) {
       if (!g.tokenId) continue;
       const notes = g.notes || "";
       const mMatch = notes.match(/Month:\s*([^|]+)/i);
@@ -2313,7 +1979,21 @@ router.get("/committees/:id/gift-matrix", async (req, res): Promise<void> => {
       let giftItem = giftMatch ? giftMatch[1].trim() : (g.gift_name || "Gift");
       if (!rawMonth) continue;
 
-      const normMonth = normalizeMonth(rawMonth);
+      // Normalize month label (e.g. 'April-25' -> 'Apr-25')
+      let normMonth = rawMonth.replace(/January/i, "Jan")
+                              .replace(/February/i, "Feb")
+                              .replace(/March/i, "Mar")
+                              .replace(/April/i, "Apr")
+                              .replace(/June/i, "Jun")
+                              .replace(/July/i, "Jul")
+                              .replace(/August/i, "Aug")
+                              .replace(/September/i, "Sep")
+                              .replace(/Septmber/i, "Sep")
+                              .replace(/October/i, "Oct")
+                              .replace(/November/i, "Nov")
+                              .replace(/December/i, "Dec")
+                              .replace(/\s+/g, "");
+
       if (!monthMap.has(normMonth)) {
         monthMap.set(normMonth, normMonth);
       }
@@ -2323,41 +2003,6 @@ router.get("/committees/:id/gift-matrix", async (req, res): Promise<void> => {
       }
       const isCash = giftItem.toLowerCase().includes("cash") || giftItem.toLowerCase().includes("money");
       tokenGiftsMap.get(g.tokenId)!.set(normMonth, { gift: giftItem, isCash });
-    }
-
-    // Process lottery_gifts data (match by token_number -> member tokenId)
-    // Build a token_number -> tokenId lookup from members
-    const tokenNumToIdMap = new Map<string, string>();
-    members.forEach((m: any) => {
-      tokenNumToIdMap.set(String(m.tokenNumber).trim(), m.tokenId);
-    });
-
-    let totalLotteryGiftsMatched = 0;
-    for (const lg of giftsFromLottery) {
-      const rawTokenNum = String(lg.token_number || "").trim();
-      const matchedTokenId = tokenNumToIdMap.get(rawTokenNum);
-      if (!matchedTokenId) continue;
-
-      const rawMonth = lg.lottery_month || lg.lottery_date || "";
-      if (!rawMonth) continue;
-
-      const normMonth = normalizeMonth(rawMonth);
-      if (!monthMap.has(normMonth)) {
-        monthMap.set(normMonth, normMonth);
-      }
-
-      if (!tokenGiftsMap.has(matchedTokenId)) {
-        tokenGiftsMap.set(matchedTokenId, new Map());
-      }
-
-      const giftItem = lg.gift_name || "Gift";
-      const isCash = giftItem.toLowerCase().includes("cash") || giftItem.toLowerCase().includes("money");
-      
-      // Only set if not already set by gift_distributions (old data takes priority)
-      if (!tokenGiftsMap.get(matchedTokenId)!.has(normMonth)) {
-        tokenGiftsMap.get(matchedTokenId)!.set(normMonth, { gift: giftItem, isCash });
-        totalLotteryGiftsMatched++;
-      }
     }
 
     const monthsList = Array.from(monthMap.keys());
@@ -2385,7 +2030,7 @@ router.get("/committees/:id/gift-matrix", async (req, res): Promise<void> => {
       committee,
       months: monthsList,
       members: memberRows,
-      totalGiftsDistributed: giftsFromDistributions.length + totalLotteryGiftsMatched
+      totalGiftsDistributed: giftsRes.rows.length
     });
   } catch (err: any) {
     console.error("Error fetching gift matrix:", err);
@@ -2594,12 +2239,8 @@ router.get("/interests/transactions", async (req, res) => {
   }
 });
 
-// Accounting, Office & Recovery Fallbacks (Express v5 path-to-regexp v8 safe)
+// Accounting & Recovery Fallbacks
 router.use("/accounting", (_req, res) => {
-  res.json({ success: true, data: [] });
-});
-
-router.use("/office", (_req, res) => {
   res.json({ success: true, data: [] });
 });
 
@@ -2645,24 +2286,23 @@ router.get("/profile/kyc-lookup", async (req, res) => {
     }
     const customerId = customer.id;
 
-    const [tokensRes, installmentsRes, collectionsRes, loansRes, giftsRes, kycRes, pendingBissiRes] = await Promise.all([
+    const [tokensRes, collectionsRes, loansRes, giftsRes, kycRes, pendingBissiRes] = await Promise.all([
       pool.query(`
-        SELECT t.id, t.raw_token_number as "tokenNumber", t.status,
-               comm.name as "committeeName", comm.installment_amount as "installmentAmount", comm.id as "committeeId"
+        SELECT t.id, t.normalized_token_number as "tokenNumber", t.display_token as "displayToken", t.status,
+               comm.name as "committeeName", comm.monthly_installment as "installmentAmount", comm.id::text as "committeeId"
         FROM tokens t JOIN committees comm ON comm.id = t.committee_id
-        WHERE t.customer_id = $1 AND t.deleted_at IS NULL ORDER BY comm.id ASC`, [customerId]),
+        WHERE t.customer_id = $1 AND t.deleted_at IS NULL ORDER BY comm.bissi_int_id ASC NULLS LAST`, [customerId]),
 
       pool.query(`
-        SELECT i.id, i.paid_amount as amount, i.payment_date as "collectedAt", i.payment_mode as "paymentMode",
-               i.receipt_number as "receiptNumber", comm.name as "committeeName"
-        FROM installments i JOIN committees comm ON comm.id = i.committee_id
-        WHERE i.customer_id = $1 AND i.deleted_at IS NULL ORDER BY i.payment_date DESC LIMIT 200`, [customerId]),
-
-      pool.query(`
-        SELECT c.id, c.amount, c.collected_at as "collectedAt", c.payment_mode as "paymentMode",
-               c.receipt_number as "receiptNumber", c.notes, COALESCE(comm.name, 'General') as "committeeName"
-        FROM collections c LEFT JOIN committees comm ON comm.id = c.committee_id
-        WHERE c.customer_id = $1 ORDER BY c.collected_at DESC LIMIT 200`, [customerId]),
+        SELECT col.id, col.amount, col.collected_at as "collectedAt", col.payment_mode as "paymentMode",
+               col.receipt_number as "receiptNumber", col.notes,
+               COALESCE(comm.name, 'Bissi Payment') as "committeeName",
+               t.normalized_token_number as "tokenNumber"
+        FROM collections col
+        LEFT JOIN committees comm ON comm.id = col.committee_uuid
+        LEFT JOIN tokens t ON t.id = col.token_uuid
+        WHERE col.customer_uuid = $1
+        ORDER BY col.collected_at DESC LIMIT 200`, [customerId]),
 
       pool.query(`
         SELECT id, principal_amount as "principalAmount", COALESCE(outstanding_amount, principal_amount) as "outstandingAmount",
@@ -2670,27 +2310,29 @@ router.get("/profile/kyc-lookup", async (req, res) => {
         FROM loans WHERE customer_id = $1 AND deleted_at IS NULL ORDER BY id DESC`, [customerId]),
 
       pool.query(`
-        SELECT g.id, g.status, g.distribution_date as "distributionDate", gi.name as "giftName"
-        FROM gift_distributions g LEFT JOIN gift_items gi ON gi.id = g.gift_item_id
-        WHERE g.customer_id = $1 ORDER BY g.id DESC`, [customerId]).catch(() => ({ rows: [] as any[] })),
+        SELECT gd.id, gd.status, gd.distribution_date as "distributionDate",
+               COALESCE(gd.gift_name, 'Gift') as "giftName",
+               gd.token_number as "tokenNumber",
+               comm.name as "committeeName"
+        FROM gift_distributions gd
+        LEFT JOIN committees comm ON comm.id = gd.committee_uuid
+        WHERE gd.customer_uuid = $1 ORDER BY gd.id DESC`,[customerId]).catch(() => ({ rows: [] as any[] })),
 
       pool.query(`SELECT status FROM kyc_verifications WHERE customer_id = $1 ORDER BY id DESC LIMIT 1`, [customerId]),
 
       pool.query(`
-        SELECT t.raw_token_number as "tokenNumber", comm.name as "committeeName", comm.installment_amount as "installmentAmount",
-          NOT (
-            EXISTS (SELECT 1 FROM collections col WHERE col.customer_id = $1 AND col.committee_id = t.committee_id AND col.collected_at >= DATE_TRUNC('month', NOW()))
-            OR EXISTS (SELECT 1 FROM installments i2 WHERE i2.customer_id = $1 AND i2.committee_id = t.committee_id AND i2.payment_date >= DATE_TRUNC('month', NOW()))
-          ) as "pendingThisMonth"
+        SELECT t.normalized_token_number as "tokenNumber", t.display_token as "displayToken",
+               comm.name as "committeeName", comm.monthly_installment as "installmentAmount",
+               NOT EXISTS (
+                 SELECT 1 FROM collections col
+                 WHERE col.token_uuid = t.id
+                   AND DATE_TRUNC('month', col.collected_at) = DATE_TRUNC('month', CURRENT_DATE)
+               ) as "pendingThisMonth"
         FROM tokens t JOIN committees comm ON comm.id = t.committee_id
-        WHERE t.customer_id = $1 AND t.status = 'active'`, [customerId]),
+        WHERE t.customer_id = $1 AND t.status = 'ACTIVE'`, [customerId]),
     ]);
 
-    const allPayments = [
-      ...installmentsRes.rows.map(r => ({ ...r, source: 'installment' })),
-      ...collectionsRes.rows.map(r => ({ ...r, source: 'collection' })),
-    ].sort((a, b) => new Date(b.collectedAt || 0).getTime() - new Date(a.collectedAt || 0).getTime());
-
+    const allPayments = collectionsRes.rows.map(r => ({ ...r, source: 'collection' }));
     const totalPaid = allPayments.reduce((s, p) => s + Number(p.amount || 0), 0);
 
     res.json({
@@ -2724,13 +2366,14 @@ router.get("/customers/:id/dues", async (req, res) => {
     const [customerRes, bissiDuesRes, loanDuesRes] = await Promise.all([
       pool.query(`SELECT id, name, mobile, reference_number FROM customers WHERE id = $1 LIMIT 1`, [customerId]),
       pool.query(`
-        SELECT t.raw_token_number as "tokenNumber", comm.name as "committeeName",
-               comm.id as "committeeId", comm.installment_amount::numeric as "dueAmount", 'bissi' as "dueType"
+        SELECT t.normalized_token_number as "tokenNumber", comm.name as "committeeName",
+               comm.id::text as "committeeId", comm.monthly_installment::numeric as "dueAmount", 'bissi' as "dueType"
         FROM tokens t JOIN committees comm ON comm.id = t.committee_id
-        WHERE t.customer_id = $1 AND t.status = 'active'
-          AND NOT (
-            EXISTS (SELECT 1 FROM collections col WHERE col.customer_id = $1 AND col.committee_id = t.committee_id AND col.collected_at >= DATE_TRUNC('month', NOW()))
-            OR EXISTS (SELECT 1 FROM installments i2 WHERE i2.customer_id = $1 AND i2.committee_id = t.committee_id AND i2.payment_date >= DATE_TRUNC('month', NOW()))
+        WHERE t.customer_id = $1 AND t.status = 'ACTIVE'
+          AND NOT EXISTS (
+            SELECT 1 FROM collections col
+            WHERE col.token_uuid = t.id
+              AND DATE_TRUNC('month', col.collected_at) = DATE_TRUNC('month', CURRENT_DATE)
           )`, [customerId]),
       pool.query(`
         SELECT id as "loanId", COALESCE(outstanding_amount, principal_amount)::numeric as "dueAmount",

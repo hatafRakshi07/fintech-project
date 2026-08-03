@@ -3,68 +3,262 @@ import { pool, queryWithRetry } from "@workspace/db";
 
 const router = Router();
 
-const DEFAULT_BISSI_COMMITTEES = [
-  { id: "11111111-1111-1111-1111-111111111111", name: "Hare Ka Sahara", total_members: 500, monthly_installment: 2500 },
-  { id: "22222222-2222-2222-2222-222222222222", name: "Shree Krishna Associates", total_members: 1111, monthly_installment: 3000 },
-  { id: "33333333-3333-3333-3333-333333333333", name: "Pyare Mohan", total_members: 500, monthly_installment: 3000 },
-  { id: "44444444-4444-4444-4444-444444444444", name: "Set Sanwariya", total_members: 500, monthly_installment: 3000 },
-];
+// ── Utility: get month filter SQL ──────────────────────────────────────────
+function buildMonthFilter(month: string | undefined, colAlias = "c") {
+  if (!month || month === "all") return "";
+  // month format: YYYY-MM
+  return `AND DATE_TRUNC('month', ${colAlias}.collected_at) = DATE_TRUNC('month', '${month}-01'::date)`;
+}
 
-/**
- * GET /api/v2/dashboard/summary
- * Returns aggregated stats for all 4 Bissi committees from DB in a single fast query.
- */
+// ─────────────────────────────────────────────────────────────────────────────
+// GET /api/v2/dashboard/available-months
+// Returns all months that have at least one collection, in chronological order
+// ─────────────────────────────────────────────────────────────────────────────
+router.get("/available-months", async (_req, res) => {
+  try {
+    const result = await pool.query(`
+      SELECT DISTINCT
+        TO_CHAR(DATE_TRUNC('month', collected_at), 'YYYY-MM') as value,
+        TO_CHAR(DATE_TRUNC('month', collected_at), 'Mon YYYY') as label
+      FROM collections
+      WHERE committee_uuid IS NOT NULL
+      ORDER BY value ASC
+    `);
+    res.json({ success: true, months: result.rows });
+  } catch (err: any) {
+    res.json({ success: true, months: [] });
+  }
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// GET /api/v2/dashboard/summary
+// Core dashboard: per-scheme stats, all real from DB
+// ─────────────────────────────────────────────────────────────────────────────
 router.get("/summary", async (req, res) => {
+  const month = (req.query.month as string) || "";
+  const monthFilter = buildMonthFilter(month);
+  const today = new Date().toISOString().split("T")[0];
+
   try {
     const result = await queryWithRetry(
       () => pool.query(`
-        SELECT 
-          c.id::text as "schemeId",
-          c.name as "schemeName",
-          c.name as "schemeCode",
-          c.installment_amount::numeric as "monthlyInstallment",
-          c.member_limit::int as "membersCount",
-          COALESCE(inst.collected_amount, 0)::numeric as "collectedAmount"
+        SELECT
+          c.id::text                         AS "schemeId",
+          c.name                             AS "schemeName",
+          c.code                             AS "schemeCode",
+          c.monthly_installment::numeric     AS "monthlyInstallment",
+
+          -- Token counts
+          COALESCE(tok.active_count, 0)::int AS "activeTokens",
+          COALESCE(tok.total_count, 0)::int  AS "totalTokens",
+
+          -- Lucky winners
+          COALESCE(lot.lucky_count, 0)::int  AS "luckyTokens",
+
+          -- Lifetime collection
+          COALESCE(life.total, 0)::numeric   AS "lifetimeCollection",
+
+          -- Today's collection
+          COALESCE(tod.total, 0)::numeric    AS "todayCollection",
+
+          -- Selected month collection
+          COALESCE(mon.total, 0)::numeric    AS "monthCollection",
+          COALESCE(mon.cnt, 0)::int          AS "monthReceiptCount",
+
+          -- Pending tokens this month (active tokens without a receipt)
+          COALESCE(pend.pending_count, 0)::int AS "pendingTokens"
+
         FROM committees c
+
+        -- Token counts
         LEFT JOIN (
-          SELECT i.committee_id, SUM(i.amount)::numeric as collected_amount
-          FROM installments i
-          GROUP BY i.committee_id
-        ) inst ON c.id = inst.committee_id
-        ORDER BY c.created_at ASC
+          SELECT committee_id,
+            COUNT(*) FILTER (WHERE status = 'ACTIVE')::int  AS active_count,
+            COUNT(*)::int                                    AS total_count
+          FROM tokens
+          GROUP BY committee_id
+        ) tok ON tok.committee_id = c.id
+
+        -- Lucky winners
+        LEFT JOIN (
+          SELECT committee_uuid, COUNT(DISTINCT winner_token_uuid)::int AS lucky_count
+          FROM lotteries
+          WHERE reward_description = 'Lucky' OR status = 'completed'
+          GROUP BY committee_uuid
+        ) lot ON lot.committee_uuid = c.id
+
+        -- Lifetime totals
+        LEFT JOIN (
+          SELECT committee_uuid, SUM(amount)::numeric AS total
+          FROM collections
+          WHERE committee_uuid IS NOT NULL
+          GROUP BY committee_uuid
+        ) life ON life.committee_uuid = c.id
+
+        -- Today
+        LEFT JOIN (
+          SELECT committee_uuid, SUM(amount)::numeric AS total
+          FROM collections
+          WHERE committee_uuid IS NOT NULL
+            AND DATE(collected_at) = CURRENT_DATE
+          GROUP BY committee_uuid
+        ) tod ON tod.committee_uuid = c.id
+
+        -- Selected month (or current month if none selected)
+        LEFT JOIN (
+          SELECT committee_uuid, SUM(amount)::numeric AS total, COUNT(*)::int AS cnt
+          FROM collections
+          WHERE committee_uuid IS NOT NULL
+            ${month
+              ? `AND DATE_TRUNC('month', collected_at) = DATE_TRUNC('month', '${month}-01'::date)`
+              : `AND DATE_TRUNC('month', collected_at) = DATE_TRUNC('month', CURRENT_DATE)`
+            }
+          GROUP BY committee_uuid
+        ) mon ON mon.committee_uuid = c.id
+
+        -- Pending: active tokens without a receipt in selected month
+        LEFT JOIN (
+          SELECT t2.committee_id,
+            COUNT(*)::int AS pending_count
+          FROM tokens t2
+          WHERE t2.status = 'ACTIVE'
+            AND NOT EXISTS (
+              SELECT 1 FROM collections col
+              WHERE col.token_uuid = t2.id
+                AND ${month
+                  ? `DATE_TRUNC('month', col.collected_at) = DATE_TRUNC('month', '${month}-01'::date)`
+                  : `DATE_TRUNC('month', col.collected_at) = DATE_TRUNC('month', CURRENT_DATE)`
+                }
+            )
+          GROUP BY t2.committee_id
+        ) pend ON pend.committee_id = c.id
+
+        WHERE c.code IN ('BISSI-1','BISSI-2','BISSI-3','BISSI-4')
+        ORDER BY c.bissi_int_id ASC NULLS LAST
       `),
       { routeName: "GET /api/v2/dashboard/summary", retries: 2, delayMs: 500 }
     );
 
-    const dashboardData = result.rows.map((r: any) => ({
-      schemeId: r.schemeId,
-      schemeName: r.schemeName,
-      schemeCode: r.schemeCode,
-      monthlyInstallment: Number(r.monthlyInstallment || 3000),
-      boxes: {
-        collectedAmount: Number(r.collectedAmount || 0),
-        dueAmount: 0,
-        dueTokens: 0,
-        membersCount: Number(r.membersCount || 500),
-      }
-    }));
+    const schemes = result.rows.map((r: any) => {
+      const installment = Number(r.monthlyInstallment) || 3000;
+      const activeTokens = Number(r.activeTokens) || 0;
+      const monthlyTarget = activeTokens * installment;
+      const monthCollection = Number(r.monthCollection) || 0;
+      const pendingAmount = Math.max(0, monthlyTarget - monthCollection);
+      const collectionPct = monthlyTarget > 0
+        ? Math.min(100, Math.round((monthCollection / monthlyTarget) * 100))
+        : 0;
 
-    res.json({ success: true, data: dashboardData.length > 0 ? dashboardData : DEFAULT_BISSI_COMMITTEES });
-  } catch (error) {
-    const fallbackData = DEFAULT_BISSI_COMMITTEES.map(comm => ({
-      schemeId: comm.id,
-      schemeName: comm.name,
-      schemeCode: comm.name.replace(/\s+/g, '-').toUpperCase(),
-      monthlyInstallment: comm.monthly_installment,
-      boxes: {
-        collectedAmount: 0,
-        dueAmount: 0,
-        dueTokens: 0,
-        membersCount: comm.total_members,
-      }
-    }));
-    res.json({ success: true, data: fallbackData });
+      return {
+        schemeId: r.schemeId,
+        schemeName: r.schemeName,
+        schemeCode: r.schemeCode,
+        monthlyInstallment: installment,
+        activeTokens,
+        totalTokens: Number(r.totalTokens) || 0,
+        luckyTokens: Number(r.luckyTokens) || 0,
+        monthlyTarget,
+        todayCollection: Number(r.todayCollection) || 0,
+        monthCollection,
+        monthReceiptCount: Number(r.monthReceiptCount) || 0,
+        lifetimeCollection: Number(r.lifetimeCollection) || 0,
+        pendingAmount,
+        pendingTokens: Number(r.pendingTokens) || 0,
+        collectionPercentage: collectionPct,
+        remainingCollection: pendingAmount,
+      };
+    });
+
+    res.json({ success: true, data: schemes, schemes });
+  } catch (err: any) {
+    console.error("Dashboard summary error:", err.message);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// GET /api/v2/dashboard/scheme-boxes  (alias — same as summary)
+// ─────────────────────────────────────────────────────────────────────────────
+router.get("/scheme-boxes", (req, res, next) => {
+  req.url = "/summary";
+  next();
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// GET /api/v2/dashboard/pending-report
+// Tokens without payment in selected month
+// ─────────────────────────────────────────────────────────────────────────────
+router.get("/pending-report", async (req, res) => {
+  const { committeeId, month } = req.query as Record<string, string>;
+
+  let commFilter = "";
+  const params: any[] = [];
+
+  if (committeeId && committeeId !== "all") {
+    params.push(committeeId);
+    commFilter = `AND t.committee_id = $${params.length}::uuid`;
+  }
+
+  const monthSQL = month && month !== "all"
+    ? `DATE_TRUNC('month', col.collected_at) = DATE_TRUNC('month', '${month}-01'::date)`
+    : `DATE_TRUNC('month', col.collected_at) = DATE_TRUNC('month', CURRENT_DATE)`;
+
+  try {
+    const result = await pool.query(`
+      SELECT
+        t.normalized_token_number AS "tokenNumber",
+        t.display_token           AS "displayToken",
+        c2.id::text               AS "committeeId",
+        c2.name                   AS "committeeName",
+        c2.monthly_installment    AS "installmentAmount",
+        cust.name                 AS "customerName",
+        cust.mobile               AS "customerMobile",
+        cust.address              AS "customerAddress"
+      FROM tokens t
+      JOIN committees c2 ON c2.id = t.committee_id
+      JOIN customers cust ON cust.id = t.customer_id
+      WHERE t.status = 'ACTIVE'
+        ${commFilter}
+        AND NOT EXISTS (
+          SELECT 1 FROM collections col
+          WHERE col.token_uuid = t.id
+            AND ${monthSQL}
+        )
+      ORDER BY c2.bissi_int_id ASC NULLS LAST,
+               t.normalized_token_number ASC
+      LIMIT 3000
+    `, params);
+
+    res.json({ success: true, pendingList: result.rows, totalPending: result.rows.length });
+  } catch (err: any) {
+    console.error("Pending report error:", err.message);
+    res.json({ success: true, pendingList: [], totalPending: 0 });
+  }
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// GET /api/v2/dashboard/collection-trend
+// Last 30 days daily collection totals
+// ─────────────────────────────────────────────────────────────────────────────
+router.get("/collection-trend", async (_req, res) => {
+  try {
+    const result = await pool.query(`
+      SELECT
+        TO_CHAR(DATE(collected_at), 'Mon DD')  AS date,
+        DATE(collected_at)                      AS "dateRaw",
+        SUM(amount)::numeric                    AS amount,
+        COUNT(*)::int                           AS count
+      FROM collections
+      WHERE committee_uuid IS NOT NULL
+        AND collected_at >= NOW() - INTERVAL '30 days'
+      GROUP BY DATE(collected_at)
+      ORDER BY DATE(collected_at) ASC
+    `);
+    res.json(result.rows);
+  } catch (err: any) {
+    res.json([]);
   }
 });
 
 export { router as dashboardV2Router };
+

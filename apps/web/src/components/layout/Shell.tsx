@@ -41,6 +41,7 @@ import {
   Landmark,
   Calendar as CalendarIcon,
   TrendingDown,
+  BookOpen,
 } from "lucide-react";
 
 
@@ -72,6 +73,7 @@ type NavItem = {
 
 const ALL_NAV_ITEMS: NavItem[] = [
   { icon: LayoutDashboard, label: "Dashboard", href: "/" },
+  { icon: BookOpen, label: "Daily Diary", href: "/daily-diary", roles: ["super_admin","owner","branch_manager","collector","accountant"] },
   { icon: ShieldAlert, label: "Committees", href: "/committees", roles: ["super_admin","owner","branch_manager"] },
   { icon: Ticket, label: "Tokens", href: "/tokens", roles: ["super_admin","owner","branch_manager","customer"] },
   { icon: CreditCard, label: "Collections", href: "/collections", roles: ["super_admin","owner","branch_manager","collector","accountant","customer","agent"] },
