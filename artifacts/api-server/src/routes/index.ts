@@ -1538,28 +1538,26 @@ router.get("/dashboard/available-months", async (_req, res) => {
 });
 
 // ── Dashboard available months endpoint (also in v2 router) ──
-        SELECT 
+
+router.get("/dashboard/collection-trend", async (_req, res) => {
+  try {
+    const result = await queryWithRetry(
+      () => pool.query(`
+        SELECT
           TO_CHAR(c.collected_at, 'Mon DD') as date,
           SUM(c.amount)::numeric as amount,
           COUNT(c.id)::int as count
         FROM collections c
-        WHERE c.collected_at >= NOW() - INTERVAL '30 days'
+        WHERE c.committee_uuid IS NOT NULL
+          AND c.collected_at >= NOW() - INTERVAL '30 days'
         GROUP BY TO_CHAR(c.collected_at, 'Mon DD'), DATE(c.collected_at)
         ORDER BY DATE(c.collected_at) ASC
       `),
       { routeName: "GET /dashboard/collection-trend", retries: 2, delayMs: 500 }
     );
-    res.json(result.rows.length > 0 ? result.rows : [
-      { date: "Mon 1", amount: 150000, count: 50 },
-      { date: "Mon 2", amount: 220000, count: 75 },
-      { date: "Mon 3", amount: 310000, count: 100 },
-    ]);
+    res.json(result.rows.length > 0 ? result.rows : []);
   } catch (err) {
-    res.json([
-      { date: "Mon 1", amount: 150000, count: 50 },
-      { date: "Mon 2", amount: 220000, count: 75 },
-      { date: "Mon 3", amount: 310000, count: 100 },
-    ]);
+    res.json([]);
   }
 });
 
@@ -1647,7 +1645,7 @@ router.get("/dashboard/all", async (req, res) => {
       };
     });
 
-    const recent = trendResult.rows.map ? [] : [];
+    const recent = trendResult.rows.length > 0 ? trendResult.rows : [];
     const recentActivity = recentResult.rows.map((r: any) => ({
       id: r.id,
       description: r.notes || `${r.committee_name || 'Bissi'} from ${r.customer_name || 'Member'}`,
