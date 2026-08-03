@@ -13,6 +13,7 @@ import { Users, UserPlus, ShieldCheck, DollarSign, Award, ArrowUpRight, CheckCir
 import { KycStatusBadge } from "@/components/kyc/KycStatusBadge";
 import { KycSubmissionForm } from "@/components/kyc/KycSubmissionForm";
 import { useToast } from "@/hooks/use-toast";
+import { customFetch } from "@workspace/api-client-react";
 
 export default function AgentPortalPage() {
   const { toast } = useToast();
@@ -20,29 +21,15 @@ export default function AgentPortalPage() {
   const [activeTab, setActiveTab] = useState("overview");
 
   // Fetch Agent Me stats & profile
-  const { data: agentData, isLoading: agentLoading } = useQuery({
+  const { data: agentData, isLoading: agentLoading } = useQuery<any>({
     queryKey: ["agent-me"],
-    queryFn: async () => {
-      const token = typeof window !== "undefined" ? localStorage.getItem("auth_token") : null;
-      const res = await fetch("/api/agents/me", {
-        headers: token ? { Authorization: `Bearer ${token}` } : {},
-      });
-      if (!res.ok) throw new Error("Failed to load agent profile");
-      return res.json();
-    },
+    queryFn: () => customFetch("/agents/me"),
   });
 
   // Fetch referred customers
-  const { data: customersData } = useQuery({
+  const { data: customersData } = useQuery<any>({
     queryKey: ["agent-customers"],
-    queryFn: async () => {
-      const token = typeof window !== "undefined" ? localStorage.getItem("auth_token") : null;
-      const res = await fetch("/api/agents/my-customers", {
-        headers: token ? { Authorization: `Bearer ${token}` } : {},
-      });
-      if (!res.ok) throw new Error("Failed to load customers");
-      return res.json();
-    },
+    queryFn: () => customFetch("/agents/my-customers"),
   });
 
   // Customer onboarding form state
@@ -61,22 +48,11 @@ export default function AgentPortalPage() {
   const [msgBody, setMsgBody] = useState("");
 
   const broadcastMutation = useMutation({
-    mutationFn: async () => {
-      const token = typeof window !== "undefined" ? localStorage.getItem("auth_token") : null;
-      const res = await fetch("/api/broadcast", {
+    mutationFn: () =>
+      customFetch<any>("/broadcast", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        },
         body: JSON.stringify({ title: msgTitle, body: msgBody }),
-      });
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({ error: "Failed to send message" }));
-        throw new Error(err.error || "Failed to send message");
-      }
-      return res.json();
-    },
+      }),
     onSuccess: () => {
       toast({
         title: "Message Sent!",
@@ -95,14 +71,9 @@ export default function AgentPortalPage() {
   });
 
   const onboardMutation = useMutation({
-    mutationFn: async () => {
-      const token = typeof window !== "undefined" ? localStorage.getItem("auth_token") : null;
-      const res = await fetch("/api/agents/onboard-customer", {
+    mutationFn: () =>
+      customFetch<any>("/agents/onboard-customer", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        },
         body: JSON.stringify({
           name,
           mobile,
@@ -114,13 +85,7 @@ export default function AgentPortalPage() {
           nomineeName,
           nomineeRelation,
         }),
-      });
-      if (!res.ok) {
-        const err = await res.json();
-        throw new Error(err.error || "Failed to onboard customer");
-      }
-      return res.json();
-    },
+      }),
     onSuccess: (resData) => {
       toast({
         title: "Customer Onboarded!",

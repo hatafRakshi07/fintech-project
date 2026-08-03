@@ -10,7 +10,7 @@ import { SplashScreen } from "@/components/SplashScreen";
 // Register localStorage auth token getter for all API requests
 setAuthTokenGetter(() => typeof window !== "undefined" ? localStorage.getItem("auth_token") : null);
 
-// Pages
+// Pages & Views
 import DashboardPage from "@/views/dashboard";
 import CustomersPage from "@/views/customers";
 import CustomerDetailPage from "@/views/customers/[id]";
@@ -25,6 +25,7 @@ import LoansPage from "@/views/loans";
 import LoanDetailPage from "@/views/loans/[id]";
 import CollectionsPage from "@/views/collections";
 import LotteriesPage from "@/views/lotteries";
+import LotteryReportsPage from "@/views/lotteries/reports";
 import GiftsPage from "@/views/gifts";
 import InterestsPage from "@/views/interests";
 import RecoveryPage from "@/views/recovery";
@@ -42,9 +43,17 @@ import SalesLedgerPage from "@/views/ledgers/sales";
 import PurchaseLedgerPage from "@/views/ledgers/purchase";
 import CashbookPage from "@/views/ledgers/cashbook";
 import CalendarPage from "@/views/calendar";
+import DailyDiaryDashboardPage from "@/views/daily-diary";
+
+import DailyDiaryDetailPage from "@/views/daily-diary/[id]";
+import DailyDiaryReportsPage from "@/views/daily-diary/reports";
 import NotFound from "@/views/not-found";
 
+
+
+
 import { Shell } from "@/components/layout/Shell";
+
 
 /**
  * Wraps a route so that only users with one of the given roles can access it.
@@ -105,8 +114,28 @@ function AppRoutes() {
       <Switch>
         <Route path="/" component={DashboardPage} />
 
+        {/* Daily Diary Loan Collection */}
+        <Route path="/daily-diary">
+          <RoleGate roles={[...COLLECTOR_UP, "accountant", "agent"]}>
+            <DailyDiaryDashboardPage />
+          </RoleGate>
+        </Route>
+        <Route path="/daily-diary/reports">
+          <RoleGate roles={[...COLLECTOR_UP, "accountant", "agent"]}>
+            <DailyDiaryReportsPage />
+          </RoleGate>
+        </Route>
+        <Route path="/daily-diary/:id">
+          {() => (
+            <RoleGate roles={[...COLLECTOR_UP, "accountant", "agent"]}>
+              <DailyDiaryDetailPage />
+            </RoleGate>
+          )}
+        </Route>
+
         {/* Customers — all except pure customer role */}
         <Route path="/customers">
+
           <RoleGate roles={COLLECTOR_UP}>
             <CustomersPage />
           </RoleGate>
@@ -189,6 +218,12 @@ function AppRoutes() {
             <LotteriesPage />
           </RoleGate>
         </Route>
+        <Route path="/lotteries/reports">
+          <RoleGate roles={MANAGERS}>
+            <LotteryReportsPage />
+          </RoleGate>
+        </Route>
+
 
         {/* Gifts — finance roles */}
         <Route path="/gifts">

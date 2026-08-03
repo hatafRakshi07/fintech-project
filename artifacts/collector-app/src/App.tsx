@@ -6,11 +6,13 @@ import { SplashScreen } from "@/components/SplashScreen";
 
 import LoginPage from "@/pages/login";
 import HomePage from "@/pages/home";
+import DailyDiaryCollectorPage from "@/pages/daily-diary";
 import CollectionsPage from "./pages/collections-v2";
 import CustomersPage from "@/pages/customers";
 import RecoveryPage from "@/pages/recovery";
 import CollectorKycPage from "@/pages/kyc";
 import BottomNav from "@/components/BottomNav";
+
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -75,6 +77,14 @@ export default function App() {
               </AppLayout>
             </ProtectedRoute>
           </Route>
+          <Route path="/daily-diary">
+            <ProtectedRoute>
+              <AppLayout>
+                <DailyDiaryCollectorPage />
+              </AppLayout>
+            </ProtectedRoute>
+          </Route>
+
           <Route path="/collections">
             <ProtectedRoute>
               <AppLayout>

@@ -12,6 +12,7 @@ import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from "@
 import { ShieldCheck, CheckCircle2, XCircle, Eye, Search, ExternalLink, Clock, AlertTriangle } from "lucide-react";
 import { KycStatusBadge } from "@/components/kyc/KycStatusBadge";
 import { useToast } from "@/hooks/use-toast";
+import { customFetch } from "@workspace/api-client-react";
 
 export default function AdminKycManagementPage() {
   const { toast } = useToast();
@@ -20,35 +21,17 @@ export default function AdminKycManagementPage() {
   const [selectedKyc, setSelectedKyc] = useState<any>(null);
   const [rejectionReason, setRejectionReason] = useState("");
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading } = useQuery<any>({
     queryKey: ["admin-kyc-pending"],
-    queryFn: async () => {
-      const token = typeof window !== "undefined" ? localStorage.getItem("auth_token") : null;
-      const res = await fetch("/api/kyc/pending", {
-        headers: token ? { Authorization: `Bearer ${token}` } : {},
-      });
-      if (!res.ok) throw new Error("Failed to fetch pending KYC list");
-      return res.json();
-    },
+    queryFn: () => customFetch("/kyc/pending"),
   });
 
   const reviewMutation = useMutation({
-    mutationFn: async ({ id, status, reason }: { id: number; status: string; reason?: string }) => {
-      const token = typeof window !== "undefined" ? localStorage.getItem("auth_token") : null;
-      const res = await fetch(`/api/kyc/${id}/review`, {
+    mutationFn: ({ id, status, reason }: { id: number; status: string; reason?: string }) =>
+      customFetch<any>(`/kyc/${id}/review`, {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        },
         body: JSON.stringify({ status, rejectionReason: reason }),
-      });
-      if (!res.ok) {
-        const err = await res.json();
-        throw new Error(err.error || "Review submission failed");
-      }
-      return res.json();
-    },
+      }),
     onSuccess: (resData, variables) => {
       toast({
         title: `KYC Application ${variables.status === "approved" ? "Approved" : "Rejected"}`,
