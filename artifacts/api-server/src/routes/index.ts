@@ -1338,60 +1338,6 @@ router.get("/dashboard/scheme-boxes", async (req, res) => {
     : `AND DATE_TRUNC('month', col.collected_at) = DATE_TRUNC('month', CURRENT_DATE)`;
 
   try {
-<<<<<<< HEAD
-    const { month } = req.query as any;
-
-    // 1. Generate availableMonths dynamically from earliest committee/collection date to current/upcoming months
-    const minMonthRes = await pool.query(`
-      SELECT MIN(min_date) as min_date FROM (
-        SELECT MIN(created_at) as min_date FROM committees
-        UNION ALL
-        SELECT MIN(collected_at) as min_date FROM collections WHERE collected_at IS NOT NULL
-      ) sub
-    `);
-    const minDateRaw = minMonthRes.rows[0]?.min_date;
-    const minDate = minDateRaw ? new Date(minDateRaw) : new Date(2023, 5, 1);
-    const now = new Date();
-    const maxDate = new Date(now.getFullYear(), now.getMonth() + 4, 1);
-
-    const availableMonths: string[] = [];
-    let curr = new Date(minDate.getFullYear(), minDate.getMonth(), 1);
-    while (curr <= maxDate) {
-      const label = curr.toLocaleDateString("en-US", { month: "short", year: "numeric" });
-      if (!availableMonths.includes(label)) {
-        availableMonths.push(label);
-      }
-      curr.setMonth(curr.getMonth() + 1);
-    }
-
-    const currentMonthLabel = now.toLocaleDateString("en-US", { month: "short", year: "numeric" });
-    const selectedMonth = month && month !== "all" && month !== "current" ? String(month) : currentMonthLabel;
-
-    // Helper to check if selectedMonth is in future
-    const parseMonthDate = (mStr: string) => {
-      const parts = mStr.split(/[\s-]+/);
-      if (parts.length < 2) return new Date();
-      const monthNames = ["jan","feb","mar","apr","may","jun","jul","aug","sep","oct","nov","dec"];
-      const mIdx = monthNames.findIndex(m => parts[0].toLowerCase().startsWith(m));
-      let yr = parseInt(parts[1], 10);
-      if (yr < 100) yr += 2000;
-      if (mIdx === -1 || isNaN(yr)) return new Date();
-      return new Date(yr, mIdx, 1);
-    };
-
-    const targetMonthDate = parseMonthDate(selectedMonth);
-    const curMonthDate = new Date(now.getFullYear(), now.getMonth(), 1);
-    const isFuture = targetMonthDate > curMonthDate;
-
-    // 2. Fetch all active schemes from database
-    const committeesRes = await pool.query(`
-      SELECT 
-        c.id::text as id,
-        c.name as name,
-        c.monthly_installment::numeric as "installmentAmount",
-        c.total_members::int as "memberLimit",
-        c.status::text as status
-=======
     const result = await pool.query(`
       SELECT
         c.id::text                         AS "id",
@@ -1406,7 +1352,6 @@ router.get("/dashboard/scheme-boxes", async (req, res) => {
         COALESCE(mon.total,0)::numeric     AS "thisMonthCollected",
         COALESCE(mon.cnt,0)::int           AS "thisMonthReceipts",
         COALESCE(pend.pending_count,0)::int AS "thisMonthPendingCount"
->>>>>>> b73611cff8df74e196606b03698cff9134a1060e
       FROM committees c
       LEFT JOIN (
         SELECT committee_id,
