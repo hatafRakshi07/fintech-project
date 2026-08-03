@@ -1547,6 +1547,37 @@ router.get("/dashboard/scheme-boxes", async (req, res) => {
   }
 });
 
+router.get("/dashboard/available-months", async (_req, res) => {
+  try {
+    const minMonthRes = await pool.query(`
+      SELECT MIN(min_date) as min_date FROM (
+        SELECT MIN(created_at) as min_date FROM committees
+        UNION ALL
+        SELECT MIN(collected_at) as min_date FROM collections WHERE collected_at IS NOT NULL
+      ) sub
+    `).catch(() => ({ rows: [{ min_date: null }] }));
+
+    const minDateRaw = minMonthRes.rows[0]?.min_date;
+    const minDate = minDateRaw ? new Date(minDateRaw) : new Date(2023, 5, 1);
+    const now = new Date();
+    const maxDate = new Date(now.getFullYear(), now.getMonth() + 4, 1);
+
+    const monthsList: { value: string; label: string }[] = [];
+    let curr = new Date(minDate.getFullYear(), minDate.getMonth(), 1);
+    while (curr <= maxDate) {
+      const label = curr.toLocaleDateString("en-US", { month: "short", year: "numeric" });
+      if (!monthsList.some(m => m.value === label)) {
+        monthsList.push({ value: label, label });
+      }
+      curr.setMonth(curr.getMonth() + 1);
+    }
+
+    res.json({ success: true, months: monthsList });
+  } catch (err: any) {
+    res.json({ success: true, months: [] });
+  }
+});
+
 router.get("/dashboard/pending-report", async (req, res) => {
   try {
     const { committeeId, month } = req.query as any;
