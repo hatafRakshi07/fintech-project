@@ -536,7 +536,24 @@ router.get("/customers/:id", async (req, res) => {
       return;
     }
     const r = result.rows[0];
-    res.json({ ...r, referenceNumber: r.reference_number, branchId: r.branch_id, branchName: "Shree Krishna Associate" });
+    res.json({
+      id: r.id,
+      name: r.name,
+      fatherName: r.father_name,
+      mobile: r.mobile,
+      altMobile: r.alt_mobile,
+      aadhaar: r.aadhaar,
+      address: r.address,
+      city: r.city,
+      photoUrl: r.photo_url,
+      status: r.status,
+      createdAt: r.created_at,
+      updatedAt: r.updated_at,
+      // Legacy aliases (column doesn't exist but set null gracefully)
+      referenceNumber: r.reference_number || r.aadhaar || null,
+      branchId: null,
+      branchName: "Shree Krishna Associate",
+    });
   } catch (err) {
     console.error("Error fetching customer:", err);
     res.status(500).json({ success: false, error: "Failed to fetch customer" });
@@ -1228,15 +1245,16 @@ router.get("/collections", async (req, res) => {
 router.get("/customers/:id/passbook", async (req, res) => {
   try {
     const { id } = req.params;
-    
-    let custRes = await pool.query(
-      "SELECT id::text, name, mobile, address FROM customers WHERE id::text = $1 LIMIT 1",
+    const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
+    if (!isUuid) {
+      res.status(400).json({ success: false, error: "Invalid customer ID" });
+      return;
+    }
+
+    const custRes = await pool.query(
+      "SELECT id::text, name, mobile, address, city, status FROM customers WHERE id::text = $1 AND deleted_at IS NULL LIMIT 1",
       [id]
     );
-
-    if (custRes.rows.length === 0) {
-      custRes = await pool.query("SELECT id::text, name, mobile, address FROM customers LIMIT 1");
-    }
 
     if (custRes.rows.length === 0) {
       res.status(404).json({ success: false, error: "Customer not found" });
@@ -1245,40 +1263,47 @@ router.get("/customers/:id/passbook", async (req, res) => {
     const customer = custRes.rows[0];
 
     const tokensRes = await pool.query(`
-      SELECT 
+      SELECT
         t.id::text as "tokenId",
-        t.token_number as "displayToken",
+        t.normalized_token_number as "tokenNumber",
+        t.display_token as "displayToken",
         t.status::text as "status",
         c.name as "committeeName",
-        c.installment_amount::numeric as "monthlyInstallment"
+        c.id::text as "committeeId",
+        COALESCE(c.monthly_installment, c.installment_amount, 3000)::numeric as "monthlyInstallment"
       FROM tokens t
       JOIN committees c ON c.id = t.committee_id
-      WHERE t.customer_id = $1
+      WHERE t.customer_id = $1 AND t.deleted_at IS NULL
+      ORDER BY c.bissi_int_id ASC NULLS LAST
     `, [customer.id]);
 
-    const installmentsRes = await pool.query(`
-      SELECT 
-        i.id::text,
-        i.receipt_number as "receiptNumber",
-        i.amount::numeric as "amount",
-        i.payment_date as "paymentDate",
-        i.payment_mode::text as "paymentMode",
-        i.remarks as notes,
-        t.token_number as "displayToken",
-        c.name as "committeeName"
-      FROM installments i
-      JOIN tokens t ON t.id = i.token_id
-      JOIN committees c ON c.id = i.committee_id
-      WHERE i.customer_id = $1
-      ORDER BY i.payment_date DESC
+    // Collections: customer_uuid stores TOKEN UUIDs in this DB
+    // Correct join: collections.customer_uuid = tokens.id WHERE tokens.customer_id = $customerUUID
+    const collectionsRes = await pool.query(`
+      SELECT
+        col.id::text,
+        col.receipt_number as "receiptNumber",
+        col.amount::numeric as "amount",
+        col.collected_at as "paymentDate",
+        col.payment_mode::text as "paymentMode",
+        col.notes,
+        t.normalized_token_number as "tokenNumber",
+        t.display_token as "displayToken",
+        comm.name as "committeeName"
+      FROM collections col
+      JOIN tokens t ON t.id = col.customer_uuid
+      LEFT JOIN committees comm ON comm.id::text = col.committee_uuid::text
+      WHERE t.customer_id = $1
+      ORDER BY col.collected_at DESC
+      LIMIT 500
     `, [customer.id]);
 
     res.json({
       success: true,
       customer,
       tokens: tokensRes.rows,
-      installments: installmentsRes.rows,
-      history: installmentsRes.rows,
+      installments: collectionsRes.rows,
+      history: collectionsRes.rows,
     });
   } catch (err: any) {
     console.error("Passbook error:", err);
