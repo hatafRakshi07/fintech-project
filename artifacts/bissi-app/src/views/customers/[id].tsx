@@ -38,12 +38,13 @@ import { useQuery } from "@tanstack/react-query";
 
 export default function CustomerDetailPage() {
   const params = useParams<{ id?: string }>();
-  const customerId = parseInt(params.id || "0");
+  // Use the raw UUID string — do NOT parseInt() a UUID
+  const customerId = params.id || "";
   const [collectionFilter, setCollectionFilter] = useState("");
 
-  const { data: customer, isLoading: customerLoading } = useGetCustomer(customerId);
-  const { data: passbook } = useGetCustomerPassbook(customerId);
-  const { data: history, isLoading: historyLoading } = useGetCustomerHistory(customerId);
+  const { data: customer, isLoading: customerLoading } = useGetCustomer(customerId as any);
+  const { data: passbook } = useGetCustomerPassbook(customerId as any);
+  const { data: history, isLoading: historyLoading } = useGetCustomerHistory(customerId as any);
 
   const { data: lotteryHistoryData } = useQuery<any>({
     queryKey: ["customer-lottery-history", customerId],
