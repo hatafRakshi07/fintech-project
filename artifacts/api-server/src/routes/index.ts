@@ -543,13 +543,12 @@ router.get("/committees", async (req, res) => {
           COALESCE(tok_sub.total_count, 0)::int AS "totalTokens"
         FROM committees c
         LEFT JOIN (
-          SELECT committee_id,
+          SELECT committee_id::text as comm_id,
             COUNT(*) FILTER(WHERE status='ACTIVE')::int AS active_count,
             COUNT(*)::int AS total_count
-          FROM tokens GROUP BY committee_id
-        ) tok_sub ON c.id = tok_sub.committee_id
-        WHERE c.id::text IN ('11111111-1111-1111-1111-111111111111','22222222-2222-2222-2222-222222222222','33333333-3333-3333-3333-333333333333','a3d68b9c-63df-4884-a5ad-eb8a17e3be31')
-        ORDER BY c.bissi_int_id ASC NULLS LAST
+          FROM tokens GROUP BY committee_id::text
+        ) tok_sub ON c.id::text = tok_sub.comm_id
+        ORDER BY c.bissi_int_id ASC NULLS LAST, c.id ASC
       `),
       { routeName: "GET /committees", retries: 2, delayMs: 500 }
     );
@@ -561,7 +560,8 @@ router.get("/committees", async (req, res) => {
     }));
     res.json({ success: true, committees: formatted, data: formatted });
   } catch (err: any) {
-    res.json({ success: true, committees: [], data: [] });
+    console.error("Error fetching committees:", err);
+    res.status(500).json({ success: false, error: "Failed to fetch committees: " + err.message });
   }
 });
 
