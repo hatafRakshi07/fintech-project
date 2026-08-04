@@ -19,8 +19,11 @@ async function ensureSchema() {
 
       ALTER TABLE collections ADD COLUMN IF NOT EXISTS committee_uuid UUID;
       ALTER TABLE collections ADD COLUMN IF NOT EXISTS token_uuid UUID;
+      ALTER TABLE collections ADD COLUMN IF NOT EXISTS customer_uuid UUID;
       ALTER TABLE gift_distributions ADD COLUMN IF NOT EXISTS committee_uuid UUID;
       ALTER TABLE gift_distributions ADD COLUMN IF NOT EXISTS customer_uuid UUID;
+      ALTER TABLE lotteries ADD COLUMN IF NOT EXISTS committee_uuid UUID;
+      ALTER TABLE lotteries ADD COLUMN IF NOT EXISTS winner_customer_uuid UUID;
     `);
     schemaEnsured = true;
   } catch (err) {
@@ -104,11 +107,11 @@ router.get("/summary", async (req, res) => {
 
         -- Lucky winners
         LEFT JOIN (
-          SELECT committee_uuid, COUNT(DISTINCT winner_token_uuid)::int AS lucky_count
+          SELECT COALESCE(committee_uuid::text, committee_id::text) AS comm_id, COUNT(*)::int AS lucky_count
           FROM lotteries
-          WHERE reward_description = 'Lucky' OR status = 'completed'
-          GROUP BY committee_uuid
-        ) lot ON lot.committee_uuid = c.id
+          WHERE reward_description ILIKE '%Lucky%' OR status ILIKE 'completed' OR status IS NULL
+          GROUP BY COALESCE(committee_uuid::text, committee_id::text)
+        ) lot ON lot.comm_id = c.id::text
 
         -- Lifetime totals
         LEFT JOIN (
