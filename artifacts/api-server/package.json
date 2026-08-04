@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "node ./build.mjs && node --enable-source-maps --env-file-if-exists=.env ./dist/index.mjs",
-    "build": "(pnpm --filter @workspace/collector-app run build || true) && (pnpm --filter @workspace/bissi-app run build || true) && node ./build.mjs && node ../../scripts/copy-assets.mjs",
+    "build": "node ./build.mjs && node ../../scripts/copy-assets.mjs",
     "start": "node --enable-source-maps ./dist/index.mjs",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
