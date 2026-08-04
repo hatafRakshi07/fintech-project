@@ -567,6 +567,39 @@ router.post("/gifts/:id/collect", async (req, res) => {
   }
 });
 
+async function resolveCustomerUuid(identifier: string | number | undefined | null): Promise<string | null> {
+  if (identifier === undefined || identifier === null || identifier === "") return null;
+  const idStr = String(identifier).trim();
+
+  if (/^[0-9a-f-]{36}$/i.test(idStr)) {
+    const res = await pool.query("SELECT id::text FROM customers WHERE id::text = $1 AND deleted_at IS NULL LIMIT 1", [idStr]);
+    if (res.rows.length > 0) return res.rows[0].id;
+  }
+
+  const resByMeta = await pool.query(
+    "SELECT id::text FROM customers WHERE (mobile = $1 OR aadhaar = $1) AND deleted_at IS NULL LIMIT 1",
+    [idStr]
+  );
+  if (resByMeta.rows.length > 0) return resByMeta.rows[0].id;
+
+  const num = parseInt(idStr, 10);
+  if (!isNaN(num)) {
+    const resByToken = await pool.query(
+      "SELECT customer_id::text FROM tokens WHERE normalized_token_number = $1 AND customer_id IS NOT NULL AND deleted_at IS NULL LIMIT 1",
+      [num]
+    );
+    if (resByToken.rows.length > 0) return resByToken.rows[0].customer_id;
+
+    const resNth = await pool.query(
+      "SELECT id::text FROM customers WHERE deleted_at IS NULL ORDER BY created_at ASC OFFSET $1 LIMIT 1",
+      [Math.max(0, num - 1)]
+    );
+    if (resNth.rows.length > 0) return resNth.rows[0].id;
+  }
+
+  return null;
+}
+
 // ---------------------------------------------------------------------------
 // GET /api/lottery/customer/:customerId/history
 // ---------------------------------------------------------------------------
@@ -574,8 +607,14 @@ router.get("/customer/:customerId/history", async (req, res) => {
   await ensureLotteryTablesExist();
   try {
     const { customerId } = req.params;
+    const targetUuid = await resolveCustomerUuid(customerId);
 
-    const custRes = await pool.query(`SELECT name, mobile FROM customers WHERE id::text = $1`, [customerId]);
+    if (!targetUuid) {
+      res.json({ success: true, gifts: [] });
+      return;
+    }
+
+    const custRes = await pool.query(`SELECT name, mobile FROM customers WHERE id::text = $1`, [targetUuid]);
     const custName = custRes.rows.length > 0 ? custRes.rows[0].name : "";
 
     const query = `
@@ -584,12 +623,12 @@ router.get("/customer/:customerId/history", async (req, res) => {
              gd.gift_name, 'General' as gift_category, gd.status, gd.distribution_date::text as collection_date,
              'Admin' as collected_by, gd.notes as remarks, gd.created_at
       FROM gift_distributions gd
-      LEFT JOIN committees cm ON cm.id = gd.committee_uuid
-      LEFT JOIN customers c ON c.id = gd.customer_uuid
+      LEFT JOIN committees cm ON cm.id::text = gd.committee_uuid::text
+      LEFT JOIN customers c ON c.id::text = gd.customer_uuid::text
       WHERE (gd.customer_uuid::text = $1 ${custName ? "OR gd.customer_name ILIKE $2" : ""})
       ORDER BY gd.distribution_date DESC
     `;
-    const params = custName ? [customerId, `%${custName}%`] : [customerId];
+    const params = custName ? [targetUuid, `%${custName}%`] : [targetUuid];
 
     const result = await pool.query(query, params);
 

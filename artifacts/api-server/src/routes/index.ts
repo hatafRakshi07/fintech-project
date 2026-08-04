@@ -159,19 +159,52 @@ router.get("/customers", async (req, res) => {
   }
 });
 
+export async function resolveCustomerUuid(identifier: string | number | undefined | null): Promise<string | null> {
+  if (identifier === undefined || identifier === null || identifier === "") return null;
+  const idStr = String(identifier).trim();
+
+  // 1. Direct UUID match
+  if (/^[0-9a-f-]{36}$/i.test(idStr)) {
+    const res = await pool.query("SELECT id::text FROM customers WHERE id::text = $1 AND deleted_at IS NULL LIMIT 1", [idStr]);
+    if (res.rows.length > 0) return res.rows[0].id;
+  }
+
+  // 2. Search by mobile or aadhaar
+  const resByMeta = await pool.query(
+    "SELECT id::text FROM customers WHERE (mobile = $1 OR aadhaar = $1) AND deleted_at IS NULL LIMIT 1",
+    [idStr]
+  );
+  if (resByMeta.rows.length > 0) return resByMeta.rows[0].id;
+
+  // 3. Search by token number
+  const num = parseInt(idStr, 10);
+  if (!isNaN(num)) {
+    const resByToken = await pool.query(
+      "SELECT customer_id::text FROM tokens WHERE normalized_token_number = $1 AND customer_id IS NOT NULL AND deleted_at IS NULL LIMIT 1",
+      [num]
+    );
+    if (resByToken.rows.length > 0) return resByToken.rows[0].customer_id;
+
+    // 4. Fallback: Nth customer in chronological order (1-indexed numeric ID like 70 or 1)
+    const resNth = await pool.query(
+      "SELECT id::text FROM customers WHERE deleted_at IS NULL ORDER BY created_at ASC OFFSET $1 LIMIT 1",
+      [Math.max(0, num - 1)]
+    );
+    if (resNth.rows.length > 0) return resNth.rows[0].id;
+  }
+
+  return null;
+}
+
 // GET /customers/:id/bissi-pending — all active bissi memberships with current-month pending status
 router.get("/customers/:id/bissi-pending", async (req, res) => {
   try {
-    // customers.id is UUID — accept both UUID string and integer for backward compat
-    const idParam = req.params.id;
-    const isUuid = /^[0-9a-f-]{36}$/i.test(idParam);
-    
-    let customerId: any = idParam;
-    if (!isUuid) {
-      const n = parseInt(idParam, 10);
-      if (isNaN(n)) { res.status(400).json({ success: false, error: "Invalid customer ID" }); return; }
-      // Try to find UUID by integer (not supported — return empty)
-      res.json({ success: true, memberships: [] }); return;
+    const rawId = req.params.id;
+    const customerUuid = await resolveCustomerUuid(rawId);
+
+    if (!customerUuid) {
+      res.json({ success: true, memberships: [] });
+      return;
     }
 
     const result = await pool.query(`
@@ -185,14 +218,14 @@ router.get("/customers/:id/bissi-pending", async (req, res) => {
         t.status as "tokenStatus",
         EXISTS (
           SELECT 1 FROM collections col
-          WHERE col.token_uuid = t.id
+          WHERE col.customer_uuid::text = t.id::text
             AND DATE_TRUNC('month', col.collected_at) = DATE_TRUNC('month', CURRENT_DATE)
         ) as "paidThisMonth"
       FROM tokens t
-      JOIN committees comm ON comm.id = t.committee_id
-      WHERE t.customer_id = $1 AND t.status = 'ACTIVE'
+      JOIN committees comm ON comm.id::text = t.committee_id::text
+      WHERE t.customer_id::text = $1 AND t.status = 'ACTIVE' AND t.deleted_at IS NULL
       ORDER BY comm.bissi_int_id ASC NULLS LAST
-    `, [customerId]);
+    `, [customerUuid]);
 
     res.json({ success: true, memberships: result.rows });
   } catch (err: any) {
@@ -203,14 +236,15 @@ router.get("/customers/:id/bissi-pending", async (req, res) => {
 
 router.get("/customers/:id/history", async (req, res): Promise<void> => {
   try {
-    const customerId = req.params.id;
-    const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(customerId);
-    if (!isUuid) {
-      res.status(400).json({ success: false, error: "Invalid customer ID (UUID required)" });
+    const rawId = req.params.id;
+    const customerUuid = await resolveCustomerUuid(rawId);
+
+    if (!customerUuid) {
+      res.status(404).json({ success: false, error: "Customer not found" });
       return;
     }
 
-    console.log(`[GET /customers/:id/history] customerId=${customerId}`);
+    console.log(`[GET /customers/:id/history] rawId=${rawId} resolvedUuid=${customerUuid}`);
 
     const [tokensRes, collectionsRes, giftsRes, lotteriesRes] = await Promise.all([
       // Tokens for this customer
@@ -218,24 +252,23 @@ router.get("/customers/:id/history", async (req, res): Promise<void> => {
         SELECT t.id::text, t.normalized_token_number AS "tokenNumber", t.display_token AS "displayToken",
                t.status::text, comm.name AS "committeeName", comm.monthly_installment AS "installmentAmount",
                comm.id::text AS "committeeId"
-        FROM tokens t JOIN committees comm ON comm.id = t.committee_id
-        WHERE t.customer_id = $1 AND t.deleted_at IS NULL
+        FROM tokens t JOIN committees comm ON comm.id::text = t.committee_id::text
+        WHERE t.customer_id::text = $1 AND t.deleted_at IS NULL
         ORDER BY comm.bissi_int_id ASC NULLS LAST
-      `, [customerId]),
+      `, [customerUuid]),
 
-      // Collections: customer_uuid stores TOKEN uuids in this DB.
-      // So: WHERE customer_uuid IN (SELECT id FROM tokens WHERE customer_id = $customerUUID)
+      // Collections: collections.customer_uuid stores TOKEN uuids in this DB.
       pool.query(`
         SELECT col.id::text, col.amount::float, col.collected_at AS "date",
                col.payment_mode AS "paymentMode", col.notes,
                COALESCE(comm.name, 'Bissi') AS "committeeName",
                t.normalized_token_number AS "tokenNumber"
         FROM collections col
-        JOIN tokens t ON t.id = col.customer_uuid
+        JOIN tokens t ON t.id::text = col.customer_uuid::text
         LEFT JOIN committees comm ON comm.id::text = col.committee_uuid::text
-        WHERE t.customer_id = $1
+        WHERE t.customer_id::text = $1
         ORDER BY col.collected_at DESC LIMIT 500
-      `, [customerId]),
+      `, [customerUuid]),
 
       // Gifts: customer_uuid is the real customer UUID (verified)
       pool.query(`
@@ -247,7 +280,7 @@ router.get("/customers/:id/history", async (req, res): Promise<void> => {
         LEFT JOIN committees comm ON comm.id::text = gd.committee_uuid::text
         WHERE gd.customer_uuid::text = $1
         ORDER BY gd.distribution_date DESC
-      `, [customerId]),
+      `, [customerUuid]),
 
       // Lotteries: winner_customer_uuid is the real customer UUID (verified)
       pool.query(`
@@ -258,7 +291,7 @@ router.get("/customers/:id/history", async (req, res): Promise<void> => {
         LEFT JOIN committees comm ON comm.id::text = l.committee_uuid::text
         WHERE l.winner_customer_uuid::text = $1
         ORDER BY l.draw_date DESC
-      `, [customerId]),
+      `, [customerUuid]),
     ]);
 
     console.log(`[GET /customers/:id/history] tokens=${tokensRes.rows.length} collections=${collectionsRes.rows.length} gifts=${giftsRes.rows.length} lotteries=${lotteriesRes.rows.length}`);
@@ -518,16 +551,16 @@ router.post(["/gifts/deliver", "/gifts/:id/deliver"], async (req, res): Promise<
 router.get("/customers/:id", async (req, res) => {
   try {
     const { id } = req.params;
-    // Accept UUID strings only (all customer IDs in DB are UUID)
-    const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
-    if (!isUuid) {
-      res.status(400).json({ success: false, error: "Invalid customer ID (UUID required)" });
+    const customerUuid = await resolveCustomerUuid(id);
+    if (!customerUuid) {
+      res.status(404).json({ success: false, error: "Customer not found" });
       return;
     }
+
     const result = await queryWithRetry(
       () => pool.query(
         "SELECT * FROM customers WHERE id::text = $1 AND deleted_at IS NULL",
-        [id]
+        [customerUuid]
       ),
       { routeName: "GET /customers/:id", retries: 2, delayMs: 500 }
     );
@@ -549,14 +582,13 @@ router.get("/customers/:id", async (req, res) => {
       status: r.status,
       createdAt: r.created_at,
       updatedAt: r.updated_at,
-      // Legacy aliases (column doesn't exist but set null gracefully)
       referenceNumber: r.reference_number || r.aadhaar || null,
       branchId: null,
       branchName: "Shree Krishna Associate",
     });
-  } catch (err) {
+  } catch (err: any) {
     console.error("Error fetching customer:", err);
-    res.status(500).json({ success: false, error: "Failed to fetch customer" });
+    res.status(500).json({ success: false, error: "Failed to fetch customer: " + err.message });
   }
 });
 
@@ -2785,25 +2817,30 @@ router.get("/profile/kyc-lookup", async (req, res) => {
 // ── Customer Dues (for collector) ───────────────────────────────────────────
 router.get("/customers/:id/dues", async (req, res) => {
   try {
-    const customerId = parseInt(req.params.id, 10);
-    if (isNaN(customerId)) { res.status(400).json({ success: false, error: "Invalid customer ID" }); return; }
+    const rawId = req.params.id;
+    const customerUuid = await resolveCustomerUuid(rawId);
+
+    if (!customerUuid) {
+      res.status(404).json({ success: false, error: "Customer not found" });
+      return;
+    }
 
     const [customerRes, bissiDuesRes, loanDuesRes] = await Promise.all([
-      pool.query(`SELECT id, name, mobile, reference_number FROM customers WHERE id = $1 LIMIT 1`, [customerId]),
+      pool.query(`SELECT id::text as id, name, mobile, reference_number FROM customers WHERE id::text = $1 AND deleted_at IS NULL LIMIT 1`, [customerUuid]),
       pool.query(`
         SELECT t.normalized_token_number as "tokenNumber", comm.name as "committeeName",
                comm.id::text as "committeeId", comm.monthly_installment::numeric as "dueAmount", 'bissi' as "dueType"
-        FROM tokens t JOIN committees comm ON comm.id = t.committee_id
-        WHERE t.customer_id = $1 AND t.status = 'ACTIVE'
+        FROM tokens t JOIN committees comm ON comm.id::text = t.committee_id::text
+        WHERE t.customer_id::text = $1 AND t.status = 'ACTIVE' AND t.deleted_at IS NULL
           AND NOT EXISTS (
             SELECT 1 FROM collections col
-            WHERE col.token_uuid = t.id
+            WHERE col.customer_uuid::text = t.id::text
               AND DATE_TRUNC('month', col.collected_at) = DATE_TRUNC('month', CURRENT_DATE)
-          )`, [customerId]),
+          )`, [customerUuid]),
       pool.query(`
-        SELECT id as "loanId", COALESCE(outstanding_amount, principal_amount)::numeric as "dueAmount",
+        SELECT id::text as "loanId", COALESCE(outstanding_amount, principal_amount)::numeric as "dueAmount",
                COALESCE(emi_amount, 0)::numeric as "emiAmount", purpose, 'loan' as "dueType"
-        FROM loans WHERE customer_id = $1 AND status = 'active' AND deleted_at IS NULL`, [customerId]),
+        FROM loans WHERE customer_id::text = $1 AND status = 'active' AND deleted_at IS NULL`, [customerUuid]),
     ]);
 
     if (customerRes.rows.length === 0) { res.status(404).json({ success: false, error: "Customer not found" }); return; }
