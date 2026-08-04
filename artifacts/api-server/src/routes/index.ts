@@ -1623,7 +1623,7 @@ router.get("/dashboard/scheme-boxes", async (req, res) => {
         c.id::text as id,
         c.name as name,
         COALESCE(c.monthly_installment, c.installment_amount, 3000)::numeric as "installmentAmount",
-        c.total_members::int as "memberLimit",
+        COALESCE((SELECT COUNT(*)::int FROM tokens WHERE committee_id = c.id AND status::text ILIKE 'active'), 500)::int as "memberLimit",
         c.status::text as status
       FROM committees c
       WHERE c.code IN ('BISSI-1','BISSI-2','BISSI-3','BISSI-4')
