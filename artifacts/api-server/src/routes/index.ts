@@ -1278,15 +1278,15 @@ router.get("/collections", async (req, res) => {
 router.get("/customers/:id/passbook", async (req, res) => {
   try {
     const { id } = req.params;
-    const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
-    if (!isUuid) {
-      res.status(400).json({ success: false, error: "Invalid customer ID" });
+    const customerUuid = await resolveCustomerUuid(id);
+    if (!customerUuid) {
+      res.status(404).json({ success: false, error: "Customer not found" });
       return;
     }
 
     const custRes = await pool.query(
       "SELECT id::text, name, mobile, address, city, status FROM customers WHERE id::text = $1 AND deleted_at IS NULL LIMIT 1",
-      [id]
+      [customerUuid]
     );
 
     if (custRes.rows.length === 0) {
