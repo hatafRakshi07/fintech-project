@@ -164,12 +164,6 @@ function AdminDashboard() {
     queryFn: () => customFetch("/dashboard/available-months"),
     staleTime: 5 * 60 * 1000,
   });
-  const availableMonths = monthsData?.months || [];
-  const currentMonthValue = new Date().toISOString().slice(0, 7); // YYYY-MM
-
-  // Load KPI Stats
-  const { data: statsData, isLoading: statsLoading } = useGetDashboardStats();
-  const stats = statsData as any || {};
 
   // Load Per-Scheme Operational Boxes Data - uses selected month
   const { data: schemeBoxesData, isLoading: schemesLoading } = useQuery<any>({
@@ -177,6 +171,46 @@ function AdminDashboard() {
     queryFn: () => customFetch(`/dashboard/scheme-boxes${selectedMonth ? `?month=${selectedMonth}` : ""}`),
     refetchInterval: 60_000,
   });
+
+  // Combine API available months, schemeBoxesData available months, and full range (Jun 2023 to Dec 2026)
+  const availableMonths = React.useMemo(() => {
+    const list: string[] = [];
+
+    if (Array.isArray(schemeBoxesData?.availableMonths)) {
+      schemeBoxesData.availableMonths.forEach((m: any) => {
+        if (typeof m === 'string') list.push(m);
+        else if (m?.label) list.push(m.label);
+      });
+    }
+
+    if (Array.isArray(monthsData?.months)) {
+      monthsData.months.forEach((m: any) => {
+        if (typeof m === 'string') list.push(m);
+        else if (m?.label) list.push(m.label);
+        else if (m?.value) list.push(m.value);
+      });
+    }
+
+    // Default fallback month list: Jun 2023 to Dec 2026
+    const startYear = 2023;
+    const startMonth = 5; // June (0-indexed 5)
+    const now = new Date();
+    const endYear = now.getFullYear();
+    const endMonth = now.getMonth() + 5;
+
+    let curr = new Date(startYear, startMonth, 1);
+    const endLimit = new Date(endYear, endMonth, 1);
+
+    while (curr <= endLimit) {
+      const label = curr.toLocaleDateString("en-US", { month: "short", year: "numeric" });
+      if (!list.includes(label)) {
+        list.push(label);
+      }
+      curr.setMonth(curr.getMonth() + 1);
+    }
+
+    return Array.from(new Set(list)).map(val => ({ value: val, label: val }));
+  }, [monthsData, schemeBoxesData]);
 
   // Load Recent Activity (Collections Feed)
   const { data: activity } = useGetRecentActivity();

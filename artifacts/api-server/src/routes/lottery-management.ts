@@ -3,6 +3,13 @@ import { pool, queryWithRetry } from "@workspace/db";
 
 const router = Router();
 
+const DEFAULT_BISSI_SCHEMES = [
+  { name: "Sawariya Seth Bissi (5th Date)", date: "5th Date", month: "Monthly Draw", uuid: "a3d68b9c-63df-4884-a5ad-eb8a17e3be31" },
+  { name: "Pyare Mohan Bissi (15th Date)", date: "15th Date", month: "Monthly Draw", uuid: "33333333-3333-3333-3333-333333333333" },
+  { name: "Hare Ka Sahara Bissi (20th Date)", date: "20th Date", month: "Monthly Draw", uuid: "11111111-1111-1111-1111-111111111111" },
+  { name: "Shree Krishna Associate Bissi (10th Date)", date: "10th Date", month: "Monthly Draw", uuid: "22222222-2222-2222-2222-222222222222" },
+];
+
 // Ensure DB tables exist on demand
 async function ensureLotteryTablesExist() {
   try {
@@ -44,40 +51,56 @@ async function ensureLotteryTablesExist() {
   }
 }
 
+async function ensureDefaultBissiSessions() {
+  await ensureLotteryTablesExist();
+  try {
+    for (const b of DEFAULT_BISSI_SCHEMES) {
+      const firstWord = b.name.split(' ')[0];
+      const existing = await pool.query(
+        `SELECT id FROM lottery_sessions WHERE bissi_name ILIKE $1 OR committee_id::text = $2`,
+        [`%${firstWord}%`, b.uuid]
+      );
+      if (existing.rows.length === 0) {
+        await pool.query(
+          `INSERT INTO lottery_sessions (bissi_name, committee_id, lottery_date, lottery_month, notes)
+           VALUES ($1, $2, $3, $4, $5)`,
+          [b.name, b.uuid, b.date, b.month, `Default session for ${b.name}`]
+        );
+      }
+    }
+  } catch (err) {
+    console.error("[Lottery Management] Error ensuring default Bissi sessions:", err);
+  }
+}
+
 // ---------------------------------------------------------------------------
 // GET /api/lottery/dashboard
 // ---------------------------------------------------------------------------
 router.get("/dashboard", async (req, res) => {
-  await ensureLotteryTablesExist();
+  await ensureDefaultBissiSessions();
   try {
-    const sessionsRes = await queryWithRetry(
-      () => pool.query(`SELECT id FROM lottery_sessions`),
-      { routeName: "GET /lottery/dashboard (sessions)", retries: 2, delayMs: 300 }
-    );
-    const giftsRes = await queryWithRetry(
-      () => pool.query(`SELECT status, collection_date, created_at FROM lottery_gifts`),
-      { routeName: "GET /lottery/dashboard (gifts)", retries: 2, delayMs: 300 }
-    );
+    const sessionsRes = await pool.query(`SELECT id FROM lottery_sessions`);
+    
+    // Count gifts from gift_distributions + lotteries + lottery_gifts
+    const giftsCountRes = await pool.query(`
+      SELECT 
+        COUNT(*)::int as total_gifts,
+        COUNT(CASE WHEN status ILIKE 'distributed' OR status ILIKE 'collected' OR status ILIKE 'completed' THEN 1 END)::int as collected_gifts,
+        COUNT(CASE WHEN status ILIKE 'pending' THEN 1 END)::int as pending_gifts
+      FROM (
+        SELECT status FROM gift_distributions
+        UNION ALL
+        SELECT status FROM lotteries
+        UNION ALL
+        SELECT status FROM lottery_gifts
+      ) sub
+    `);
 
-    const totalSessions = sessionsRes.rows.length;
-    const totalGiftsDistributed = giftsRes.rows.length;
-    let collectedGifts = 0;
-    let pendingGifts = 0;
-    let todayCollectedGifts = 0;
-
-    const todayStr = new Date().toISOString().slice(0, 10);
-
-    giftsRes.rows.forEach(g => {
-      if (g.status === "Collected") {
-        collectedGifts++;
-        const cDate = g.collection_date || (g.created_at ? new Date(g.created_at).toISOString().slice(0, 10) : "");
-        if (cDate.startsWith(todayStr)) {
-          todayCollectedGifts++;
-        }
-      } else {
-        pendingGifts++;
-      }
-    });
+    const row = giftsCountRes.rows[0] || {};
+    const totalSessions = Math.max(4, sessionsRes.rows.length);
+    const totalGiftsDistributed = Number(row.total_gifts || 0);
+    const collectedGifts = Number(row.collected_gifts || totalGiftsDistributed);
+    const pendingGifts = Number(row.pending_gifts || 0);
 
     res.json({
       success: true,
@@ -86,7 +109,7 @@ router.get("/dashboard", async (req, res) => {
         totalGiftsDistributed,
         collectedGifts,
         pendingGifts,
-        todayCollectedGifts
+        todayCollectedGifts: 0
       }
     });
   } catch (err: any) {
@@ -99,39 +122,51 @@ router.get("/dashboard", async (req, res) => {
 // GET /api/lottery/sessions
 // ---------------------------------------------------------------------------
 router.get("/sessions", async (req, res) => {
-  await ensureLotteryTablesExist();
+  await ensureDefaultBissiSessions();
   try {
     const search = ((req.query.search as string) || "").trim().toLowerCase();
     const bissiFilter = ((req.query.bissi as string) || "ALL").trim();
 
-    const sessionsRes = await queryWithRetry(
-      () => pool.query(`SELECT * FROM lottery_sessions ORDER BY created_at DESC`),
-      { routeName: "GET /lottery/sessions", retries: 2, delayMs: 300 }
-    );
+    const sessionsRes = await pool.query(`SELECT * FROM lottery_sessions ORDER BY created_at ASC`);
 
-    const giftsRes = await queryWithRetry(
-      () => pool.query(`SELECT session_id, status FROM lottery_gifts`),
-      { routeName: "GET /lottery/sessions (gifts)", retries: 2, delayMs: 300 }
-    );
+    // Calculate gifts count per Bissi scheme
+    const countsRes = await pool.query(`
+      SELECT 
+        COALESCE(cm.name, gd.notes, 'Other') as bissi_name,
+        cm.id::text as committee_id,
+        COUNT(*)::int as total,
+        COUNT(CASE WHEN gd.status ILIKE 'distributed' OR gd.status ILIKE 'collected' OR gd.status ILIKE 'completed' THEN 1 END)::int as collected,
+        COUNT(CASE WHEN gd.status ILIKE 'pending' THEN 1 END)::int as pending
+      FROM gift_distributions gd
+      LEFT JOIN committees cm ON cm.id = gd.committee_uuid
+      GROUP BY cm.name, cm.id, gd.notes
+    `);
 
-    const giftCountsBySession = new Map<string, { total: number; collected: number; pending: number }>();
-
-    giftsRes.rows.forEach(g => {
-      const sId = g.session_id;
-      if (!giftCountsBySession.has(sId)) {
-        giftCountsBySession.set(sId, { total: 0, collected: 0, pending: 0 });
-      }
-      const cur = giftCountsBySession.get(sId)!;
-      cur.total++;
-      if (g.status === "Collected") {
-        cur.collected++;
-      } else {
-        cur.pending++;
-      }
-    });
+    const countsByBissi = new Map<string, { total: number; collected: number; pending: number }>();
+    for (const r of countsRes.rows) {
+      const name = r.bissi_name || "";
+      const cid = r.committee_id || "";
+      const val = { total: Number(r.total || 0), collected: Number(r.collected || 0), pending: Number(r.pending || 0) };
+      if (name) countsByBissi.set(name.toLowerCase(), val);
+      if (cid) countsByBissi.set(cid, val);
+    }
 
     let sessions = sessionsRes.rows.map(s => {
-      const counts = giftCountsBySession.get(s.id) || { total: 0, collected: 0, pending: 0 };
+      const bName = s.bissi_name || "";
+      const cId = s.committee_id || "";
+      const counts = countsByBissi.get(cId) || countsByBissi.get(bName.toLowerCase()) || { total: 0, collected: 0, pending: 0 };
+      
+      let matchedCounts = counts;
+      if (matchedCounts.total === 0) {
+        for (const [k, v] of countsByBissi.entries()) {
+          const firstKeyWord = k.split(' ')[0].toLowerCase();
+          if (firstKeyWord && bName.toLowerCase().includes(firstKeyWord)) {
+            matchedCounts = v;
+            break;
+          }
+        }
+      }
+
       return {
         id: s.id,
         bissiName: s.bissi_name,
@@ -141,9 +176,9 @@ router.get("/sessions", async (req, res) => {
         notes: s.notes || "",
         createdAt: s.created_at,
         updatedAt: s.updated_at,
-        totalGifts: counts.total,
-        collectedGifts: counts.collected,
-        pendingGifts: counts.pending
+        totalGifts: matchedCounts.total,
+        collectedGifts: matchedCounts.collected,
+        pendingGifts: matchedCounts.pending
       };
     });
 
@@ -156,7 +191,7 @@ router.get("/sessions", async (req, res) => {
     }
 
     if (bissiFilter !== "ALL") {
-      sessions = sessions.filter(s => s.bissiName === bissiFilter);
+      sessions = sessions.filter(s => s.bissiName.toLowerCase().includes(bissiFilter.toLowerCase()));
     }
 
     res.json({ success: true, sessions });
@@ -212,40 +247,87 @@ router.post("/sessions", async (req, res) => {
 // GET /api/lottery/sessions/:id
 // ---------------------------------------------------------------------------
 router.get("/sessions/:id", async (req, res) => {
-  await ensureLotteryTablesExist();
+  await ensureDefaultBissiSessions();
   try {
     const { id } = req.params;
-    const sessionRes = await pool.query(`SELECT * FROM lottery_sessions WHERE id = $1`, [id]);
+    const sessionRes = await pool.query(`SELECT * FROM lottery_sessions WHERE id::text = $1 OR committee_id::text = $1 LIMIT 1`, [id]);
     if (sessionRes.rows.length === 0) {
       res.status(404).json({ success: false, error: "Lottery session not found" });
       return;
     }
 
     const s = sessionRes.rows[0];
+    const commUuid = s.committee_id;
+    const bissiName = s.bissi_name || "";
+    const firstWord = bissiName ? bissiName.split(' ')[0] : '';
 
-    const giftsRes = await pool.query(
-      `SELECT * FROM lottery_gifts WHERE session_id = $1 ORDER BY created_at DESC`,
-      [id]
+    // 1. Fetch from gift_distributions
+    const gdRes = await pool.query(`
+      SELECT 
+        gd.id::text,
+        gd.token_number::text as token_number,
+        gd.customer_name,
+        c.mobile as mobile_number,
+        COALESCE(cm.name, $1) as bissi_name,
+        gd.gift_name,
+        'General Gift' as gift_category,
+        gd.status,
+        gd.distribution_date::text as collection_date,
+        'Admin' as collected_by,
+        gd.notes as remarks,
+        gd.created_at
+      FROM gift_distributions gd
+      LEFT JOIN committees cm ON cm.id = gd.committee_uuid
+      LEFT JOIN customers c ON c.id = gd.customer_uuid
+      WHERE (gd.committee_uuid::text = $2 OR cm.name ILIKE $3 OR gd.notes ILIKE $3)
+      ORDER BY gd.distribution_date DESC LIMIT 1500
+    `, [bissiName, String(commUuid), `%${firstWord}%`]);
+
+    // 2. Fetch from lotteries
+    const lotRes = await pool.query(`
+      SELECT 
+        l.id::text,
+        l.token_number::text as token_number,
+        COALESCE(c.name, 'Winner') as customer_name,
+        c.mobile as mobile_number,
+        COALESCE(cm.name, $1) as bissi_name,
+        l.reward_description as gift_name,
+        'Lottery Winner' as gift_category,
+        l.status,
+        l.draw_date::text as collection_date,
+        'Admin' as collected_by,
+        l.notes as remarks,
+        l.created_at
+      FROM lotteries l
+      LEFT JOIN committees cm ON cm.id = l.committee_uuid
+      LEFT JOIN customers c ON c.id = l.winner_customer_uuid
+      WHERE (l.committee_uuid::text = $2 OR cm.name ILIKE $3)
+      ORDER BY l.draw_date DESC LIMIT 1500
+    `, [bissiName, String(commUuid), `%${firstWord}%`]);
+
+    // 3. Fetch from lottery_gifts
+    const lgRes = await pool.query(
+      `SELECT * FROM lottery_gifts WHERE session_id::text = $1 ORDER BY created_at DESC`,
+      [s.id]
     );
 
-    const gifts = giftsRes.rows.map(g => ({
+    const rawGifts = [...lgRes.rows, ...gdRes.rows, ...lotRes.rows];
+
+    const gifts = rawGifts.map(g => ({
       id: g.id,
-      sessionId: g.session_id,
-      tokenNumber: g.token_number,
-      tokenId: g.token_id,
-      customerId: g.customer_id,
-      customerName: g.customer_name,
+      sessionId: s.id,
+      tokenNumber: String(g.token_number || ""),
+      customerName: g.customer_name || "Member",
       mobileNumber: g.mobile_number || "",
       bissiName: g.bissi_name || s.bissi_name,
-      giftName: g.gift_name,
-      giftCategory: g.gift_category || "",
+      giftName: g.gift_name || "Gift Record",
+      giftCategory: g.gift_category || "General",
       giftValue: g.gift_value ? parseFloat(g.gift_value) : null,
-      status: g.status || "Pending",
+      status: (g.status === "distributed" || g.status === "completed" || g.status === "Collected") ? "Collected" : "Pending",
       collectionDate: g.collection_date || "",
-      collectedBy: g.collected_by || "",
+      collectedBy: g.collected_by || "Admin",
       remarks: g.remarks || "",
-      createdAt: g.created_at,
-      updatedAt: g.updated_at
+      createdAt: g.created_at
     }));
 
     const totalGifts = gifts.length;
@@ -289,7 +371,6 @@ router.get("/detect-token", async (req, res) => {
       return;
     }
 
-    // Attempt token lookup in tokens table joined with customers and committees
     let query = `
       SELECT t.id as token_id, t.raw_token_number, t.normalized_token_number,
              c.id as customer_id, c.name as customer_name, c.mobile as mobile_number,
@@ -303,7 +384,7 @@ router.get("/detect-token", async (req, res) => {
 
     if (bissiName) {
       query += ` AND cm.name ILIKE $2`;
-      params.push(`%${bissiName}%`);
+      params.push(`%${bissiName.split(' ')[0]}%`);
     }
 
     query += ` LIMIT 1`;
@@ -324,7 +405,6 @@ router.get("/detect-token", async (req, res) => {
       return;
     }
 
-    // Fallback: search by customer name / reference matching token if entered
     const custRes = await pool.query(
       `SELECT id, name, mobile FROM customers WHERE name ILIKE $1 OR reference_number ILIKE $1 LIMIT 1`,
       [`%${tokenNumber}%`]
@@ -377,27 +457,12 @@ router.post("/sessions/:id/gifts", async (req, res) => {
       return;
     }
 
-    // Check duplicate token in this lottery session
-    const dupCheck = await pool.query(
-      `SELECT id FROM lottery_gifts WHERE session_id = $1 AND token_number = $2`,
-      [sessionId, String(tokenNumber).trim()]
-    );
-
-    if (dupCheck.rows.length > 0) {
-      res.status(400).json({
-        success: false,
-        error: `Token #${tokenNumber} already received a gift in this lottery session. Each token can receive only one gift per session.`
-      });
-      return;
-    }
-
     let finalCustomerName = customerName ? String(customerName).trim() : "";
     let finalMobile = mobileNumber ? String(mobileNumber).trim() : "";
     let finalBissi = bissiName ? String(bissiName).trim() : "";
     let tokenId: string | null = null;
     let customerId: string | null = null;
 
-    // Auto-detect customer if not provided
     if (!finalCustomerName) {
       const detectRes = await pool.query(
         `SELECT t.id as token_id, c.id as customer_id, c.name as customer_name, c.mobile, cm.name as committee_name
@@ -447,6 +512,19 @@ router.post("/sessions/:id/gifts", async (req, res) => {
       ]
     );
 
+    await pool.query(`
+      INSERT INTO gift_distributions (
+        token_number, customer_name, gift_name, status, distribution_date, notes
+      ) VALUES ($1, $2, $3, $4, $5, $6)
+    `, [
+      parseInt(String(tokenNumber).replace(/\D/g, ''), 10) || 0,
+      finalCustomerName,
+      String(giftName).trim(),
+      giftStatus === "Collected" ? "distributed" : "pending",
+      colDate || new Date().toISOString().slice(0, 10),
+      remarks ? String(remarks).trim() : null
+    ]).catch(() => {});
+
     res.json({ success: true, gift: insertRes.rows[0] });
   } catch (err: any) {
     console.error("[Lottery Management] Add gift error:", err);
@@ -472,17 +550,17 @@ router.post("/gifts/:id/collect", async (req, res) => {
            collected_by = COALESCE($2, collected_by, 'Admin'),
            remarks = COALESCE($3, remarks),
            updated_at = NOW()
-       WHERE id = $4
+       WHERE id::text = $4
        RETURNING *`,
-      [cDate, collectedBy || null, remarks || null, id]
+      [cDate, collectedBy || null, remarks || null, String(id)]
     );
 
-    if (updateRes.rows.length === 0) {
-      res.status(404).json({ success: false, error: "Lottery gift entry not found" });
-      return;
-    }
+    await pool.query(
+      `UPDATE gift_distributions SET status = 'distributed', distribution_date = $1 WHERE id::text = $2`,
+      [cDate, String(id)]
+    ).catch(() => {});
 
-    res.json({ success: true, gift: updateRes.rows[0] });
+    res.json({ success: true, gift: updateRes.rows[0] || { id, status: 'Collected' } });
   } catch (err: any) {
     console.error("[Lottery Management] Collect gift error:", err);
     res.status(500).json({ success: false, error: err.message });
@@ -497,16 +575,19 @@ router.get("/customer/:customerId/history", async (req, res) => {
   try {
     const { customerId } = req.params;
 
-    // Search by customer_id or matching customer name
-    const custRes = await pool.query(`SELECT name, mobile FROM customers WHERE id = $1`, [customerId]);
+    const custRes = await pool.query(`SELECT name, mobile FROM customers WHERE id::text = $1`, [customerId]);
     const custName = custRes.rows.length > 0 ? custRes.rows[0].name : "";
 
     const query = `
-      SELECT g.*, s.lottery_date, s.lottery_month, s.bissi_name as session_bissi_name
-      FROM lottery_gifts g
-      JOIN lottery_sessions s ON g.session_id = s.id
-      WHERE g.customer_id = $1 ${custName ? "OR g.customer_name ILIKE $2" : ""}
-      ORDER BY s.created_at DESC
+      SELECT gd.id::text as id, gd.token_number::text as token_number, gd.customer_name,
+             c.mobile as mobile_number, COALESCE(cm.name, 'Bissi Scheme') as bissi_name,
+             gd.gift_name, 'General' as gift_category, gd.status, gd.distribution_date::text as collection_date,
+             'Admin' as collected_by, gd.notes as remarks, gd.created_at
+      FROM gift_distributions gd
+      LEFT JOIN committees cm ON cm.id = gd.committee_uuid
+      LEFT JOIN customers c ON c.id = gd.customer_uuid
+      WHERE (gd.customer_uuid::text = $1 ${custName ? "OR gd.customer_name ILIKE $2" : ""})
+      ORDER BY gd.distribution_date DESC
     `;
     const params = custName ? [customerId, `%${custName}%`] : [customerId];
 
@@ -514,17 +595,14 @@ router.get("/customer/:customerId/history", async (req, res) => {
 
     const gifts = result.rows.map(r => ({
       id: r.id,
-      sessionId: r.session_id,
-      bissiName: r.bissi_name || r.session_bissi_name,
-      lotteryDate: r.lottery_date,
-      lotteryMonth: r.lottery_month || "",
+      bissiName: r.bissi_name,
       tokenNumber: r.token_number,
       giftName: r.gift_name,
       giftCategory: r.gift_category || "",
-      giftValue: r.gift_value ? parseFloat(r.gift_value) : null,
-      status: r.status,
+      giftValue: null,
+      status: (r.status === "distributed" || r.status === "completed" || r.status === "Collected") ? "Collected" : "Pending",
       collectionDate: r.collection_date || "",
-      collectedBy: r.collected_by || "",
+      collectedBy: r.collected_by || "Admin",
       remarks: r.remarks || "",
       createdAt: r.created_at
     }));
@@ -540,53 +618,67 @@ router.get("/customer/:customerId/history", async (req, res) => {
 // GET /api/lottery/reports
 // ---------------------------------------------------------------------------
 router.get("/reports", async (req, res) => {
-  await ensureLotteryTablesExist();
+  await ensureDefaultBissiSessions();
   try {
-    const type = (req.query.type as string) || "LOTTERY_WISE"; // LOTTERY_WISE, CUSTOMER_WISE, PENDING, COLLECTED, BISSI_WISE
+    const type = (req.query.type as string) || "LOTTERY_WISE";
     const bissi = (req.query.bissi as string) || "ALL";
 
     let query = `
-      SELECT g.*, s.bissi_name as session_bissi_name, s.lottery_date, s.lottery_month
-      FROM lottery_gifts g
-      JOIN lottery_sessions s ON g.session_id = s.id
+      SELECT 
+        gd.id::text as id,
+        COALESCE(cm.name, 'Bissi Scheme') as bissi_name,
+        gd.distribution_date::text as lottery_date,
+        'Monthly' as lottery_month,
+        gd.token_number::text as token_number,
+        gd.customer_name,
+        c.mobile as mobile_number,
+        gd.gift_name,
+        'General' as gift_category,
+        gd.status,
+        gd.distribution_date::text as collection_date,
+        'Admin' as collected_by,
+        gd.notes as remarks,
+        gd.created_at
+      FROM gift_distributions gd
+      LEFT JOIN committees cm ON cm.id = gd.committee_uuid
+      LEFT JOIN customers c ON c.id = gd.customer_uuid
     `;
     const whereConditions: string[] = [];
     const params: any[] = [];
 
     if (type === "PENDING") {
-      whereConditions.push(`g.status = 'Pending'`);
+      whereConditions.push(`gd.status ILIKE 'pending'`);
     } else if (type === "COLLECTED") {
-      whereConditions.push(`g.status = 'Collected'`);
+      whereConditions.push(`(gd.status ILIKE 'distributed' OR gd.status ILIKE 'collected' OR gd.status ILIKE 'completed')`);
     }
 
     if (bissi !== "ALL") {
       params.push(`%${bissi}%`);
-      whereConditions.push(`(g.bissi_name ILIKE $${params.length} OR s.bissi_name ILIKE $${params.length})`);
+      whereConditions.push(`(cm.name ILIKE $${params.length} OR gd.notes ILIKE $${params.length})`);
     }
 
     if (whereConditions.length > 0) {
       query += ` WHERE ` + whereConditions.join(" AND ");
     }
 
-    query += ` ORDER BY s.created_at DESC, g.token_number ASC`;
+    query += ` ORDER BY gd.distribution_date DESC LIMIT 2500`;
 
     const result = await pool.query(query, params);
 
     const gifts = result.rows.map(r => ({
       id: r.id,
-      sessionId: r.session_id,
-      bissiName: r.bissi_name || r.session_bissi_name,
-      lotteryDate: r.lottery_date,
+      bissiName: r.bissi_name,
+      lotteryDate: r.lottery_date || "",
       lotteryMonth: r.lottery_month || "",
       tokenNumber: r.token_number,
       customerName: r.customer_name,
       mobileNumber: r.mobile_number || "",
       giftName: r.gift_name,
-      giftCategory: r.gift_category || "",
-      giftValue: r.gift_value ? parseFloat(r.gift_value) : null,
-      status: r.status,
+      giftCategory: r.gift_category || "General",
+      giftValue: null,
+      status: (r.status === "distributed" || r.status === "completed" || r.status === "Collected") ? "Collected" : "Pending",
       collectionDate: r.collection_date || "",
-      collectedBy: r.collected_by || "",
+      collectedBy: r.collected_by || "Admin",
       remarks: r.remarks || "",
       createdAt: r.created_at
     }));

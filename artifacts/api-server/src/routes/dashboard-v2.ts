@@ -46,7 +46,7 @@ router.get("/summary", async (req, res) => {
           c.id::text                         AS "schemeId",
           c.name                             AS "schemeName",
           c.code                             AS "schemeCode",
-          c.monthly_installment::numeric     AS "monthlyInstallment",
+          COALESCE(c.monthly_installment, c.installment_amount, 3000)::numeric AS "monthlyInstallment",
 
           -- Token counts
           COALESCE(tok.active_count, 0)::int AS "activeTokens",
@@ -210,7 +210,7 @@ router.get("/pending-report", async (req, res) => {
         t.display_token           AS "displayToken",
         c2.id::text               AS "committeeId",
         c2.name                   AS "committeeName",
-        c2.monthly_installment    AS "installmentAmount",
+        COALESCE(c2.monthly_installment, c2.installment_amount, 3000)::numeric AS "installmentAmount",
         cust.name                 AS "customerName",
         cust.mobile               AS "customerMobile",
         cust.address              AS "customerAddress"
