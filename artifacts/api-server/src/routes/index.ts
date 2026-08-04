@@ -22,8 +22,14 @@ async function ensureCommitteesColumnsExist() {
     await pool.query(`
       ALTER TABLE committees ADD COLUMN IF NOT EXISTS monthly_installment NUMERIC DEFAULT 3000;
       ALTER TABLE committees ADD COLUMN IF NOT EXISTS installment_amount NUMERIC DEFAULT 3000;
+      ALTER TABLE committees ADD COLUMN IF NOT EXISTS bissi_int_id INTEGER;
+      ALTER TABLE committees ADD COLUMN IF NOT EXISTS code VARCHAR(50);
       UPDATE committees SET monthly_installment = COALESCE(monthly_installment, installment_amount, 3000) WHERE monthly_installment IS NULL;
       UPDATE committees SET installment_amount = COALESCE(installment_amount, monthly_installment, 3000) WHERE installment_amount IS NULL;
+      UPDATE committees SET bissi_int_id = 1, code = 'BISSI-1' WHERE id::text = '11111111-1111-1111-1111-111111111111' AND (bissi_int_id IS NULL OR code IS NULL);
+      UPDATE committees SET bissi_int_id = 2, code = 'BISSI-2' WHERE id::text = '22222222-2222-2222-2222-222222222222' AND (bissi_int_id IS NULL OR code IS NULL);
+      UPDATE committees SET bissi_int_id = 3, code = 'BISSI-3' WHERE id::text = '33333333-3333-3333-3333-333333333333' AND (bissi_int_id IS NULL OR code IS NULL);
+      UPDATE committees SET bissi_int_id = 4, code = 'BISSI-4' WHERE id::text = 'a3d68b9c-63df-4884-a5ad-eb8a17e3be31' AND (bissi_int_id IS NULL OR code IS NULL);
     `);
     committeesColumnsEnsured = true;
   } catch (err) {

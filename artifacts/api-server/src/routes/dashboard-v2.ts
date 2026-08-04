@@ -3,6 +3,24 @@ import { pool, queryWithRetry } from "@workspace/db";
 
 const router = Router();
 
+// Self-healing: ensure code/bissi_int_id exist regardless of which DB is used
+let schemaEnsured = false;
+async function ensureSchema() {
+  if (schemaEnsured) return;
+  try {
+    await pool.query(`
+      ALTER TABLE committees ADD COLUMN IF NOT EXISTS code VARCHAR(50);
+      ALTER TABLE committees ADD COLUMN IF NOT EXISTS bissi_int_id INTEGER;
+      ALTER TABLE committees ADD COLUMN IF NOT EXISTS monthly_installment NUMERIC DEFAULT 3000;
+      UPDATE committees SET bissi_int_id = 1, code = 'BISSI-1' WHERE id::text = '11111111-1111-1111-1111-111111111111' AND (bissi_int_id IS NULL OR code IS NULL);
+      UPDATE committees SET bissi_int_id = 2, code = 'BISSI-2' WHERE id::text = '22222222-2222-2222-2222-222222222222' AND (bissi_int_id IS NULL OR code IS NULL);
+      UPDATE committees SET bissi_int_id = 3, code = 'BISSI-3' WHERE id::text = '33333333-3333-3333-3333-333333333333' AND (bissi_int_id IS NULL OR code IS NULL);
+      UPDATE committees SET bissi_int_id = 4, code = 'BISSI-4' WHERE id::text = 'a3d68b9c-63df-4884-a5ad-eb8a17e3be31' AND (bissi_int_id IS NULL OR code IS NULL);
+    `);
+    schemaEnsured = true;
+  } catch { /* non-fatal — columns may already exist */ }
+}
+
 // ── Utility: get month filter SQL ──────────────────────────────────────────
 function buildMonthFilter(month: string | undefined, colAlias = "c") {
   if (!month || month === "all") return "";
@@ -39,6 +57,7 @@ router.get("/summary", async (req, res) => {
   const monthFilter = buildMonthFilter(month);
   const today = new Date().toISOString().split("T")[0];
 
+  await ensureSchema();
   try {
     const result = await queryWithRetry(
       () => pool.query(`
