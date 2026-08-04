@@ -558,7 +558,7 @@ router.get("/customers/:id", async (req, res) => {
 
     const result = await queryWithRetry(
       () => pool.query(
-        "SELECT * FROM customers WHERE id::text = $1 AND deleted_at IS NULL",
+        "SELECT * FROM customers WHERE id::text = $1",
         [customerUuid]
       ),
       { routeName: "GET /customers/:id", retries: 2, delayMs: 500 }
