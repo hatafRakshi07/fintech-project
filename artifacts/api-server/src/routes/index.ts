@@ -1338,10 +1338,10 @@ router.get("/customers/:id/passbook", async (req, res) => {
       FROM collections col
       LEFT JOIN tokens t ON (t.id::text = col.customer_uuid::text OR t.id::text = col.token_uuid::text)
       LEFT JOIN committees comm ON comm.id::text = col.committee_uuid::text OR comm.id::text = col.committee_id::text
-      WHERE t.customer_id::text = $1 OR col.customer_uuid::text = $1
+      WHERE t.customer_id::text = $1::text OR col.customer_uuid::text = $1::text
       ORDER BY col.collected_at DESC
       LIMIT 500
-    `, [customerUuid]).catch(() => ({ rows: [] }));
+    `, [String(customerUuid)]).catch(() => ({ rows: [] }));
 
     res.json({
       success: true,

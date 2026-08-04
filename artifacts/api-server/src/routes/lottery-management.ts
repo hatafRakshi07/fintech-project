@@ -617,17 +617,17 @@ router.get("/customer/:customerId/history", async (req, res) => {
     const custName = custRes.rows.length > 0 ? custRes.rows[0].name : "";
 
     const query = `
-      SELECT gd.id::text as id, COALESCE(gd.token_number, 1)::text as token_number, gd.customer_name,
+      SELECT gd.id::text as id, COALESCE(gd.token_number, 1)::text as token_number, COALESCE(c.name, '') as customer_name,
              c.mobile as mobile_number, COALESCE(cm.name, 'Bissi Scheme') as bissi_name,
              gd.gift_name, 'General' as gift_category, gd.status, gd.distribution_date::text as collection_date,
              'Admin' as collected_by, gd.notes as remarks, gd.created_at
       FROM gift_distributions gd
       LEFT JOIN committees cm ON cm.id::text = gd.committee_uuid::text
       LEFT JOIN customers c ON c.id::text = gd.customer_uuid::text
-      WHERE (gd.customer_uuid::text = $1 ${custName ? "OR gd.customer_name ILIKE $2" : ""})
+      WHERE gd.customer_uuid::text = $1::text
       ORDER BY gd.distribution_date DESC
     `;
-    const params = custName ? [targetUuid, `%${custName}%`] : [targetUuid];
+    const params = [String(targetUuid)];
 
     const result = await pool.query(query, params).catch(() => ({ rows: [] }));
 
