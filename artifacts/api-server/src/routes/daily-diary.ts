@@ -72,7 +72,9 @@ router.get("/dashboard", async (_req, res) => {
       LEFT JOIN (
         SELECT loan_id,
           SUM(amount_deposited) AS total_collected,
-          SUM(amount_deposited) FILTER(WHERE DATE(payment_date) = CURRENT_DATE) AS today_collected
+          SUM(amount_deposited) FILTER(WHERE DATE(payment_date) = CURRENT_DATE) AS today_collected,
+          SUM(amount_deposited) FILTER(WHERE payment_date >= DATE_TRUNC('week', CURRENT_DATE)::date) AS week_collected,
+          SUM(amount_deposited) FILTER(WHERE payment_date >= DATE_TRUNC('month', CURRENT_DATE)::date) AS month_collected
         FROM daily_diary_payments GROUP BY loan_id
       ) p ON p.loan_id = l.id
     `);
