@@ -8,7 +8,7 @@
     "prebuild": "pnpm install --no-frozen-lockfile --prod=false",
     "dev": "pnpm -r --parallel --filter \"./artifacts/**\" run dev",
     "dev:all": "cmd /c START.bat",
-    "build": "pnpm --filter @workspace/api-server run build",
+    "build": "pnpm --filter @workspace/bissi-app run build ; pnpm --filter @workspace/api-server run build",
     "typecheck:libs": "tsc --build",
     "typecheck": "pnpm run typecheck:libs && pnpm -r --filter \"./artifacts/**\" --filter \"./scripts\" --if-present run typecheck",
     "seed": "node ./scripts/seed-complete-db.mjs",
@@ -17,6 +17,9 @@
   },
   "private": true,
   "devDependencies": {
+    "autoprefixer": "^10.4.20",
+    "postcss": "^8.5.6",
+    "tailwindcss": "^3.4.17",
     "next": "^15.1.7",
     "prettier": "^3.8.4"
   },
