@@ -571,6 +571,10 @@ async function resolveCustomerUuid(identifier: string | number | undefined | nul
   if (identifier === undefined || identifier === null || identifier === "") return null;
   const idStr = String(identifier).trim();
 
+  try {
+    await pool.query(`ALTER TABLE customers ADD COLUMN IF NOT EXISTS aadhaar VARCHAR(50);`);
+  } catch (e) {}
+
   if (/^[0-9a-f-]{36}$/i.test(idStr)) {
     const res = await pool.query("SELECT id::text FROM customers WHERE id::text = $1 AND deleted_at IS NULL LIMIT 1", [idStr]);
     if (res.rows.length > 0) return res.rows[0].id;

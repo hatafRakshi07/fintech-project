@@ -35,6 +35,7 @@ async function ensureCommitteesColumnsExist() {
       ALTER TABLE collections ADD COLUMN IF NOT EXISTS token_uuid UUID;
       ALTER TABLE gift_distributions ADD COLUMN IF NOT EXISTS committee_uuid UUID;
       ALTER TABLE gift_distributions ADD COLUMN IF NOT EXISTS customer_uuid UUID;
+      ALTER TABLE customers ADD COLUMN IF NOT EXISTS aadhaar VARCHAR(50);
     `);
     committeesColumnsEnsured = true;
   } catch (err) {
