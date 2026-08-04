@@ -536,7 +536,7 @@ router.get("/committees", async (req, res) => {
             COUNT(*)::int AS total_count
           FROM tokens GROUP BY committee_id
         ) tok_sub ON c.id = tok_sub.committee_id
-        WHERE c.code IN ('BISSI-1','BISSI-2','BISSI-3','BISSI-4')
+        WHERE c.id::text IN ('11111111-1111-1111-1111-111111111111','22222222-2222-2222-2222-222222222222','33333333-3333-3333-3333-333333333333','a3d68b9c-63df-4884-a5ad-eb8a17e3be31')
         ORDER BY c.bissi_int_id ASC NULLS LAST
       `),
       { routeName: "GET /committees", retries: 2, delayMs: 500 }
@@ -1496,7 +1496,7 @@ router.get("/dashboard/stats", async (req, res) => {
       () => pool.query(`
         SELECT
           (SELECT COUNT(DISTINCT customer_id)::int FROM tokens WHERE customer_id IS NOT NULL) as "totalCustomers",
-          (SELECT COUNT(*)::int FROM committees WHERE code IN ('BISSI-1','BISSI-2','BISSI-3','BISSI-4')) as "totalCommittees",
+          (SELECT COUNT(*)::int FROM committees WHERE id::text IN ('11111111-1111-1111-1111-111111111111','22222222-2222-2222-2222-222222222222','33333333-3333-3333-3333-333333333333','a3d68b9c-63df-4884-a5ad-eb8a17e3be31')) as "totalCommittees",
           (SELECT COUNT(*)::int FROM collections) as "totalCollections",
           (SELECT COALESCE(SUM(amount), 0)::numeric FROM collections) as "totalCollectionAmount",
           (SELECT COUNT(*)::int FROM tokens) as "totalTokens",
@@ -1547,7 +1547,7 @@ router.get("/dashboard/recent-activity", async (req, res) => {
       SELECT col.id, col.amount, col.collected_at, col.payment_mode,
              COALESCE(c.name, col.notes, 'Member') as customer_name, col.notes
       FROM collections col
-      LEFT JOIN customers c ON (c.id = col.customer_uuid)
+      LEFT JOIN customers c ON (c.id = COALESCE(col.customer_uuid, col.customer_id))
       ORDER BY col.id DESC
       LIMIT 12
     `),
@@ -1626,7 +1626,7 @@ router.get("/dashboard/scheme-boxes", async (req, res) => {
         COALESCE((SELECT COUNT(*)::int FROM tokens WHERE committee_id = c.id AND status::text ILIKE 'active'), 500)::int as "memberLimit",
         c.status::text as status
       FROM committees c
-      WHERE c.code IN ('BISSI-1','BISSI-2','BISSI-3','BISSI-4')
+      WHERE c.id::text IN ('11111111-1111-1111-1111-111111111111','22222222-2222-2222-2222-222222222222','33333333-3333-3333-3333-333333333333','a3d68b9c-63df-4884-a5ad-eb8a17e3be31')
       ORDER BY c.bissi_int_id ASC NULLS LAST
     `);
 
@@ -1998,7 +1998,7 @@ router.get("/dashboard/all", async (req, res) => {
       pool.query(`
         SELECT
           (SELECT COUNT(DISTINCT customer_id)::int FROM tokens WHERE customer_id IS NOT NULL) AS total_customers,
-          (SELECT COUNT(*)::int FROM committees WHERE code IN ('BISSI-1','BISSI-2','BISSI-3','BISSI-4')) AS total_committees,
+          (SELECT COUNT(*)::int FROM committees WHERE id::text IN ('11111111-1111-1111-1111-111111111111','22222222-2222-2222-2222-222222222222','33333333-3333-3333-3333-333333333333','a3d68b9c-63df-4884-a5ad-eb8a17e3be31')) AS total_committees,
           (SELECT COUNT(*)::int FROM collections WHERE committee_uuid IS NOT NULL) AS total_collections,
           (SELECT COALESCE(SUM(amount), 0)::numeric FROM collections WHERE committee_uuid IS NOT NULL) AS total_collection_amount,
           (SELECT COUNT(*)::int FROM tokens) AS total_tokens,
@@ -2017,7 +2017,7 @@ router.get("/dashboard/all", async (req, res) => {
         LEFT JOIN (SELECT committee_uuid, SUM(amount)::numeric AS total FROM collections WHERE committee_uuid IS NOT NULL GROUP BY committee_uuid) life ON life.committee_uuid = c.id
         LEFT JOIN (SELECT committee_uuid, SUM(amount)::numeric AS total FROM collections WHERE committee_uuid IS NOT NULL ${monthCond} GROUP BY committee_uuid) mon ON mon.committee_uuid = c.id
         LEFT JOIN (SELECT t2.committee_id, COUNT(*)::int AS pending_count FROM tokens t2 WHERE t2.status='ACTIVE' AND NOT EXISTS (SELECT 1 FROM collections col WHERE col.token_uuid = t2.id ${monthCond}) GROUP BY t2.committee_id) pend ON pend.committee_id = c.id
-        WHERE c.code IN ('BISSI-1','BISSI-2','BISSI-3','BISSI-4')
+        WHERE c.id::text IN ('11111111-1111-1111-1111-111111111111','22222222-2222-2222-2222-222222222222','33333333-3333-3333-3333-333333333333','a3d68b9c-63df-4884-a5ad-eb8a17e3be31')
         ORDER BY c.bissi_int_id ASC NULLS LAST
       `),
       pool.query(`
@@ -2030,7 +2030,7 @@ router.get("/dashboard/all", async (req, res) => {
                COALESCE(cust.name, col.notes) AS customer_name, col.notes,
                comm.name AS committee_name
         FROM collections col
-        LEFT JOIN customers cust ON cust.id = col.customer_uuid
+        LEFT JOIN customers cust ON cust.id = COALESCE(col.customer_uuid, col.customer_id)
         LEFT JOIN committees comm ON comm.id = col.committee_uuid
         WHERE col.committee_uuid IS NOT NULL
         ORDER BY col.id DESC LIMIT 12

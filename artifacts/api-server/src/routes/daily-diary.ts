@@ -65,7 +65,9 @@ router.get("/dashboard", async (_req, res) => {
         COALESCE(SUM(l.loan_amount), 0)::numeric                       AS "totalLoanAmount",
         COALESCE(SUM(p.total_collected), 0)::numeric                   AS "totalAmountCollected",
         COALESCE(SUM(l.loan_amount - COALESCE(p.total_collected, 0)), 0)::numeric AS "totalRemaining",
-        COALESCE(SUM(p.today_collected), 0)::numeric                   AS "todayCollection"
+        COALESCE(SUM(p.today_collected), 0)::numeric                   AS "todayCollection",
+        COALESCE(SUM(p.week_collected), 0)::numeric                     AS "weekCollection",
+        COALESCE(SUM(p.month_collected), 0)::numeric                    AS "monthCollection"
       FROM daily_diary_loans l
       LEFT JOIN (
         SELECT loan_id,
@@ -103,6 +105,8 @@ router.get("/dashboard", async (_req, res) => {
         totalAmountCollected: Number(stats.totalAmountCollected || 0),
         totalRemainingAmount: Number(stats.totalRemaining || 0),
         todayCollection: Number(stats.todayCollection || 0),
+        weekCollection: Number(stats.weekCollection || 0),
+        monthCollection: Number(stats.monthCollection || 0),
         todayExpected,
         activeCustomers: Number(stats.activeLoans || 0),
         totalCustomers: Number(stats.totalLoans || 0),
@@ -110,7 +114,7 @@ router.get("/dashboard", async (_req, res) => {
     });
   } catch (err: any) {
     console.error("[Daily Diary] dashboard error:", err.message);
-    res.json({ success: true, stats: { totalLoans: 0, activeLoans: 0, completedLoans: 0, totalLoanAmount: 0, totalAmountCollected: 0, totalRemainingAmount: 0, todayCollection: 0, todayExpected: 0, activeCustomers: 0, totalCustomers: 0 } });
+    res.json({ success: true, stats: { totalLoans: 0, activeLoans: 0, completedLoans: 0, totalLoanAmount: 0, totalAmountCollected: 0, totalRemainingAmount: 0, todayCollection: 0, weekCollection: 0, monthCollection: 0, todayExpected: 0, activeCustomers: 0, totalCustomers: 0 } });
   }
 });
 

@@ -133,7 +133,7 @@ router.get("/summary", async (req, res) => {
           GROUP BY t2.committee_id
         ) pend ON pend.committee_id = c.id
 
-        WHERE c.code IN ('BISSI-1','BISSI-2','BISSI-3','BISSI-4')
+        WHERE c.id::text IN ('11111111-1111-1111-1111-111111111111','22222222-2222-2222-2222-222222222222','33333333-3333-3333-3333-333333333333','a3d68b9c-63df-4884-a5ad-eb8a17e3be31')
         ORDER BY c.bissi_int_id ASC NULLS LAST
       `),
       { routeName: "GET /api/v2/dashboard/summary", retries: 2, delayMs: 500 }

@@ -541,7 +541,7 @@ export default function DailyDiaryDashboardPage() {
             <div>
               <p className="text-xs text-muted-foreground font-medium uppercase tracking-wider">Total Loan Amount</p>
               <span className="text-2xl font-bold text-amber-600 dark:text-amber-400 mt-1 block">
-                ₹{stats.totalLoanAmount.toLocaleString('en-IN')}
+                ₹{(stats.totalLoanAmount || 0).toLocaleString('en-IN')}
               </span>
             </div>
             <div className="p-3 bg-amber-500/10 rounded-xl text-amber-600 border border-amber-500/20">
@@ -555,7 +555,7 @@ export default function DailyDiaryDashboardPage() {
             <div>
               <p className="text-xs text-muted-foreground font-medium uppercase tracking-wider">Total Collected</p>
               <span className="text-2xl font-bold text-emerald-600 dark:text-emerald-400 mt-1 block">
-                ₹{stats.totalAmountCollected.toLocaleString('en-IN')}
+                ₹{(stats.totalAmountCollected || 0).toLocaleString('en-IN')}
               </span>
             </div>
             <div className="p-3 bg-emerald-500/10 rounded-xl text-emerald-600 border border-emerald-500/20">
@@ -569,7 +569,7 @@ export default function DailyDiaryDashboardPage() {
             <div>
               <p className="text-xs text-muted-foreground font-medium uppercase tracking-wider">Total Remaining Balance</p>
               <span className="text-2xl font-bold text-rose-600 dark:text-rose-400 mt-1 block">
-                ₹{stats.totalRemainingAmount.toLocaleString('en-IN')}
+                ₹{(stats.totalRemainingAmount || 0).toLocaleString('en-IN')}
               </span>
             </div>
             <div className="p-3 bg-rose-500/10 rounded-xl text-rose-600 border border-rose-500/20">
@@ -584,7 +584,7 @@ export default function DailyDiaryDashboardPage() {
         <Card className="bg-card border border-border shadow-sm p-4 flex items-center justify-between">
           <div>
             <p className="text-xs text-muted-foreground uppercase font-semibold">Today's Collection</p>
-            <p className="text-xl font-bold text-emerald-600 dark:text-emerald-400 mt-0.5">₹{stats.todayCollection.toLocaleString('en-IN')}</p>
+            <p className="text-xl font-bold text-emerald-600 dark:text-emerald-400 mt-0.5">₹{(stats.todayCollection || 0).toLocaleString('en-IN')}</p>
           </div>
           <Badge variant="outline" className="bg-emerald-500/10 text-emerald-700 border-emerald-500/20">Today</Badge>
         </Card>
@@ -592,7 +592,7 @@ export default function DailyDiaryDashboardPage() {
         <Card className="bg-card border border-border shadow-sm p-4 flex items-center justify-between">
           <div>
             <p className="text-xs text-muted-foreground uppercase font-semibold">This Week Collection</p>
-            <p className="text-xl font-bold text-blue-600 dark:text-blue-400 mt-0.5">₹{stats.weekCollection.toLocaleString('en-IN')}</p>
+            <p className="text-xl font-bold text-blue-600 dark:text-blue-400 mt-0.5">₹{(stats.weekCollection || 0).toLocaleString('en-IN')}</p>
           </div>
           <Badge variant="outline" className="bg-blue-500/10 text-blue-700 border-blue-500/20">Last 7 Days</Badge>
         </Card>
@@ -600,7 +600,7 @@ export default function DailyDiaryDashboardPage() {
         <Card className="bg-card border border-border shadow-sm p-4 flex items-center justify-between">
           <div>
             <p className="text-xs text-muted-foreground uppercase font-semibold">This Month Collection</p>
-            <p className="text-xl font-bold text-purple-600 dark:text-purple-400 mt-0.5">₹{stats.monthCollection.toLocaleString('en-IN')}</p>
+            <p className="text-xl font-bold text-purple-600 dark:text-purple-400 mt-0.5">₹{(stats.monthCollection || 0).toLocaleString('en-IN')}</p>
           </div>
           <Badge variant="outline" className="bg-purple-500/10 text-purple-700 border-purple-500/20">This Month</Badge>
         </Card>
