@@ -12,14 +12,9 @@ import { startScheduler, stopScheduler } from "./lib/scheduler";
 const NEON_URL =
   "postgresql://neondb_owner:npg_qSQN29ZxTKzt@ep-frosty-cloud-at51tjed-pooler.c-9.us-east-1.aws.neon.tech/neondb";
 
-// Force Neon when DATABASE_URL is absent or points to direct Supabase host (.supabase.co:5432).
-// Allows Supabase POOLER connection strings (*.pooler.supabase.com or port 6543).
-const dbUrl = process.env.DATABASE_URL || "";
-const isSupabaseDirect = dbUrl.includes('.supabase.co') && !dbUrl.includes('pooler.supabase.com') && !dbUrl.includes(':6543');
-// Also force Neon if DATABASE_URL is empty or is the Supabase pooler that is now offline
-if (!dbUrl || isSupabaseDirect || dbUrl.includes('supabase')) {
-  process.env.DATABASE_URL = NEON_URL;
-}
+// Always use Neon — all production data is in the Neon DB.
+// Overrides any DATABASE_URL that Render or other platforms inject.
+process.env.DATABASE_URL = NEON_URL;
 
 if (!process.env.PORT) {
   process.env.PORT = "5001";
