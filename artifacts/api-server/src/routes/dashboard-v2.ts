@@ -3,7 +3,7 @@ import { pool, queryWithRetry } from "@workspace/db";
 
 const router = Router();
 
-// Self-healing: ensure code/bissi_int_id exist regardless of which DB is used
+// Self-healing: ensure columns exist regardless of which DB schema version is deployed
 let schemaEnsured = false;
 async function ensureSchema() {
   if (schemaEnsured) return;
@@ -16,15 +16,21 @@ async function ensureSchema() {
       UPDATE committees SET bissi_int_id = 2, code = 'BISSI-2' WHERE id::text = '22222222-2222-2222-2222-222222222222' AND (bissi_int_id IS NULL OR code IS NULL);
       UPDATE committees SET bissi_int_id = 3, code = 'BISSI-3' WHERE id::text = '33333333-3333-3333-3333-333333333333' AND (bissi_int_id IS NULL OR code IS NULL);
       UPDATE committees SET bissi_int_id = 4, code = 'BISSI-4' WHERE id::text = 'a3d68b9c-63df-4884-a5ad-eb8a17e3be31' AND (bissi_int_id IS NULL OR code IS NULL);
+
+      ALTER TABLE collections ADD COLUMN IF NOT EXISTS committee_uuid UUID;
+      ALTER TABLE collections ADD COLUMN IF NOT EXISTS token_uuid UUID;
+      ALTER TABLE gift_distributions ADD COLUMN IF NOT EXISTS committee_uuid UUID;
+      ALTER TABLE gift_distributions ADD COLUMN IF NOT EXISTS customer_uuid UUID;
     `);
     schemaEnsured = true;
-  } catch { /* non-fatal — columns may already exist */ }
+  } catch (err) {
+    console.error("ensureSchema non-fatal notice:", err);
+  }
 }
 
 // ── Utility: get month filter SQL ──────────────────────────────────────────
 function buildMonthFilter(month: string | undefined, colAlias = "c") {
   if (!month || month === "all") return "";
-  // month format: YYYY-MM
   return `AND DATE_TRUNC('month', ${colAlias}.collected_at) = DATE_TRUNC('month', '${month}-01'::date)`;
 }
 
@@ -33,13 +39,14 @@ function buildMonthFilter(month: string | undefined, colAlias = "c") {
 // Returns all months that have at least one collection, in chronological order
 // ─────────────────────────────────────────────────────────────────────────────
 router.get("/available-months", async (_req, res) => {
+  await ensureSchema();
   try {
     const result = await pool.query(`
       SELECT DISTINCT
         TO_CHAR(DATE_TRUNC('month', collected_at), 'YYYY-MM') as value,
         TO_CHAR(DATE_TRUNC('month', collected_at), 'Mon YYYY') as label
       FROM collections
-      WHERE committee_uuid IS NOT NULL
+      WHERE collected_at IS NOT NULL
       ORDER BY value ASC
     `);
     res.json({ success: true, months: result.rows });
@@ -54,9 +61,6 @@ router.get("/available-months", async (_req, res) => {
 // ─────────────────────────────────────────────────────────────────────────────
 router.get("/summary", async (req, res) => {
   const month = (req.query.month as string) || "";
-  const monthFilter = buildMonthFilter(month);
-  const today = new Date().toISOString().split("T")[0];
-
   await ensureSchema();
   try {
     const result = await queryWithRetry(
@@ -108,32 +112,32 @@ router.get("/summary", async (req, res) => {
 
         -- Lifetime totals
         LEFT JOIN (
-          SELECT committee_uuid, SUM(amount)::numeric AS total
+          SELECT COALESCE(committee_uuid::text, committee_id::text) AS comm_id, SUM(amount)::numeric AS total
           FROM collections
-          WHERE committee_uuid IS NOT NULL
-          GROUP BY committee_uuid
-        ) life ON life.committee_uuid = c.id
+          WHERE COALESCE(committee_uuid::text, committee_id::text) IS NOT NULL
+          GROUP BY COALESCE(committee_uuid::text, committee_id::text)
+        ) life ON life.comm_id = c.id::text
 
         -- Today
         LEFT JOIN (
-          SELECT committee_uuid, SUM(amount)::numeric AS total
+          SELECT COALESCE(committee_uuid::text, committee_id::text) AS comm_id, SUM(amount)::numeric AS total
           FROM collections
-          WHERE committee_uuid IS NOT NULL
+          WHERE COALESCE(committee_uuid::text, committee_id::text) IS NOT NULL
             AND DATE(collected_at) = CURRENT_DATE
-          GROUP BY committee_uuid
-        ) tod ON tod.committee_uuid = c.id
+          GROUP BY COALESCE(committee_uuid::text, committee_id::text)
+        ) tod ON tod.comm_id = c.id::text
 
         -- Selected month (or current month if none selected)
         LEFT JOIN (
-          SELECT committee_uuid, SUM(amount)::numeric AS total, COUNT(*)::int AS cnt
+          SELECT COALESCE(committee_uuid::text, committee_id::text) AS comm_id, SUM(amount)::numeric AS total, COUNT(*)::int AS cnt
           FROM collections
-          WHERE committee_uuid IS NOT NULL
+          WHERE COALESCE(committee_uuid::text, committee_id::text) IS NOT NULL
             ${month
               ? `AND DATE_TRUNC('month', collected_at) = DATE_TRUNC('month', '${month}-01'::date)`
               : `AND DATE_TRUNC('month', collected_at) = DATE_TRUNC('month', CURRENT_DATE)`
             }
-          GROUP BY committee_uuid
-        ) mon ON mon.committee_uuid = c.id
+          GROUP BY COALESCE(committee_uuid::text, committee_id::text)
+        ) mon ON mon.comm_id = c.id::text
 
         -- Pending: active tokens without a receipt in selected month
         LEFT JOIN (
@@ -143,7 +147,7 @@ router.get("/summary", async (req, res) => {
           WHERE t2.status = 'ACTIVE'
             AND NOT EXISTS (
               SELECT 1 FROM collections col
-              WHERE col.token_uuid = t2.id
+              WHERE (col.token_uuid = t2.id OR col.customer_id = t2.customer_id)
                 AND ${month
                   ? `DATE_TRUNC('month', col.collected_at) = DATE_TRUNC('month', '${month}-01'::date)`
                   : `DATE_TRUNC('month', col.collected_at) = DATE_TRUNC('month', CURRENT_DATE)`
@@ -209,6 +213,7 @@ router.get("/scheme-boxes", (req, res, next) => {
 // ─────────────────────────────────────────────────────────────────────────────
 router.get("/pending-report", async (req, res) => {
   const { committeeId, month } = req.query as Record<string, string>;
+  await ensureSchema();
 
   let commFilter = "";
   const params: any[] = [];
@@ -240,7 +245,7 @@ router.get("/pending-report", async (req, res) => {
         ${commFilter}
         AND NOT EXISTS (
           SELECT 1 FROM collections col
-          WHERE col.token_uuid = t.id
+          WHERE (col.token_uuid = t.id OR col.customer_id = t.customer_id)
             AND ${monthSQL}
         )
       ORDER BY c2.bissi_int_id ASC NULLS LAST,
@@ -260,6 +265,7 @@ router.get("/pending-report", async (req, res) => {
 // Last 30 days daily collection totals
 // ─────────────────────────────────────────────────────────────────────────────
 router.get("/collection-trend", async (_req, res) => {
+  await ensureSchema();
   try {
     const result = await pool.query(`
       SELECT
@@ -268,8 +274,7 @@ router.get("/collection-trend", async (_req, res) => {
         SUM(amount)::numeric                    AS amount,
         COUNT(*)::int                           AS count
       FROM collections
-      WHERE committee_uuid IS NOT NULL
-        AND collected_at >= NOW() - INTERVAL '30 days'
+      WHERE collected_at >= NOW() - INTERVAL '30 days'
       GROUP BY DATE(collected_at)
       ORDER BY DATE(collected_at) ASC
     `);
@@ -280,4 +285,5 @@ router.get("/collection-trend", async (_req, res) => {
 });
 
 export { router as dashboardV2Router };
+
 

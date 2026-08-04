@@ -30,6 +30,11 @@ async function ensureCommitteesColumnsExist() {
       UPDATE committees SET bissi_int_id = 2, code = 'BISSI-2' WHERE id::text = '22222222-2222-2222-2222-222222222222' AND (bissi_int_id IS NULL OR code IS NULL);
       UPDATE committees SET bissi_int_id = 3, code = 'BISSI-3' WHERE id::text = '33333333-3333-3333-3333-333333333333' AND (bissi_int_id IS NULL OR code IS NULL);
       UPDATE committees SET bissi_int_id = 4, code = 'BISSI-4' WHERE id::text = 'a3d68b9c-63df-4884-a5ad-eb8a17e3be31' AND (bissi_int_id IS NULL OR code IS NULL);
+
+      ALTER TABLE collections ADD COLUMN IF NOT EXISTS committee_uuid UUID;
+      ALTER TABLE collections ADD COLUMN IF NOT EXISTS token_uuid UUID;
+      ALTER TABLE gift_distributions ADD COLUMN IF NOT EXISTS committee_uuid UUID;
+      ALTER TABLE gift_distributions ADD COLUMN IF NOT EXISTS customer_uuid UUID;
     `);
     committeesColumnsEnsured = true;
   } catch (err) {
@@ -417,6 +422,7 @@ router.post(["/gifts/record", "/gifts"], async (req, res): Promise<void> => {
 });
 
 router.get(["/gifts/bissi-winners", "/gifts"], async (req, res): Promise<void> => {
+  await ensureCommitteesColumnsExist();
   try {
     const committeeId = (req.query.committeeId as string) || "all";
     const search = ((req.query.search as string) || "").trim().toLowerCase();
@@ -428,8 +434,8 @@ router.get(["/gifts/bissi-winners", "/gifts"], async (req, res): Promise<void> =
              gd.status, gd.notes, COALESCE(cm.name, 'Bissi Scheme') as "committeeName",
              cm.bissi_int_id as "committeeId", c.mobile as "winnerMobile"
       FROM gift_distributions gd
-      LEFT JOIN committees cm ON cm.id = gd.committee_uuid
-      LEFT JOIN customers c ON c.id = gd.customer_uuid
+      LEFT JOIN committees cm ON (cm.id = gd.committee_uuid OR cm.id::text = gd.committee_uuid::text)
+      LEFT JOIN customers c ON (c.id = gd.customer_uuid OR c.id::text = gd.customer_uuid::text)
     `;
 
     const where: string[] = [];
