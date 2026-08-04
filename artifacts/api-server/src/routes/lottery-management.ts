@@ -572,28 +572,25 @@ async function resolveCustomerUuid(identifier: string | number | undefined | nul
   const idStr = String(identifier).trim();
 
   if (/^[0-9a-f-]{36}$/i.test(idStr)) {
-    const res = await pool.query("SELECT id::text FROM customers WHERE id::text = $1 AND deleted_at IS NULL LIMIT 1", [idStr]).catch(() => ({ rows: [] }));
+    const res = await pool.query("SELECT id::text FROM customers WHERE id::text = $1 LIMIT 1", [idStr]);
     if (res.rows.length > 0) return res.rows[0].id;
   }
 
-  const resByMeta = await pool.query(
-    "SELECT id::text FROM customers WHERE mobile = $1 AND deleted_at IS NULL LIMIT 1",
-    [idStr]
-  ).catch(() => ({ rows: [] }));
+  const resByMeta = await pool.query("SELECT id::text FROM customers WHERE mobile = $1 LIMIT 1", [idStr]);
   if (resByMeta.rows.length > 0) return resByMeta.rows[0].id;
 
   const num = parseInt(idStr, 10);
   if (!isNaN(num)) {
     const resByToken = await pool.query(
-      "SELECT customer_id::text FROM tokens WHERE normalized_token_number = $1 AND customer_id IS NOT NULL AND deleted_at IS NULL LIMIT 1",
+      "SELECT customer_id::text FROM tokens WHERE normalized_token_number = $1 AND customer_id IS NOT NULL LIMIT 1",
       [num]
-    ).catch(() => ({ rows: [] }));
+    );
     if (resByToken.rows.length > 0) return resByToken.rows[0].customer_id;
 
     const resNth = await pool.query(
-      "SELECT id::text FROM customers WHERE deleted_at IS NULL ORDER BY created_at ASC OFFSET $1 LIMIT 1",
+      "SELECT id::text FROM customers ORDER BY created_at ASC OFFSET $1 LIMIT 1",
       [Math.max(0, num - 1)]
-    ).catch(() => ({ rows: [] }));
+    );
     if (resNth.rows.length > 0) return resNth.rows[0].id;
   }
 
