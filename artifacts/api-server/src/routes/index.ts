@@ -534,15 +534,14 @@ router.get("/committees/:id/payment-history", async (req, res): Promise<void> =>
     const isUuid = committeeId.includes("-");
     if (isUuid) {
       committeeRes = await pool.query(
-        `SELECT id::text, name, monthly_installment::numeric as "monthlyInstallment", total_members::int as "totalMembers" FROM committees WHERE id = $1::uuid AND deleted_at IS NULL`,
+        `SELECT id::text, name, monthly_installment::numeric as "monthlyInstallment" FROM committees WHERE id = $1::uuid`,
         [committeeId]
       );
     } else {
       // V1 integer ID — try old schema columns first, then V2 columns
       committeeRes = await pool.query(
         `SELECT id::text, name,
-           COALESCE(monthly_installment, installment_amount)::numeric as "monthlyInstallment",
-           COALESCE(total_members, member_limit)::int as "totalMembers"
+           COALESCE(monthly_installment, installment_amount)::numeric as "monthlyInstallment"
          FROM committees WHERE id = $1`,
         [parseInt(committeeId, 10)]
       );
