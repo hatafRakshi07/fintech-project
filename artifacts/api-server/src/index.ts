@@ -15,7 +15,9 @@ const NEON_URL =
 // Force Neon when DATABASE_URL is absent or points to direct Supabase host (.supabase.co:5432).
 // Allows Supabase POOLER connection strings (*.pooler.supabase.com or port 6543).
 const dbUrl = process.env.DATABASE_URL || "";
-if (!dbUrl) {
+const isSupabaseDirect = dbUrl.includes('.supabase.co') && !dbUrl.includes('pooler.supabase.com') && !dbUrl.includes(':6543');
+// Also force Neon if DATABASE_URL is empty or is the Supabase pooler that is now offline
+if (!dbUrl || isSupabaseDirect || dbUrl.includes('supabase')) {
   process.env.DATABASE_URL = NEON_URL;
 }
 
