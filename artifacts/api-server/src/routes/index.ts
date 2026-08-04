@@ -167,14 +167,12 @@ export async function resolveCustomerUuid(identifier: string | number | undefine
   if (identifier === undefined || identifier === null || identifier === "") return null;
   const idStr = String(identifier).trim();
 
-  // 1. Direct UUID match
-  if (/^[0-9a-f-]{36}$/i.test(idStr)) {
-    const res = await pool.query("SELECT id::text FROM customers WHERE id::text = $1 LIMIT 1", [idStr]);
-    if (res.rows.length > 0) return res.rows[0].id;
-  }
+  // 1. Direct ID match (works for both UUID strings and integer IDs like 1 or 70)
+  const resById = await pool.query("SELECT id::text FROM customers WHERE id::text = $1 LIMIT 1", [idStr]).catch(() => ({ rows: [] }));
+  if (resById.rows.length > 0) return resById.rows[0].id;
 
-  // 2. Search by mobile
-  const resByMeta = await pool.query("SELECT id::text FROM customers WHERE mobile = $1 LIMIT 1", [idStr]);
+  // 2. Search by mobile or reference_number
+  const resByMeta = await pool.query("SELECT id::text FROM customers WHERE mobile = $1 OR reference_number = $1 LIMIT 1", [idStr]).catch(() => ({ rows: [] }));
   if (resByMeta.rows.length > 0) return resByMeta.rows[0].id;
 
   // 3. Search by token number
@@ -183,14 +181,14 @@ export async function resolveCustomerUuid(identifier: string | number | undefine
     const resByToken = await pool.query(
       "SELECT customer_id::text FROM tokens WHERE normalized_token_number = $1 AND customer_id IS NOT NULL LIMIT 1",
       [num]
-    );
+    ).catch(() => ({ rows: [] }));
     if (resByToken.rows.length > 0) return resByToken.rows[0].customer_id;
 
     // 4. Fallback: Nth customer in chronological order (1-indexed numeric ID like 70 or 1)
     const resNth = await pool.query(
       "SELECT id::text FROM customers ORDER BY created_at ASC OFFSET $1 LIMIT 1",
       [Math.max(0, num - 1)]
-    );
+    ).catch(() => ({ rows: [] }));
     if (resNth.rows.length > 0) return resNth.rows[0].id;
   }
 
