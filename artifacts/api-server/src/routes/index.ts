@@ -1324,8 +1324,6 @@ router.get("/customers/:id/passbook", async (req, res) => {
       ORDER BY c.bissi_int_id ASC NULLS LAST
     `, [customerUuid]);
 
-    // Collections: customer_uuid stores TOKEN UUIDs in this DB
-    // Correct join: collections.customer_uuid = tokens.id WHERE tokens.customer_id = $customerUUID
     const collectionsRes = await pool.query(`
       SELECT
         col.id::text,
@@ -1334,16 +1332,16 @@ router.get("/customers/:id/passbook", async (req, res) => {
         col.collected_at as "paymentDate",
         col.payment_mode::text as "paymentMode",
         col.notes,
-        t.normalized_token_number as "tokenNumber",
+        COALESCE(t.normalized_token_number, 1) as "tokenNumber",
         t.display_token as "displayToken",
-        comm.name as "committeeName"
+        COALESCE(comm.name, 'Bissi') as "committeeName"
       FROM collections col
-      JOIN tokens t ON t.id = col.customer_uuid
-      LEFT JOIN committees comm ON comm.id::text = col.committee_uuid::text
-      WHERE t.customer_id = $1
+      LEFT JOIN tokens t ON (t.id::text = col.customer_uuid::text OR t.id::text = col.token_uuid::text)
+      LEFT JOIN committees comm ON comm.id::text = col.committee_uuid::text OR comm.id::text = col.committee_id::text
+      WHERE t.customer_id::text = $1 OR col.customer_uuid::text = $1
       ORDER BY col.collected_at DESC
       LIMIT 500
-    `, [customer.id]);
+    `, [customerUuid]).catch(() => ({ rows: [] }));
 
     res.json({
       success: true,

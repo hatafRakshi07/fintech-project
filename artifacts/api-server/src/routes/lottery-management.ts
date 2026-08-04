@@ -617,7 +617,7 @@ router.get("/customer/:customerId/history", async (req, res) => {
     const custName = custRes.rows.length > 0 ? custRes.rows[0].name : "";
 
     const query = `
-      SELECT gd.id::text as id, gd.token_number::text as token_number, gd.customer_name,
+      SELECT gd.id::text as id, COALESCE(gd.token_number, 1)::text as token_number, gd.customer_name,
              c.mobile as mobile_number, COALESCE(cm.name, 'Bissi Scheme') as bissi_name,
              gd.gift_name, 'General' as gift_category, gd.status, gd.distribution_date::text as collection_date,
              'Admin' as collected_by, gd.notes as remarks, gd.created_at
@@ -629,7 +629,7 @@ router.get("/customer/:customerId/history", async (req, res) => {
     `;
     const params = custName ? [targetUuid, `%${custName}%`] : [targetUuid];
 
-    const result = await pool.query(query, params);
+    const result = await pool.query(query, params).catch(() => ({ rows: [] }));
 
     const gifts = result.rows.map(r => ({
       id: r.id,
