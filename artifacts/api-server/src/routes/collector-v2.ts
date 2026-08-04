@@ -76,10 +76,10 @@ router.get("/tokens", async (req, res) => {
         t.display_token::text as "tokenNumber",
         t.status::text as "status"
       FROM tokens t
-      WHERE t.customer_id = $1::uuid AND t.deleted_at IS NULL
+      WHERE (t.customer_id::text = $1 OR t.customer_id IN (SELECT id FROM customers WHERE id::text = $1 OR mobile = $1)) AND t.deleted_at IS NULL
     `;
 
-    const result = await pool.query(query, [customerId]);
+    const result = await pool.query(query, [String(customerId)]);
     res.json(result.rows);
   } catch (err: any) {
     console.error("Error fetching tokens:", err);
