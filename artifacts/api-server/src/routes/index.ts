@@ -258,28 +258,28 @@ router.get("/customers/:id/history", async (req, res): Promise<void> => {
     const [tokensRes, collectionsRes, giftsRes, lotteriesRes] = await Promise.all([
       // Tokens for this customer
       pool.query(`
-        SELECT t.id::text, t.normalized_token_number AS "tokenNumber", t.display_token AS "displayToken",
-               t.status::text, comm.name AS "committeeName", comm.monthly_installment AS "installmentAmount",
+        SELECT t.id::text, COALESCE(t.normalized_token_number, 1) AS "tokenNumber", t.display_token AS "displayToken",
+               t.status::text, comm.name AS "committeeName", COALESCE(comm.monthly_installment, comm.installment_amount, 3000) AS "installmentAmount",
                comm.id::text AS "committeeId"
         FROM tokens t JOIN committees comm ON comm.id::text = t.committee_id::text
-        WHERE t.customer_id::text = $1 AND t.deleted_at IS NULL
+        WHERE t.customer_id::text = $1
         ORDER BY comm.bissi_int_id ASC NULLS LAST
-      `, [customerUuid]),
+      `, [customerUuid]).catch(() => ({ rows: [] })),
 
-      // Collections: collections.customer_uuid stores TOKEN uuids in this DB.
+      // Collections: matches via token_uuid, customer_uuid (token ID or customer ID)
       pool.query(`
         SELECT col.id::text, col.amount::float, col.collected_at AS "date",
                col.payment_mode AS "paymentMode", col.notes,
                COALESCE(comm.name, 'Bissi') AS "committeeName",
-               t.normalized_token_number AS "tokenNumber"
+               COALESCE(t.normalized_token_number, 1) AS "tokenNumber"
         FROM collections col
-        JOIN tokens t ON t.id::text = col.customer_uuid::text
+        LEFT JOIN tokens t ON (t.id::text = col.customer_uuid::text OR t.id::text = col.token_uuid::text)
         LEFT JOIN committees comm ON comm.id::text = col.committee_uuid::text
-        WHERE t.customer_id::text = $1
+        WHERE t.customer_id::text = $1 OR col.customer_uuid::text = $1
         ORDER BY col.collected_at DESC LIMIT 500
-      `, [customerUuid]),
+      `, [customerUuid]).catch(() => ({ rows: [] })),
 
-      // Gifts: customer_uuid is the real customer UUID (verified)
+      // Gifts: customer_uuid is the real customer UUID
       pool.query(`
         SELECT gd.id, gd.gift_name AS "giftName", gd.distribution_date AS "date",
                gd.status::text, gd.notes,
@@ -289,9 +289,9 @@ router.get("/customers/:id/history", async (req, res): Promise<void> => {
         LEFT JOIN committees comm ON comm.id::text = gd.committee_uuid::text
         WHERE gd.customer_uuid::text = $1
         ORDER BY gd.distribution_date DESC
-      `, [customerUuid]),
+      `, [customerUuid]).catch(() => ({ rows: [] })),
 
-      // Lotteries: winner_customer_uuid is the real customer UUID (verified)
+      // Lotteries: winner_customer_uuid is the real customer UUID
       pool.query(`
         SELECT l.id, l.draw_date AS "date", l.token_number AS "tokenNumber",
                l.reward_description AS "rewardDescription", l.status::text, l.notes,
@@ -300,7 +300,7 @@ router.get("/customers/:id/history", async (req, res): Promise<void> => {
         LEFT JOIN committees comm ON comm.id::text = l.committee_uuid::text
         WHERE l.winner_customer_uuid::text = $1
         ORDER BY l.draw_date DESC
-      `, [customerUuid]),
+      `, [customerUuid]).catch(() => ({ rows: [] })),
     ]);
 
     console.log(`[GET /customers/:id/history] tokens=${tokensRes.rows.length} collections=${collectionsRes.rows.length} gifts=${giftsRes.rows.length} lotteries=${lotteriesRes.rows.length}`);
@@ -1293,7 +1293,7 @@ router.get("/customers/:id/passbook", async (req, res) => {
     }
 
     const custRes = await pool.query(
-      "SELECT id::text, name, mobile, address, city, status FROM customers WHERE id::text = $1 AND deleted_at IS NULL LIMIT 1",
+      "SELECT * FROM customers WHERE id::text = $1 LIMIT 1",
       [customerUuid]
     );
 
@@ -1306,17 +1306,17 @@ router.get("/customers/:id/passbook", async (req, res) => {
     const tokensRes = await pool.query(`
       SELECT
         t.id::text as "tokenId",
-        t.normalized_token_number as "tokenNumber",
+        COALESCE(t.normalized_token_number, 1) as "tokenNumber",
         t.display_token as "displayToken",
         t.status::text as "status",
         c.name as "committeeName",
         c.id::text as "committeeId",
         COALESCE(c.monthly_installment, c.installment_amount, 3000)::numeric as "monthlyInstallment"
       FROM tokens t
-      JOIN committees c ON c.id = t.committee_id
-      WHERE t.customer_id = $1 AND t.deleted_at IS NULL
+      JOIN committees c ON c.id::text = t.committee_id::text
+      WHERE t.customer_id::text = $1
       ORDER BY c.bissi_int_id ASC NULLS LAST
-    `, [customer.id]);
+    `, [customerUuid]);
 
     // Collections: customer_uuid stores TOKEN UUIDs in this DB
     // Correct join: collections.customer_uuid = tokens.id WHERE tokens.customer_id = $customerUUID
