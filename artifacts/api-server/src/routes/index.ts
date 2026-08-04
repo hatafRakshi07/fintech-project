@@ -41,10 +41,16 @@ export async function ensureCommitteesColumnsExist() {
     `ALTER TABLE tokens ADD COLUMN IF NOT EXISTS raw_token_number TEXT;`,
     `ALTER TABLE tokens ADD COLUMN IF NOT EXISTS display_token TEXT;`,
     `ALTER TABLE tokens ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMPTZ;`,
+    `ALTER TABLE collections ADD COLUMN IF NOT EXISTS customer_uuid UUID;`,
     `ALTER TABLE collections ADD COLUMN IF NOT EXISTS committee_uuid UUID;`,
     `ALTER TABLE collections ADD COLUMN IF NOT EXISTS token_uuid UUID;`,
+    `ALTER TABLE gift_distributions ADD COLUMN IF NOT EXISTS token_number INTEGER;`,
+    `ALTER TABLE gift_distributions ADD COLUMN IF NOT EXISTS token_uuid UUID;`,
     `ALTER TABLE gift_distributions ADD COLUMN IF NOT EXISTS committee_uuid UUID;`,
-    `ALTER TABLE gift_distributions ADD COLUMN IF NOT EXISTS customer_uuid UUID;`
+    `ALTER TABLE gift_distributions ADD COLUMN IF NOT EXISTS customer_uuid UUID;`,
+    `ALTER TABLE lotteries ADD COLUMN IF NOT EXISTS winner_customer_uuid UUID;`,
+    `ALTER TABLE lotteries ADD COLUMN IF NOT EXISTS committee_uuid UUID;`,
+    `ALTER TABLE lotteries ADD COLUMN IF NOT EXISTS token_number INTEGER;`
   ];
 
   for (const sql of migrations) {
