@@ -34,10 +34,12 @@ async function ensureCommitteesColumnsExist() {
       ALTER TABLE collections ADD COLUMN IF NOT EXISTS committee_uuid UUID;
       ALTER TABLE collections ADD COLUMN IF NOT EXISTS token_uuid UUID;
       ALTER TABLE gift_distributions ADD COLUMN IF NOT EXISTS committee_uuid UUID;
-      ALTER TABLE gift_distributions ADD COLUMN IF NOT EXISTS customer_uuid UUID;
       ALTER TABLE customers ADD COLUMN IF NOT EXISTS aadhaar VARCHAR(50);
       ALTER TABLE customers ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMPTZ;
       ALTER TABLE tokens ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMPTZ;
+      ALTER TABLE tokens ADD COLUMN IF NOT EXISTS normalized_token_number INTEGER;
+      ALTER TABLE tokens ADD COLUMN IF NOT EXISTS raw_token_number TEXT;
+      ALTER TABLE tokens ADD COLUMN IF NOT EXISTS display_token TEXT;
       ALTER TABLE committees ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMPTZ;
     `);
     committeesColumnsEnsured = true;
