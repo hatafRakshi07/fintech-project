@@ -1320,9 +1320,9 @@ router.get("/customers/:id/passbook", async (req, res) => {
         COALESCE(c.monthly_installment, c.installment_amount, 3000)::numeric as "monthlyInstallment"
       FROM tokens t
       JOIN committees c ON c.id::text = t.committee_id::text
-      WHERE t.customer_id::text = $1
+      WHERE t.customer_id::text = $1::text
       ORDER BY c.bissi_int_id ASC NULLS LAST
-    `, [customerUuid]);
+    `, [String(customerUuid)]).catch(() => ({ rows: [] }));
 
     const collectionsRes = await pool.query(`
       SELECT
@@ -1336,9 +1336,9 @@ router.get("/customers/:id/passbook", async (req, res) => {
         t.display_token as "displayToken",
         COALESCE(comm.name, 'Bissi') as "committeeName"
       FROM collections col
-      LEFT JOIN tokens t ON (t.id::text = col.customer_uuid::text OR t.id::text = col.token_uuid::text)
-      LEFT JOIN committees comm ON comm.id::text = col.committee_uuid::text OR comm.id::text = col.committee_id::text
-      WHERE t.customer_id::text = $1::text OR col.customer_uuid::text = $1::text
+      LEFT JOIN tokens t ON (t.id::text = col.customer_uuid::text OR t.id::text = col.token_uuid::text OR t.customer_id::text = $1::text)
+      LEFT JOIN committees comm ON (comm.id::text = col.committee_uuid::text OR comm.id::text = col.committee_id::text)
+      WHERE (t.customer_id::text = $1::text OR col.customer_uuid::text = $1::text OR col.customer_id::text = $1::text)
       ORDER BY col.collected_at DESC
       LIMIT 500
     `, [String(customerUuid)]).catch(() => ({ rows: [] }));
