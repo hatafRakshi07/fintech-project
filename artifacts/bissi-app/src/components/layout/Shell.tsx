@@ -75,7 +75,6 @@ type NavItem = {
 
 const ALL_NAV_ITEMS: NavItem[] = [
   { icon: LayoutDashboard, label: "Dashboard", href: "/" },
-  { icon: BookOpen, label: "Daily Diary", href: "/daily-diary", roles: ["super_admin","owner","branch_manager","collector","accountant","agent"] },
 
   { icon: ShieldAlert, label: "Committees", href: "/committees", roles: ["super_admin","owner","branch_manager"] },
   { icon: Ticket, label: "Tokens", href: "/tokens", roles: ["super_admin","owner","branch_manager","customer"] },

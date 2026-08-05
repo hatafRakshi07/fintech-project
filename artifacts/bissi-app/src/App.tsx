@@ -43,10 +43,6 @@ import SalesLedgerPage from "@/views/ledgers/sales";
 import PurchaseLedgerPage from "@/views/ledgers/purchase";
 import CashbookPage from "@/views/ledgers/cashbook";
 import CalendarPage from "@/views/calendar";
-import DailyDiaryDashboardPage from "@/views/daily-diary";
-
-import DailyDiaryDetailPage from "@/views/daily-diary/[id]";
-import DailyDiaryReportsPage from "@/views/daily-diary/reports";
 import NotFound from "@/views/not-found";
 
 
@@ -113,25 +109,6 @@ function AppRoutes() {
     <Shell>
       <Switch>
         <Route path="/" component={DashboardPage} />
-
-        {/* Daily Diary Loan Collection */}
-        <Route path="/daily-diary">
-          <RoleGate roles={[...COLLECTOR_UP, "accountant", "agent"]}>
-            <DailyDiaryDashboardPage />
-          </RoleGate>
-        </Route>
-        <Route path="/daily-diary/reports">
-          <RoleGate roles={[...COLLECTOR_UP, "accountant", "agent"]}>
-            <DailyDiaryReportsPage />
-          </RoleGate>
-        </Route>
-        <Route path="/daily-diary/:id">
-          {() => (
-            <RoleGate roles={[...COLLECTOR_UP, "accountant", "agent"]}>
-              <DailyDiaryDetailPage />
-            </RoleGate>
-          )}
-        </Route>
 
         {/* Customers — all except pure customer role */}
         <Route path="/customers">
