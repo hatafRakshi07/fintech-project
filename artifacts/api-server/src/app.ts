@@ -10,7 +10,7 @@ import { fileURLToPath } from "node:url";
 import { dirname, resolve, join } from "node:path";
 import router from "./routes";
 import { logger } from "./lib/logger";
-import { getPoolStats } from "@workspace/db";
+import { getPoolStats, pool } from "@workspace/db";
 
 const app: Express = express();
 
@@ -154,6 +154,143 @@ app.use(
 app.use(express.json({ limit: "1mb" }));
 app.use(express.urlencoded({ extended: true, limit: "1mb" }));
 app.use(cookieParser());
+
+// ---------------------------------------------------------------------------
+// V2 Schema auto-migration — creates new tables if they don't exist
+// Runs once on startup, idempotent, never drops existing data
+// ---------------------------------------------------------------------------
+async function runV2Migration(): Promise<void> {
+  try {
+    await pool.query(`
+      DO $$ BEGIN CREATE TYPE payment_module AS ENUM ('BISSI','MONTHLY_INSTALLMENT','BYAJ','LOAN','DAILY_DIARY','OTHER'); EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+      DO $$ BEGIN CREATE TYPE account_status AS ENUM ('ACTIVE','COMPLETED','PAUSED','DEFAULTED','CANCELLED'); EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+      DO $$ BEGIN CREATE TYPE pay_mode AS ENUM ('CASH','UPI','BANK_TRANSFER','CHEQUE','ADJUSTMENT'); EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+      DO $$ BEGIN CREATE TYPE loan_stage AS ENUM ('APPLIED','APPROVED','DISBURSED','REPAYING','CLOSED','DEFAULTED'); EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+    `);
+
+    await pool.query(`ALTER TABLE customers ADD COLUMN IF NOT EXISTS reference_mobile VARCHAR(30)`);
+    await pool.query(`ALTER TABLE customers ADD COLUMN IF NOT EXISTS customer_type VARCHAR(30) DEFAULT 'BISSI'`);
+    await pool.query(`ALTER TABLE customers ADD COLUMN IF NOT EXISTS display_id VARCHAR(20)`);
+
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS mi_accounts (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        customer_id TEXT NOT NULL,
+        excel_token_label TEXT, token_serial INTEGER,
+        installment_amount NUMERIC(12,2) NOT NULL DEFAULT 0,
+        due_day SMALLINT, start_date DATE, complete_date DATE,
+        address TEXT, notes TEXT,
+        status account_status NOT NULL DEFAULT 'ACTIVE',
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(), updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      );
+      CREATE TABLE IF NOT EXISTS mi_payments (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        account_id UUID NOT NULL REFERENCES mi_accounts(id) ON DELETE RESTRICT,
+        customer_id TEXT NOT NULL,
+        period_month DATE NOT NULL, payment_date DATE NOT NULL,
+        amount NUMERIC(12,2) NOT NULL, payment_mode pay_mode NOT NULL DEFAULT 'CASH',
+        receipt_number VARCHAR(100), collector VARCHAR(100), notes TEXT, raw_value TEXT,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        UNIQUE(account_id, period_month)
+      );
+      CREATE TABLE IF NOT EXISTS byaj_accounts (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        customer_id TEXT NOT NULL,
+        byaj_serial INTEGER, interest_amount NUMERIC(12,2) NOT NULL DEFAULT 0,
+        due_day SMALLINT, address TEXT, reason1 TEXT, reason2 TEXT, reply TEXT, notes TEXT,
+        status account_status NOT NULL DEFAULT 'ACTIVE', next_due_date DATE,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(), updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      );
+      CREATE TABLE IF NOT EXISTS byaj_payments (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        account_id UUID NOT NULL REFERENCES byaj_accounts(id) ON DELETE RESTRICT,
+        customer_id TEXT NOT NULL,
+        period_month DATE NOT NULL, payment_date DATE NOT NULL,
+        amount NUMERIC(12,2) NOT NULL, payment_mode pay_mode NOT NULL DEFAULT 'CASH',
+        receipt_number VARCHAR(100), collector VARCHAR(100), notes TEXT, raw_value TEXT,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        UNIQUE(account_id, period_month)
+      );
+      CREATE TABLE IF NOT EXISTS loan_accounts (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        customer_id TEXT NOT NULL,
+        principal_amount NUMERIC(14,2) NOT NULL, disbursed_amount NUMERIC(14,2),
+        interest_rate_pct NUMERIC(6,3) NOT NULL DEFAULT 0, tenure_months SMALLINT,
+        disbursal_date DATE, expected_close_date DATE,
+        security TEXT, guarantor_name TEXT, guarantor_mobile VARCHAR(20),
+        stage loan_stage NOT NULL DEFAULT 'APPLIED', notes TEXT,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(), updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      );
+      CREATE TABLE IF NOT EXISTS loan_payments (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        loan_id UUID NOT NULL REFERENCES loan_accounts(id) ON DELETE RESTRICT,
+        customer_id TEXT NOT NULL,
+        payment_date DATE NOT NULL, total_paid NUMERIC(12,2) NOT NULL,
+        principal_paid NUMERIC(12,2) NOT NULL DEFAULT 0, interest_paid NUMERIC(12,2) NOT NULL DEFAULT 0,
+        penalty_paid NUMERIC(12,2) NOT NULL DEFAULT 0,
+        payment_mode pay_mode NOT NULL DEFAULT 'CASH',
+        receipt_number VARCHAR(100), collector VARCHAR(100), notes TEXT,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      );
+      CREATE TABLE IF NOT EXISTS payment_ledger (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        customer_id TEXT,
+        module payment_module NOT NULL, source_id UUID, source_table VARCHAR(60),
+        amount NUMERIC(12,2) NOT NULL, payment_mode pay_mode NOT NULL DEFAULT 'CASH',
+        payment_date DATE NOT NULL, period_month DATE,
+        collector VARCHAR(100), office_name VARCHAR(100), notes TEXT,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      );
+    `);
+
+    await pool.query(`
+      CREATE INDEX IF NOT EXISTS idx_mi_acc_customer  ON mi_accounts(customer_id);
+      CREATE INDEX IF NOT EXISTS idx_mi_pay_customer  ON mi_payments(customer_id);
+      CREATE INDEX IF NOT EXISTS idx_mi_pay_period    ON mi_payments(period_month);
+      CREATE INDEX IF NOT EXISTS idx_byaj_acc_customer ON byaj_accounts(customer_id);
+      CREATE INDEX IF NOT EXISTS idx_byaj_pay_customer ON byaj_payments(customer_id);
+      CREATE INDEX IF NOT EXISTS idx_byaj_pay_period  ON byaj_payments(period_month);
+      CREATE INDEX IF NOT EXISTS idx_loan_acc_customer ON loan_accounts(customer_id);
+      CREATE INDEX IF NOT EXISTS idx_ledger_module    ON payment_ledger(module);
+      CREATE INDEX IF NOT EXISTS idx_ledger_date      ON payment_ledger(payment_date);
+    `);
+
+    await pool.query(`
+      CREATE OR REPLACE VIEW v2_dashboard_today AS
+      SELECT module, COUNT(*)::int AS payment_count, SUM(amount)::numeric AS total_amount,
+             SUM(CASE WHEN payment_mode='CASH' THEN amount ELSE 0 END)::numeric AS cash_amount,
+             SUM(CASE WHEN payment_mode!='CASH' THEN amount ELSE 0 END)::numeric AS online_amount
+      FROM payment_ledger WHERE payment_date=CURRENT_DATE GROUP BY module;
+
+      CREATE OR REPLACE VIEW v2_dashboard_month AS
+      SELECT module, DATE_TRUNC('month',payment_date)::date AS month,
+             COUNT(*)::int AS payment_count, SUM(amount)::numeric AS total_amount
+      FROM payment_ledger
+      WHERE DATE_TRUNC('month',payment_date)=DATE_TRUNC('month',CURRENT_DATE)
+      GROUP BY module, DATE_TRUNC('month',payment_date);
+
+      CREATE OR REPLACE VIEW v2_mi_pending AS
+      SELECT ma.id AS account_id, ma.customer_id, ma.installment_amount, ma.due_day,
+             ma.excel_token_label, ma.token_serial,
+             NOT EXISTS (SELECT 1 FROM mi_payments mp WHERE mp.account_id=ma.id
+               AND mp.period_month=DATE_TRUNC('month',CURRENT_DATE)::date) AS is_pending
+      FROM mi_accounts ma WHERE ma.status='ACTIVE';
+
+      CREATE OR REPLACE VIEW v2_byaj_pending AS
+      SELECT ba.id AS account_id, ba.customer_id, ba.interest_amount, ba.due_day, ba.byaj_serial,
+             NOT EXISTS (SELECT 1 FROM byaj_payments bp WHERE bp.account_id=ba.id
+               AND bp.period_month=DATE_TRUNC('month',CURRENT_DATE)::date) AS is_pending
+      FROM byaj_accounts ba WHERE ba.status='ACTIVE';
+    `);
+
+    logger.info("V2 schema migration applied (idempotent)");
+  } catch (err: any) {
+    logger.warn({ err: err.message }, "V2 schema migration warning (non-fatal)");
+  }
+}
+
+// Run migration async — don't block server startup
+runV2Migration().catch(() => {});
 
 // ---------------------------------------------------------------------------
 // Routes

@@ -80,7 +80,7 @@ router.get("/mi/accounts", async (req, res) => {
 
     const [dataRes, countRes] = await Promise.all([
       pool.query(`
-        SELECT ma.id, ma.customer_id, c.name AS customer_name, c.mobile,
+        SELECT ma.id, ma.customer_id, COALESCE(c.name,'') AS customer_name, COALESCE(c.mobile,'') AS mobile,
                ma.excel_token_label, ma.token_serial, ma.installment_amount,
                ma.due_day, ma.start_date, ma.complete_date, ma.status,
                (SELECT mp.amount FROM mi_payments mp
@@ -88,12 +88,12 @@ router.get("/mi/accounts", async (req, res) => {
                   AND mp.period_month = DATE_TRUNC('month', CURRENT_DATE)::date
                 LIMIT 1) AS paid_this_month
         FROM mi_accounts ma
-        JOIN customers c ON c.id = ma.customer_id
+        LEFT JOIN customers c ON c.id::text = ma.customer_id
         ${where}
         ORDER BY ma.token_serial ASC NULLS LAST, c.name ASC
         LIMIT $${params.length - 1} OFFSET $${params.length}
       `, params),
-      pool.query(`SELECT COUNT(*) FROM mi_accounts ma JOIN customers c ON c.id = ma.customer_id ${where}`,
+      pool.query(`SELECT COUNT(*) FROM mi_accounts ma LEFT JOIN customers c ON c.id::text = ma.customer_id ${where}`,
         params.slice(0, -2)),
     ]);
 
@@ -137,7 +137,7 @@ router.post("/mi/accounts/:id/pay", async (req, res) => {
   if (!amount) { res.status(400).json({ success: false, error: "amount required" }); return; }
 
   try {
-    const acct = await pool.query(`SELECT ma.*, c.id AS cid FROM mi_accounts ma JOIN customers c ON c.id=ma.customer_id WHERE ma.id=$1`, [req.params.id]);
+    const acct = await pool.query(`SELECT ma.*, ma.customer_id AS cid FROM mi_accounts ma WHERE ma.id=$1`, [req.params.id]);
     if (!acct.rows.length) { res.status(404).json({ success: false, error: "Account not found" }); return; }
     const a = acct.rows[0];
 
@@ -179,7 +179,7 @@ router.get("/byaj/accounts", async (req, res) => {
 
     const [dataRes, countRes] = await Promise.all([
       pool.query(`
-        SELECT ba.id, ba.customer_id, c.name AS customer_name, c.mobile,
+        SELECT ba.id, ba.customer_id, COALESCE(c.name,'') AS customer_name, COALESCE(c.mobile,'') AS mobile,
                ba.byaj_serial, ba.interest_amount, ba.due_day, ba.status,
                ba.reason1, ba.reply,
                (SELECT bp.amount FROM byaj_payments bp
@@ -187,12 +187,12 @@ router.get("/byaj/accounts", async (req, res) => {
                   AND bp.period_month = DATE_TRUNC('month', CURRENT_DATE)::date
                 LIMIT 1) AS paid_this_month
         FROM byaj_accounts ba
-        JOIN customers c ON c.id = ba.customer_id
+        LEFT JOIN customers c ON c.id::text = ba.customer_id
         ${where}
         ORDER BY ba.byaj_serial ASC NULLS LAST, c.name ASC
         LIMIT $${params.length - 1} OFFSET $${params.length}
       `, params),
-      pool.query(`SELECT COUNT(*) FROM byaj_accounts ba JOIN customers c ON c.id=ba.customer_id ${where}`, params.slice(0,-2)),
+      pool.query(`SELECT COUNT(*) FROM byaj_accounts ba LEFT JOIN customers c ON c.id::text = ba.customer_id ${where}`, params.slice(0,-2)),
     ]);
 
     res.json({ success: true, accounts: dataRes.rows, total: parseInt(countRes.rows[0].count, 10), page, limit });
@@ -227,7 +227,7 @@ router.post("/byaj/accounts/:id/pay", async (req, res) => {
   const { amount, paymentMode = "CASH", collector, notes, periodMonth } = req.body;
   if (!amount) { res.status(400).json({ success: false, error: "amount required" }); return; }
   try {
-    const acct = await pool.query(`SELECT ba.*, c.id AS cid FROM byaj_accounts ba JOIN customers c ON c.id=ba.customer_id WHERE ba.id=$1`, [req.params.id]);
+    const acct = await pool.query(`SELECT ba.*, ba.customer_id AS cid FROM byaj_accounts ba WHERE ba.id=$1`, [req.params.id]);
     if (!acct.rows.length) { res.status(404).json({ success: false, error: "Account not found" }); return; }
     const a = acct.rows[0];
     const month = periodMonth || new Date().toISOString().slice(0,7) + '-01';
@@ -262,11 +262,11 @@ router.get("/loans", async (req, res) => {
       where += ` AND (c.name ILIKE $1 OR c.mobile ILIKE $1)`;
     }
     const r = await pool.query(`
-      SELECT la.id, la.customer_id, c.name AS customer_name, c.mobile,
+      SELECT la.id, la.customer_id, COALESCE(c.name,'') AS customer_name, COALESCE(c.mobile,'') AS mobile,
              la.principal_amount, la.interest_rate_pct, la.disbursal_date,
              la.stage, la.security, la.notes
       FROM loan_accounts la
-      JOIN customers c ON c.id = la.customer_id
+      LEFT JOIN customers c ON c.id::text = la.customer_id
       ${where}
       ORDER BY la.created_at DESC LIMIT 200
     `, params);
@@ -279,7 +279,7 @@ router.get("/loans", async (req, res) => {
 router.get("/loans/:id", async (req, res) => {
   try {
     const [loanRes, paymentsRes] = await Promise.all([
-      pool.query(`SELECT la.*, c.name AS customer_name, c.mobile FROM loan_accounts la JOIN customers c ON c.id=la.customer_id WHERE la.id=$1`, [req.params.id]),
+      pool.query(`SELECT la.*, COALESCE(c.name,'') AS customer_name, COALESCE(c.mobile,'') AS mobile FROM loan_accounts la LEFT JOIN customers c ON c.id::text = la.customer_id WHERE la.id=$1`, [req.params.id]),
       pool.query(`SELECT * FROM loan_payments WHERE loan_id=$1 ORDER BY payment_date DESC`, [req.params.id]),
     ]);
     if (!loanRes.rows.length) { res.status(404).json({ success: false, error: "Not found" }); return; }
@@ -358,7 +358,7 @@ router.get("/ledger", async (req, res) => {
     const r = await pool.query(`
       SELECT pl.*, c.name AS customer_name, c.mobile
       FROM payment_ledger pl
-      LEFT JOIN customers c ON c.id = pl.customer_id
+      LEFT LEFT JOIN customers c ON c.id::text = pl.customer_id
       WHERE pl.payment_date = $1::date ${moduleFilter}
       ORDER BY pl.created_at DESC
       LIMIT 500
@@ -391,3 +391,5 @@ router.get("/ledger/monthly-summary", async (req, res) => {
 });
 
 export default router;
+
+
