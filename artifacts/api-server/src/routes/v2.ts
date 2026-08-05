@@ -397,8 +397,11 @@ router.post("/admin/clear-and-reimport", async (req, res) => {
     return;
   }
   try {
-    // Truncate existing data (cascade handles payments)
-    await pool.query(`TRUNCATE byaj_payments, byaj_accounts, mi_payments, mi_accounts, payment_ledger RESTART IDENTITY CASCADE`);
+    // Clear only BYAJ and MI data — preserve payment_ledger (has bissi collections)
+    await pool.query(`TRUNCATE byaj_payments CASCADE`);
+    await pool.query(`TRUNCATE byaj_accounts CASCADE`);
+    await pool.query(`TRUNCATE mi_payments CASCADE`);
+    await pool.query(`TRUNCATE mi_accounts CASCADE`);
 
     const results: Record<string, number> = { byaj_accounts: 0, byaj_payments: 0, mi_accounts: 0, mi_payments: 0 };
 
