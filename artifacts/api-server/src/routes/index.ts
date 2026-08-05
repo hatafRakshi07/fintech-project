@@ -2915,12 +2915,12 @@ router.get("/interests/accounts", async (req, res) => {
                 WHERE bp.account_id = ba.id
                   AND bp.period_month = DATE_TRUNC('month',CURRENT_DATE)::date LIMIT 1) AS "paidThisMonth"
         FROM byaj_accounts ba
-        JOIN customers c ON c.id = ba.customer_id
+        LEFT JOIN customers c ON c.id::text = ba.customer_id
         ${where}
         ORDER BY ba.byaj_serial ASC NULLS LAST, c.name ASC
         LIMIT $${params.length-1} OFFSET $${params.length}
       `, params),
-      pool.query(`SELECT COUNT(*) FROM byaj_accounts ba JOIN customers c ON c.id=ba.customer_id ${where}`, params.slice(0,-2)),
+      pool.query(`SELECT COUNT(*) FROM byaj_accounts ba LEFT JOIN customers c ON c.id::text = ba.customer_id ${where}`, params.slice(0,-2)),
     ]);
     res.json({ success: true, accounts: dataRes.rows, data: dataRes.rows, total: parseInt(cntRes.rows[0].count,10), page, limit });
   } catch (err: any) {
@@ -2935,7 +2935,7 @@ router.get("/interests/transactions", async (req, res) => {
              c.name AS "customerName", bp.amount, bp.period_month AS "periodMonth",
              bp.payment_date AS "paymentDate", bp.raw_value, bp.created_at
       FROM byaj_payments bp
-      JOIN customers c ON c.id = bp.customer_id
+      LEFT JOIN customers c ON c.id::text = bp.customer_id
       ORDER BY bp.payment_date DESC LIMIT 200
     `);
     res.json({ success: true, transactions: r.rows, data: r.rows });
@@ -2957,7 +2957,7 @@ router.post("/interests/accounts/:id/pay", async (req, res) => {
   const { amount, paymentMode = "CASH", notes } = req.body;
   if (!amount) { res.status(400).json({ success: false, error: "amount required" }); return; }
   try {
-    const a = await pool.query(`SELECT ba.*, c.id AS cid FROM byaj_accounts ba JOIN customers c ON c.id=ba.customer_id WHERE ba.id=$1`, [req.params.id]);
+    const a = await pool.query(`SELECT ba.*, c.id AS cid FROM byaj_accounts ba LEFT JOIN customers c ON c.id::text = ba.customer_id WHERE ba.id=$1`, [req.params.id]);
     if (!a.rows.length) { res.status(404).json({ success: false, error: "Not found" }); return; }
     const acc = a.rows[0];
     const month = new Date().toISOString().slice(0,7) + '-01';
@@ -2984,7 +2984,7 @@ router.post("/interests/transactions", async (req, res) => {
   if (!accountId || !amount) { res.status(400).json({ success: false, error: "accountId and amount required" }); return; }
   try {
     const periodMonth = `${year || new Date().getFullYear()}-${String(month || new Date().getMonth()+1).padStart(2,'0')}-01`;
-    const a = await pool.query(`SELECT ba.*, c.id AS cid FROM byaj_accounts ba JOIN customers c ON c.id=ba.customer_id WHERE ba.id=$1`, [accountId]);
+    const a = await pool.query(`SELECT ba.*, c.id AS cid FROM byaj_accounts ba LEFT JOIN customers c ON c.id::text = ba.customer_id WHERE ba.id=$1`, [accountId]);
     if (!a.rows.length) { res.status(404).json({ success: false, error: "Account not found" }); return; }
     const acc = a.rows[0];
     await pool.query(
@@ -3465,3 +3465,5 @@ router.use("/v2/calendar", calendarV2Router);
 router.use("/v2", v2Router);
 
 export default router;
+
+

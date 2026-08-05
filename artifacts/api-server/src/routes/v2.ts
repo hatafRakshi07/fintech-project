@@ -110,7 +110,7 @@ router.get("/mi/accounts", async (req, res) => {
 
 router.get("/mi/pending", async (_req, res) => {
   try {
-    const r = await pool.query(`SELECT * FROM v2_mi_pending WHERE is_pending ORDER BY due_day ASC NULLS LAST, customer_name ASC`);
+    const r = await pool.query(`SELECT * FROM v2_mi_pending WHERE is_pending ORDER BY due_day ASC NULLS LAST, token_serial ASC NULLS LAST`);
     res.json({ success: true, pending: r.rows, total: r.rows.length });
   } catch (err: any) {
     res.status(500).json({ success: false, error: err.message });
@@ -203,7 +203,7 @@ router.get("/byaj/accounts", async (req, res) => {
 
 router.get("/byaj/pending", async (_req, res) => {
   try {
-    const r = await pool.query(`SELECT * FROM v2_byaj_pending WHERE is_pending ORDER BY due_day ASC NULLS LAST, customer_name ASC`);
+    const r = await pool.query(`SELECT * FROM v2_byaj_pending WHERE is_pending ORDER BY due_day ASC NULLS LAST, byaj_serial ASC NULLS LAST`);
     res.json({ success: true, pending: r.rows, total: r.rows.length });
   } catch (err: any) {
     res.status(500).json({ success: false, error: err.message });
