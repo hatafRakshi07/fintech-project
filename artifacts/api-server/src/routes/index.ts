@@ -2901,7 +2901,9 @@ router.get("/interests/accounts", async (req, res) => {
     params.push(limit, offset);
     const [dataRes, cntRes] = await Promise.all([
       pool.query(`
-        SELECT ba.id, ba.customer_id AS "customerId", c.name AS "customerName", c.mobile AS "customerMobile",
+        SELECT ba.id, ba.customer_id AS "customerId",
+               COALESCE(ba.customer_name, c.name, '') AS "customerName",
+               COALESCE(ba.customer_mobile, c.mobile, '') AS "customerMobile",
                ba.byaj_serial AS serial, ba.interest_amount AS "interestAmount",
                ba.interest_amount AS "principalAmount",
                ba.due_day AS "dueDay", ba.address, ba.reason1, ba.reply, ba.status,
@@ -2917,10 +2919,10 @@ router.get("/interests/accounts", async (req, res) => {
         FROM byaj_accounts ba
         LEFT JOIN customers c ON c.id::text = ba.customer_id
         ${where}
-        ORDER BY ba.byaj_serial ASC NULLS LAST, c.name ASC
+        ORDER BY ba.byaj_serial ASC NULLS LAST
         LIMIT $${params.length-1} OFFSET $${params.length}
       `, params),
-      pool.query(`SELECT COUNT(*) FROM byaj_accounts ba LEFT JOIN customers c ON c.id::text = ba.customer_id ${where}`, params.slice(0,-2)),
+      pool.query(`SELECT COUNT(*) FROM byaj_accounts ba ${where.replace(/c\./g, 'ba.')}`, params.slice(0,-2)),
     ]);
     res.json({ success: true, accounts: dataRes.rows, data: dataRes.rows, total: parseInt(cntRes.rows[0].count,10), page, limit });
   } catch (err: any) {

@@ -165,6 +165,11 @@ async function runV2Migration(): Promise<void> {
     `ALTER TABLE customers ADD COLUMN IF NOT EXISTS reference_mobile VARCHAR(30)`,
     `ALTER TABLE customers ADD COLUMN IF NOT EXISTS customer_type VARCHAR(30) DEFAULT 'BISSI'`,
     `ALTER TABLE customers ADD COLUMN IF NOT EXISTS display_id VARCHAR(20)`,
+    // Add customer_name/mobile columns to V2 tables for cross-DB portability
+    `ALTER TABLE byaj_accounts ADD COLUMN IF NOT EXISTS customer_name VARCHAR(200)`,
+    `ALTER TABLE byaj_accounts ADD COLUMN IF NOT EXISTS customer_mobile VARCHAR(20)`,
+    `ALTER TABLE mi_accounts ADD COLUMN IF NOT EXISTS customer_name VARCHAR(200)`,
+    `ALTER TABLE mi_accounts ADD COLUMN IF NOT EXISTS customer_mobile VARCHAR(20)`,
     // 2. Monthly Installment tables
     `CREATE TABLE IF NOT EXISTS mi_accounts (
       id UUID PRIMARY KEY DEFAULT gen_random_uuid(),

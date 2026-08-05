@@ -410,12 +410,13 @@ router.post("/admin/bulk-import", async (req, res) => {
     for (const acc of byaj_accounts) {
       try {
         await pool.query(
-          `INSERT INTO byaj_accounts (id, customer_id, byaj_serial, interest_amount, due_day, address, reason1, reason2, reply, notes, status, created_at, updated_at)
-           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)
-           ON CONFLICT (id) DO NOTHING`,
+          `INSERT INTO byaj_accounts (id, customer_id, byaj_serial, interest_amount, due_day, address, reason1, reason2, reply, notes, status, customer_name, customer_mobile, created_at, updated_at)
+           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)
+           ON CONFLICT (id) DO UPDATE SET customer_name=EXCLUDED.customer_name, customer_mobile=EXCLUDED.customer_mobile`,
           [acc.id, acc.customer_id, acc.byaj_serial||null, acc.interest_amount||0, acc.due_day||null,
            acc.address||null, acc.reason1||null, acc.reason2||null, acc.reply||null, acc.notes||null,
-           acc.status||'ACTIVE', acc.created_at||new Date(), acc.updated_at||new Date()]
+           acc.status||'ACTIVE', acc.customer_name||null, acc.customer_mobile||null,
+           acc.created_at||new Date(), acc.updated_at||new Date()]
         );
         results.byaj_accounts++;
       } catch {}
@@ -437,12 +438,13 @@ router.post("/admin/bulk-import", async (req, res) => {
     for (const acc of mi_accounts) {
       try {
         await pool.query(
-          `INSERT INTO mi_accounts (id, customer_id, excel_token_label, token_serial, installment_amount, due_day, start_date, complete_date, address, notes, status, created_at, updated_at)
-           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)
-           ON CONFLICT (id) DO NOTHING`,
+          `INSERT INTO mi_accounts (id, customer_id, excel_token_label, token_serial, installment_amount, due_day, start_date, complete_date, address, notes, status, customer_name, customer_mobile, created_at, updated_at)
+           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)
+           ON CONFLICT (id) DO UPDATE SET customer_name=EXCLUDED.customer_name, customer_mobile=EXCLUDED.customer_mobile`,
           [acc.id, acc.customer_id, acc.excel_token_label||null, acc.token_serial||null,
            acc.installment_amount||0, acc.due_day||null, acc.start_date||null, acc.complete_date||null,
-           acc.address||null, acc.notes||null, acc.status||'ACTIVE', acc.created_at||new Date(), acc.updated_at||new Date()]
+           acc.address||null, acc.notes||null, acc.status||'ACTIVE', acc.customer_name||null, acc.customer_mobile||null,
+           acc.created_at||new Date(), acc.updated_at||new Date()]
         );
         results.mi_accounts++;
       } catch {}

@@ -30,13 +30,35 @@ async function exportTable(table, limit = 10000) {
   return r.rows;
 }
 
+async function exportByajWithNames() {
+  const r = await pool.query(`
+    SELECT ba.*, c.name AS customer_name, c.mobile AS customer_mobile
+    FROM byaj_accounts ba
+    LEFT JOIN customers c ON c.id = ba.customer_id::uuid
+    LIMIT 10000
+  `);
+  console.log(`  Neon byaj_accounts (with names): ${r.rows.length} rows`);
+  return r.rows;
+}
+
+async function exportMIWithNames() {
+  const r = await pool.query(`
+    SELECT ma.*, c.name AS customer_name, c.mobile AS customer_mobile
+    FROM mi_accounts ma
+    LEFT JOIN customers c ON c.id = ma.customer_id::uuid
+    LIMIT 10000
+  `);
+  console.log(`  Neon mi_accounts (with names): ${r.rows.length} rows`);
+  return r.rows;
+}
+
 async function main() {
   console.log('=== Exporting V2 data from Neon ===');
 
   const [byaj_accounts, byaj_payments, mi_accounts, mi_payments] = await Promise.all([
-    exportTable('byaj_accounts'),
+    exportByajWithNames(),
     exportTable('byaj_payments', 20000),
-    exportTable('mi_accounts'),
+    exportMIWithNames(),
     exportTable('mi_payments'),
   ]);
 
