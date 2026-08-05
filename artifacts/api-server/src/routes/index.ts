@@ -1760,7 +1760,7 @@ router.get("/lotteries", async (req, res) => {
         cust.name                AS "winnerName",
         cust.mobile              AS "winnerMobile"
       FROM lotteries l
-      LEFT JOIN committees c ON c.id = l.committee_uuid
+      LEFT JOIN committees c ON c.id::text = l.committee_uuid::text
       LEFT JOIN customers cust ON cust.id = l.winner_customer_uuid
       ${whereStr}
       ORDER BY l.draw_date DESC NULLS LAST, l.id DESC
@@ -3468,6 +3468,7 @@ router.use("/v2/calendar", calendarV2Router);
 router.use("/v2", v2Router);
 
 export default router;
+
 
 
 

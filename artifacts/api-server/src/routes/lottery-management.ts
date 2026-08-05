@@ -138,7 +138,7 @@ router.get("/sessions", async (req, res) => {
         COUNT(CASE WHEN gd.status ILIKE 'distributed' OR gd.status ILIKE 'collected' OR gd.status ILIKE 'completed' THEN 1 END)::int as collected,
         COUNT(CASE WHEN gd.status ILIKE 'pending' THEN 1 END)::int as pending
       FROM gift_distributions gd
-      LEFT JOIN committees cm ON cm.id = gd.committee_uuid
+      LEFT JOIN committees cm ON cm.id::text = gd.committee_uuid::text
       GROUP BY cm.name, cm.id, gd.notes
     `);
 
@@ -277,8 +277,8 @@ router.get("/sessions/:id", async (req, res) => {
         gd.notes as remarks,
         gd.created_at
       FROM gift_distributions gd
-      LEFT JOIN committees cm ON cm.id = gd.committee_uuid
-      LEFT JOIN customers c ON c.id = gd.customer_uuid
+      LEFT JOIN committees cm ON cm.id::text = gd.committee_uuid::text
+      LEFT JOIN customers c ON c.id::text = gd.customer_uuid::text
       WHERE (gd.committee_uuid::text = $2 OR cm.name ILIKE $3 OR gd.notes ILIKE $3)
       ORDER BY gd.distribution_date DESC LIMIT 1500
     `, [bissiName, String(commUuid), `%${firstWord}%`]);
@@ -299,8 +299,8 @@ router.get("/sessions/:id", async (req, res) => {
         l.notes as remarks,
         l.created_at
       FROM lotteries l
-      LEFT JOIN committees cm ON cm.id = l.committee_uuid
-      LEFT JOIN customers c ON c.id = l.winner_customer_uuid
+      LEFT JOIN committees cm ON cm.id::text = l.committee_uuid::text
+      LEFT JOIN customers c ON c.id::text = l.winner_customer_uuid::text
       WHERE (l.committee_uuid::text = $2 OR cm.name ILIKE $3)
       ORDER BY l.draw_date DESC LIMIT 1500
     `, [bissiName, String(commUuid), `%${firstWord}%`]);
@@ -678,8 +678,8 @@ router.get("/reports", async (req, res) => {
         gd.notes as remarks,
         gd.created_at
       FROM gift_distributions gd
-      LEFT JOIN committees cm ON cm.id = gd.committee_uuid
-      LEFT JOIN customers c ON c.id = gd.customer_uuid
+      LEFT JOIN committees cm ON cm.id::text = gd.committee_uuid::text
+      LEFT JOIN customers c ON c.id::text = gd.customer_uuid::text
     `;
     const whereConditions: string[] = [];
     const params: any[] = [];
@@ -736,3 +736,5 @@ router.get("/reports", async (req, res) => {
 });
 
 export default router;
+
+
