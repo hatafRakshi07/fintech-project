@@ -390,6 +390,84 @@ router.get("/ledger/monthly-summary", async (req, res) => {
   }
 });
 
+// ---------------------------------------------------------------------------
+// BULK IMPORT (one-time data migration via API)
+// Body: { secret, byaj_accounts, byaj_payments, mi_accounts, mi_payments }
+// ---------------------------------------------------------------------------
+
+router.post("/admin/bulk-import", async (req, res) => {
+  const { secret, byaj_accounts = [], byaj_payments = [], mi_accounts = [], mi_payments = [] } = req.body;
+
+  // Simple secret check so this endpoint can't be called anonymously
+  if (secret !== (process.env.IMPORT_SECRET || 'ska-import-2026')) {
+    res.status(403).json({ success: false, error: "Forbidden" });
+    return;
+  }
+
+  const results: Record<string, number> = { byaj_accounts: 0, byaj_payments: 0, mi_accounts: 0, mi_payments: 0 };
+
+  try {
+    for (const acc of byaj_accounts) {
+      try {
+        await pool.query(
+          `INSERT INTO byaj_accounts (id, customer_id, byaj_serial, interest_amount, due_day, address, reason1, reason2, reply, notes, status, created_at, updated_at)
+           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)
+           ON CONFLICT (id) DO NOTHING`,
+          [acc.id, acc.customer_id, acc.byaj_serial||null, acc.interest_amount||0, acc.due_day||null,
+           acc.address||null, acc.reason1||null, acc.reason2||null, acc.reply||null, acc.notes||null,
+           acc.status||'ACTIVE', acc.created_at||new Date(), acc.updated_at||new Date()]
+        );
+        results.byaj_accounts++;
+      } catch {}
+    }
+
+    for (const pay of byaj_payments) {
+      try {
+        await pool.query(
+          `INSERT INTO byaj_payments (id, account_id, customer_id, period_month, payment_date, amount, raw_value, created_at)
+           VALUES ($1,$2,$3,$4::date,$5::date,$6,$7,$8)
+           ON CONFLICT (account_id, period_month) DO NOTHING`,
+          [pay.id, pay.account_id, pay.customer_id, pay.period_month, pay.payment_date, pay.amount,
+           pay.raw_value||null, pay.created_at||new Date()]
+        );
+        results.byaj_payments++;
+      } catch {}
+    }
+
+    for (const acc of mi_accounts) {
+      try {
+        await pool.query(
+          `INSERT INTO mi_accounts (id, customer_id, excel_token_label, token_serial, installment_amount, due_day, start_date, complete_date, address, notes, status, created_at, updated_at)
+           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)
+           ON CONFLICT (id) DO NOTHING`,
+          [acc.id, acc.customer_id, acc.excel_token_label||null, acc.token_serial||null,
+           acc.installment_amount||0, acc.due_day||null, acc.start_date||null, acc.complete_date||null,
+           acc.address||null, acc.notes||null, acc.status||'ACTIVE', acc.created_at||new Date(), acc.updated_at||new Date()]
+        );
+        results.mi_accounts++;
+      } catch {}
+    }
+
+    for (const pay of mi_payments) {
+      try {
+        await pool.query(
+          `INSERT INTO mi_payments (id, account_id, customer_id, period_month, payment_date, amount, raw_value, created_at)
+           VALUES ($1,$2,$3,$4::date,$5::date,$6,$7,$8)
+           ON CONFLICT (account_id, period_month) DO NOTHING`,
+          [pay.id, pay.account_id, pay.customer_id, pay.period_month, pay.payment_date, pay.amount,
+           pay.raw_value||null, pay.created_at||new Date()]
+        );
+        results.mi_payments++;
+      } catch {}
+    }
+
+    res.json({ success: true, inserted: results });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
 export default router;
+
 
 
