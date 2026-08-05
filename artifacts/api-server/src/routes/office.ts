@@ -95,7 +95,7 @@ router.get("/diary", async (_req, res) => {
   try {
     await ensureOfficeTables();
     const result = await queryWithRetry(
-      () => pool.query(`SELECT id, entry_date AS "entryDate", title, content, category, author_name AS "authorName" FROM office_diary ORDER BY entry_date DESC, id DESC LIMIT 200`),
+      () => pool.query(`SELECT id, entry_date AS "entryDate", title, content, category FROM office_diary ORDER BY entry_date DESC, id DESC LIMIT 200`),
       { routeName: "GET /office/diary", retries: 2, delayMs: 300 }
     );
     res.json(result.rows);
@@ -146,7 +146,7 @@ router.get("/tasks", async (_req, res) => {
   try {
     await ensureOfficeTables();
     const result = await queryWithRetry(
-      () => pool.query(`SELECT id, title, description, priority, status, due_date AS "dueDate", assigned_name AS "assignedName" FROM office_tasks ORDER BY created_at DESC LIMIT 200`),
+      () => pool.query(`SELECT id, title, description, priority, status, due_date AS "dueDate" FROM office_tasks ORDER BY created_at DESC LIMIT 200`),
       { routeName: "GET /office/tasks", retries: 2, delayMs: 300 }
     );
     res.json(result.rows);
@@ -197,7 +197,7 @@ router.get("/complaints", async (_req, res) => {
   try {
     await ensureOfficeTables();
     const result = await queryWithRetry(
-      () => pool.query(`SELECT id, title, description, category, status, customer_name AS "customerName", created_at AS "createdAt" FROM complaints ORDER BY created_at DESC LIMIT 200`),
+      () => pool.query(`SELECT id, title, description, category, status, created_at AS "createdAt" FROM complaints ORDER BY created_at DESC LIMIT 200`),
       { routeName: "GET /office/complaints", retries: 2, delayMs: 300 }
     );
     res.json(result.rows);
@@ -248,7 +248,7 @@ router.get("/donations", async (_req, res) => {
   try {
     await ensureOfficeTables();
     const result = await queryWithRetry(
-      () => pool.query(`SELECT id, donor_name AS "donorName", amount::text, purpose, donation_date AS "donationDate", receipt_number AS "receiptNumber", notes, customer_name AS "customerName" FROM donations ORDER BY donation_date DESC, id DESC LIMIT 200`),
+      () => pool.query(`SELECT id, donor_name AS "donorName", amount::text, purpose, donation_date AS "donationDate", receipt_number AS "receiptNumber", notes FROM donations ORDER BY donation_date DESC, id DESC LIMIT 200`),
       { routeName: "GET /office/donations", retries: 2, delayMs: 300 }
     );
     res.json(result.rows);

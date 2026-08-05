@@ -109,7 +109,7 @@ router.get("/summary", async (req, res) => {
         LEFT JOIN (
           SELECT COALESCE(committee_uuid::text, committee_id::text) AS comm_id, COUNT(*)::int AS lucky_count
           FROM lotteries
-          WHERE reward_description ILIKE '%Lucky%' OR status ILIKE 'completed' OR status IS NULL
+          WHERE reward_description ILIKE '%Lucky%' OR status::text ILIKE 'completed' OR status IS NULL
           GROUP BY COALESCE(committee_uuid::text, committee_id::text)
         ) lot ON lot.comm_id = c.id::text
 
