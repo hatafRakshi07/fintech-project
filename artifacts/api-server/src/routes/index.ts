@@ -250,6 +250,31 @@ router.get("/customers/:id/bissi-pending", async (req, res) => {
   }
 });
 
+export async function resolveCommitteeUuid(identifier: string | number | undefined | null): Promise<string | null> {
+  if (identifier === undefined || identifier === null || identifier === "") return null;
+  const idStr = String(identifier).trim();
+
+  // 1. Direct ID match
+  const resById = await pool.query("SELECT id::text FROM committees WHERE id::text = $1 LIMIT 1", [idStr]).catch(() => ({ rows: [] }));
+  if (resById.rows.length > 0) return resById.rows[0].id;
+
+  // 2. Code match (e.g. BISSI-1, BISSI-2)
+  const resByCode = await pool.query("SELECT id::text FROM committees WHERE code = $1 LIMIT 1", [idStr]).catch(() => ({ rows: [] }));
+  if (resByCode.rows.length > 0) return resByCode.rows[0].id;
+
+  // 3. Integer index match (e.g. 1 -> 1st committee, 2 -> 2nd committee)
+  const num = parseInt(idStr, 10);
+  if (!isNaN(num)) {
+    const resByBissiInt = await pool.query("SELECT id::text FROM committees WHERE bissi_int_id = $1 LIMIT 1", [num]).catch(() => ({ rows: [] }));
+    if (resByBissiInt.rows.length > 0) return resByBissiInt.rows[0].id;
+
+    const resNth = await pool.query("SELECT id::text FROM committees ORDER BY created_at ASC OFFSET $1 LIMIT 1", [Math.max(0, num - 1)]).catch(() => ({ rows: [] }));
+    if (resNth.rows.length > 0) return resNth.rows[0].id;
+  }
+
+  return null;
+}
+
 router.get("/customers/:id/history", async (req, res): Promise<void> => {
   try {
     const rawId = req.params.id;
@@ -260,70 +285,105 @@ router.get("/customers/:id/history", async (req, res): Promise<void> => {
       return;
     }
 
-    console.log(`[GET /customers/:id/history] rawId=${rawId} resolvedUuid=${customerUuid}`);
-
-    const [tokensRes, collectionsRes, giftsRes, lotteriesRes] = await Promise.all([
+    const [tokensRes, collectionsRes, giftsRes, lotteriesRes, byajRes, byajPaymentsRes] = await Promise.all([
       // Tokens for this customer
       pool.query(`
-        SELECT t.id::text, COALESCE(t.normalized_token_number, 1) AS "tokenNumber", t.display_token AS "displayToken",
-               t.status::text, comm.name AS "committeeName", COALESCE(comm.monthly_installment, comm.installment_amount, 3000) AS "installmentAmount",
+        SELECT t.id::text, COALESCE(t.normalized_token_number, 1) AS "tokenNumber", t.raw_token_number AS "displayToken",
+               t.status::text, comm.name AS "committeeName", COALESCE(comm.monthly_installment, comm.installment_amount, 3000)::numeric AS "installmentAmount",
                comm.id::text AS "committeeId"
         FROM tokens t JOIN committees comm ON comm.id::text = t.committee_id::text
         WHERE t.customer_id::text = $1
         ORDER BY comm.bissi_int_id ASC NULLS LAST
       `, [customerUuid]).catch(() => ({ rows: [] })),
 
-      // Collections: matches via token_uuid, customer_uuid (token ID or customer ID)
+      // Collections for this customer
       pool.query(`
-        SELECT col.id::text, col.amount::float, col.collected_at AS "date",
-               col.payment_mode AS "paymentMode", col.notes,
+        SELECT col.id::text, col.amount::numeric AS amount, col.collected_at AS "date",
+               col.payment_mode AS "paymentMode", col.notes, col.receipt_number AS "receiptNumber",
                COALESCE(comm.name, 'Bissi') AS "committeeName",
-               COALESCE(t.normalized_token_number, 1) AS "tokenNumber"
+               COALESCE(t.normalized_token_number, col.token_number, 1) AS "tokenNumber"
         FROM collections col
-        LEFT JOIN tokens t ON (t.id::text = col.customer_uuid::text OR t.id::text = col.token_uuid::text)
+        LEFT JOIN tokens t ON t.id::text = col.token_uuid::text
         LEFT JOIN committees comm ON comm.id::text = col.committee_uuid::text
-        WHERE t.customer_id::text = $1 OR col.customer_uuid::text = $1
-        ORDER BY col.collected_at DESC LIMIT 500
+        WHERE col.customer_uuid::text = $1 OR t.customer_id::text = $1
+        ORDER BY col.collected_at DESC NULLS LAST, col.id DESC LIMIT 500
       `, [customerUuid]).catch(() => ({ rows: [] })),
 
-      // Gifts: customer_uuid is the real customer UUID
+      // Gifts for this customer
       pool.query(`
-        SELECT gd.id, gd.gift_name AS "giftName", gd.distribution_date AS "date",
+        SELECT gd.id::text, gd.gift_name AS "giftName", gd.distribution_date AS "date",
                gd.status::text, gd.notes,
                COALESCE(comm.name, 'Bissi') AS "committeeName",
                gd.token_number AS "tokenNumber"
         FROM gift_distributions gd
         LEFT JOIN committees comm ON comm.id::text = gd.committee_uuid::text
         WHERE gd.customer_uuid::text = $1
-        ORDER BY gd.distribution_date DESC
+        ORDER BY gd.distribution_date DESC NULLS LAST
       `, [customerUuid]).catch(() => ({ rows: [] })),
 
-      // Lotteries: winner_customer_uuid is the real customer UUID
+      // Lotteries for this customer
       pool.query(`
-        SELECT l.id, l.draw_date AS "date", l.token_number AS "tokenNumber",
+        SELECT l.id::text, l.draw_date AS "date", l.token_number AS "tokenNumber",
                l.reward_description AS "rewardDescription", l.status::text, l.notes,
                COALESCE(comm.name, 'Bissi') AS "committeeName"
         FROM lotteries l
         LEFT JOIN committees comm ON comm.id::text = l.committee_uuid::text
         WHERE l.winner_customer_uuid::text = $1
-        ORDER BY l.draw_date DESC
+        ORDER BY l.draw_date DESC NULLS LAST
+      `, [customerUuid]).catch(() => ({ rows: [] })),
+
+      // Byaj / Interest accounts for this customer
+      pool.query(`
+        SELECT ba.id::text, ba.byaj_serial AS "serial", ba.interest_amount::numeric AS "interestAmount",
+               ba.due_day AS "dueDay", ba.address, ba.reason1, ba.status::text,
+               (SELECT COALESCE(SUM(bp.amount),0)::numeric FROM byaj_payments bp WHERE bp.account_id::text = ba.id::text) AS "totalPaid"
+        FROM byaj_accounts ba
+        WHERE ba.customer_id::text = $1
+        ORDER BY ba.byaj_serial ASC NULLS LAST
+      `, [customerUuid]).catch(() => ({ rows: [] })),
+
+      // Byaj payments history
+      pool.query(`
+        SELECT bp.id::text, bp.account_id::text AS "accountId", bp.amount::numeric AS amount,
+               bp.payment_date AS "paymentDate", bp.payment_mode AS "paymentMode", bp.raw_value AS "notes"
+        FROM byaj_payments bp
+        WHERE bp.customer_id::text = $1
+        ORDER BY bp.payment_date DESC NULLS LAST
       `, [customerUuid]).catch(() => ({ rows: [] })),
     ]);
 
-    console.log(`[GET /customers/:id/history] tokens=${tokensRes.rows.length} collections=${collectionsRes.rows.length} gifts=${giftsRes.rows.length} lotteries=${lotteriesRes.rows.length}`);
+    let totalPaid = 0;
+    for (const r of collectionsRes.rows) {
+      totalPaid += Number(r.amount || 0);
+    }
 
-    const totalPaid = collectionsRes.rows.reduce((s: number, r: any) => s + Number(r.amount || 0), 0);
+    let totalInterestPaid = 0;
+    for (const r of byajPaymentsRes.rows) {
+      totalInterestPaid += Number(r.amount || 0);
+    }
+
+    let totalInterestDue = 0;
+    for (const r of byajRes.rows) {
+      totalInterestDue += Number(r.interestAmount || 0);
+    }
 
     res.json({
       success: true,
       summary: {
-        totalPaid, totalCollections: collectionsRes.rows.length,
+        totalPaid,
+        totalCollections: collectionsRes.rows.length,
         committeesJoined: new Set(tokensRes.rows.map((r: any) => r.committeeId)).size,
         totalTokens: tokensRes.rows.length,
         totalGifts: giftsRes.rows.length,
         luckyWins: lotteriesRes.rows.length,
-        claimedGifts: giftsRes.rows.filter((r: any) => r.status === 'DELIVERED').length,
-        cashClaims: 0, pendingGifts: 0, totalLoans: 0, totalLoanAmount: 0,
+        totalInterestAccounts: byajRes.rows.length,
+        totalInterestPaid,
+        totalInterestDue,
+        claimedGifts: giftsRes.rows.filter((r: any) => (r.status || '').toUpperCase() === 'DELIVERED' || (r.status || '').toUpperCase() === 'DISTRIBUTED').length,
+        cashClaims: giftsRes.rows.filter((r: any) => (r.giftName || '').toLowerCase().includes('cash')).length,
+        pendingGifts: giftsRes.rows.filter((r: any) => (r.status || '').toUpperCase() === 'PENDING').length,
+        totalLoans: 0,
+        totalLoanAmount: 0,
       },
       memberships: tokensRes.rows,
       tokens: tokensRes.rows,
@@ -331,7 +391,8 @@ router.get("/customers/:id/history", async (req, res): Promise<void> => {
       loans: [],
       gifts: giftsRes.rows,
       lotteries: lotteriesRes.rows,
-      interestAccounts: [],
+      interestAccounts: byajRes.rows,
+      interestPayments: byajPaymentsRes.rows,
       recoveryTasks: []
     });
   } catch (err: any) {
@@ -481,59 +542,68 @@ router.post(["/gifts/record", "/gifts"], async (req, res): Promise<void> => {
     res.status(500).json({ success: false, error: err.message });
   }
 });
-
 router.get(["/gifts/bissi-winners", "/gifts"], async (req, res): Promise<void> => {
   await ensureCommitteesColumnsExist();
   try {
     const committeeId = (req.query.committeeId as string) || "all";
     const search = ((req.query.search as string) || "").trim().toLowerCase();
-    const statusFilter = (req.query.status as string) || "ALL";
 
-    let query = `
-      SELECT gd.id, gd.token_number as "tokenNumber",
-             COALESCE(c.name, 'Member') as "winnerName",
-             COALESCE(gd.notes, 'Gift') as "giftName", gd.distribution_date as "drawDate",
-             gd.status, gd.notes, COALESCE(cm.name, 'Bissi Scheme') as "committeeName",
-             cm.bissi_int_id as "committeeId", c.mobile as "winnerMobile"
-      FROM gift_distributions gd
-      LEFT JOIN committees cm ON cm.id::text = gd.committee_id::text
-      LEFT JOIN customers c ON c.id::text = gd.customer_id::text
-    `;
-
-    const where: string[] = [];
-    const params: any[] = [];
-
-    if (committeeId !== "all" && committeeId !== "ALL") {
-      params.push(committeeId);
-      where.push(`(cm.id::text = $${params.length} OR cm.bissi_int_id::text = $${params.length})`);
+    let commUuid: string | null = null;
+    if (committeeId !== "all") {
+      commUuid = await resolveCommitteeUuid(committeeId);
     }
 
-    if (statusFilter !== "ALL") {
-      params.push(statusFilter.toLowerCase());
-      where.push(`LOWER(gd.status::text) = $${params.length}`);
+    let whereClause = "WHERE 1=1";
+    const params: any[] = [];
+
+    if (commUuid) {
+      params.push(commUuid);
+      whereClause += ` AND gd.committee_uuid::text = $${params.length}`;
     }
 
     if (search) {
       params.push(`%${search}%`);
-      where.push(`(gd.customer_name ILIKE $${params.length} OR gd.gift_name ILIKE $${params.length} OR gd.token_number::text ILIKE $${params.length})`);
+      whereClause += ` AND (gd.customer_name ILIKE $${params.length} OR c.name ILIKE $${params.length} OR gd.gift_name ILIKE $${params.length} OR c.mobile ILIKE $${params.length} OR gd.token_number::text ILIKE $${params.length})`;
     }
 
-    if (where.length > 0) {
-      query += ` WHERE ` + where.join(" AND ");
-    }
-
-    query += ` ORDER BY gd.distribution_date DESC LIMIT 500`;
+    const query = `
+      SELECT 
+        gd.id::text AS id,
+        gd.token_number AS "tokenNumber",
+        COALESCE(gd.customer_name, c.name, 'Member') AS "winnerName",
+        COALESCE(gd.customer_name, c.name, 'Member') AS "customerName",
+        c.mobile AS "winnerMobile",
+        c.mobile AS "customerMobile",
+        c.id::text AS "winnerCustomerId",
+        COALESCE(gd.gift_name, gd.notes, 'Gift Item') AS "giftName",
+        gd.distribution_date AS "drawDate",
+        gd.distribution_date AS "distributionDate",
+        gd.status::text AS "status",
+        gd.notes AS "notes",
+        COALESCE(cm.name, 'Bissi Scheme') AS "committeeName",
+        cm.id::text AS "committeeId",
+        CASE WHEN (gd.gift_name ILIKE '%cash%' OR gd.notes ILIKE '%cash%') THEN 'cash' ELSE 'gift' END AS "rewardType"
+      FROM gift_distributions gd
+      LEFT JOIN committees cm ON cm.id::text = gd.committee_uuid::text
+      LEFT JOIN customers c ON c.id::text = gd.customer_uuid::text
+      ${whereClause}
+      ORDER BY gd.distribution_date DESC NULLS LAST, gd.id DESC
+      LIMIT 1000
+    `;
 
     const result = await pool.query(query, params);
+    const rows = result.rows;
 
     res.json({
       success: true,
-      winners: result.rows,
-      gifts: result.rows,
-      total: result.rows.length
+      winners: rows,
+      gifts: rows,
+      distributions: rows,
+      data: rows,
+      total: rows.length
     });
   } catch (err: any) {
-    console.error("Error fetching gift winners:", err);
+    console.error("Error fetching gift records:", err);
     res.status(500).json({ success: false, error: err.message });
   }
 });
@@ -689,14 +759,12 @@ router.post("/committees", async (req, res): Promise<void> => {
     console.error("Error creating committee:", err);
     res.status(500).json({ success: false, error: "Failed to create committee: " + err.message });
   }
-});
-
-router.get("/committees/:id", async (req, res) => {
+});router.get("/committees/:id", async (req, res) => {
   try {
-    const { id } = req.params;
-    const committeeId = parseInt(id, 10);
-    if (isNaN(committeeId)) {
-      res.status(400).json({ success: false, error: "Invalid committee ID" });
+    const rawId = req.params.id;
+    const commUuid = await resolveCommitteeUuid(rawId);
+    if (!commUuid) {
+      res.status(404).json({ success: false, error: "Committee not found" });
       return;
     }
 
@@ -704,17 +772,17 @@ router.get("/committees/:id", async (req, res) => {
       SELECT 
         c.id::text,
         c.name,
+        c.code,
         c.type::text as type,
-        c.installment_amount::numeric as "installmentAmount",
-        c.member_limit::int as "memberLimit",
+        COALESCE(c.monthly_installment, c.installment_amount, 3000)::numeric as "installmentAmount",
+        COALESCE(c.total_members, c.member_limit, 500)::int as "memberLimit",
+        c.start_date as "startDate",
         c.draw_date as "drawDate",
-        c.duration::int as duration,
-        c.status::text as status,
-        b.name as "branchName"
+        COALESCE(c.total_months, c.duration, 20)::int as duration,
+        c.status::text as status
       FROM committees c
-      LEFT JOIN branches b ON c.branch_id = b.id
-      WHERE c.id = $1
-    `, [committeeId]);
+      WHERE c.id::text = $1
+    `, [commUuid]);
 
     if (result.rows.length === 0) {
       res.status(404).json({ success: false, error: "Committee not found" });
@@ -722,8 +790,13 @@ router.get("/committees/:id", async (req, res) => {
     }
 
     const r = result.rows[0];
-    const membersCountResult = await pool.query("SELECT COUNT(*)::int as count FROM tokens WHERE committee_id = $1", [committeeId]);
+    const membersCountResult = await pool.query("SELECT COUNT(*)::int as count FROM tokens WHERE committee_id::text = $1", [commUuid]);
     const currentMembers = membersCountResult.rows[0].count;
+
+    const collectionsResult = await pool.query("SELECT COALESCE(SUM(amount), 0)::numeric as total FROM collections WHERE committee_uuid::text = $1", [commUuid]);
+    const totalCollections = Number(collectionsResult.rows[0].total || 0);
+
+    const poolSize = Number(r.installmentAmount || 3000) * Number(r.memberLimit || 500);
 
     const committee = {
       ...r,
@@ -731,7 +804,10 @@ router.get("/committees/:id", async (req, res) => {
       memberLimit: Number(r.memberLimit),
       totalMembers: Number(r.memberLimit),
       currentMembers: currentMembers,
-      branchName: r.branchName || "Shree Krishna Associate"
+      totalPool: poolSize,
+      totalCollections: totalCollections,
+      remainingPool: poolSize - totalCollections,
+      branchName: "Shree Krishna Associate"
     };
     res.json(committee);
   } catch (err: any) {
@@ -742,9 +818,10 @@ router.get("/committees/:id", async (req, res) => {
 
 router.put("/committees/:id", async (req, res): Promise<void> => {
   try {
-    const committeeId = parseInt(req.params.id, 10);
-    if (isNaN(committeeId)) {
-      res.status(400).json({ success: false, error: "Invalid committee ID" });
+    const rawId = req.params.id;
+    const commUuid = await resolveCommitteeUuid(rawId);
+    if (!commUuid) {
+      res.status(404).json({ success: false, error: "Committee not found" });
       return;
     }
 
@@ -761,11 +838,11 @@ router.put("/committees/:id", async (req, res): Promise<void> => {
       params.push(name);
     }
     if (finalAmount !== undefined) {
-      updates.push(`installment_amount = $${paramIdx++}`);
+      updates.push(`monthly_installment = $${paramIdx++}`);
       params.push(finalAmount);
     }
     if (finalMemberLimit !== undefined) {
-      updates.push(`member_limit = $${paramIdx++}`);
+      updates.push(`total_members = $${paramIdx++}`);
       params.push(finalMemberLimit);
     }
     if (type !== undefined) {
@@ -777,7 +854,7 @@ router.put("/committees/:id", async (req, res): Promise<void> => {
       params.push(status);
     }
     if (duration !== undefined) {
-      updates.push(`duration = $${paramIdx++}`);
+      updates.push(`total_months = $${paramIdx++}`);
       params.push(duration);
     }
 
@@ -788,8 +865,8 @@ router.put("/committees/:id", async (req, res): Promise<void> => {
       return;
     }
 
-    params.push(committeeId);
-    const query = `UPDATE committees SET ${updates.join(", ")} WHERE id = $${paramIdx} RETURNING *`;
+    params.push(commUuid);
+    const query = `UPDATE committees SET ${updates.join(", ")} WHERE id::text = $${paramIdx} RETURNING *`;
     const result = await pool.query(query, params);
 
     if (result.rows.length === 0) {
@@ -803,8 +880,8 @@ router.put("/committees/:id", async (req, res): Promise<void> => {
       message: "Committee updated successfully",
       committee: {
         ...updated,
-        installmentAmount: Number(updated.installment_amount),
-        memberLimit: updated.member_limit,
+        installmentAmount: Number(updated.monthly_installment || updated.installment_amount),
+        memberLimit: updated.total_members || updated.member_limit,
       },
       data: updated
     });
@@ -815,7 +892,6 @@ router.put("/committees/:id", async (req, res): Promise<void> => {
 });
 
 router.patch("/committees/:id", async (req, res) => {
-  // Delegate to PUT handler
   req.url = `/committees/${req.params.id}`;
   const putHandler = (router as any).stack.find((layer: any) => layer.route && layer.route.path === "/committees/:id" && layer.route.methods.put);
   if (putHandler) {
@@ -827,29 +903,30 @@ router.patch("/committees/:id", async (req, res) => {
 
 router.get("/committees/:id/members", async (req, res): Promise<void> => {
   try {
-    const committeeId = parseInt(req.params.id, 10);
-    if (isNaN(committeeId)) {
-      res.status(400).json({ success: false, error: "Invalid committee ID" });
+    const rawId = req.params.id;
+    const commUuid = await resolveCommitteeUuid(rawId);
+    if (!commUuid) {
+      res.json([]);
       return;
     }
 
     const result = await pool.query(`
       SELECT 
-        t.id,
-        t.committee_id as "committeeId",
-        t.customer_id as "customerId",
-        t.normalized_token_number as "tokenNumber",
+        t.id::text AS id,
+        t.committee_id::text as "committeeId",
+        t.customer_id::text as "customerId",
+        COALESCE(t.normalized_token_number, 1) as "tokenNumber",
+        t.raw_token_number as "rawTokenNumber",
         t.status::text as "status",
         c.name as "customerName",
         c.reference_number as "customerReferenceNumber",
-        c.mobile as "customerMobile"
+        c.mobile as "customerMobile",
+        c.address as "customerAddress"
       FROM tokens t
-      LEFT JOIN customers c ON t.customer_id = c.id
-      WHERE t.committee_id = $1
-      ORDER BY 
-        CASE WHEN t.normalized_token_number ~ '^[0-9]+' THEN substring(t.normalized_token_number from '^[0-9]+')::int ELSE 99999 END ASC,
-        t.normalized_token_number ASC
-    `, [committeeId]);
+      LEFT JOIN customers c ON t.customer_id::text = c.id::text
+      WHERE t.committee_id::text = $1
+      ORDER BY t.normalized_token_number ASC NULLS LAST, t.id ASC
+    `, [commUuid]);
 
     res.json(result.rows);
   } catch (err: any) {
@@ -858,8 +935,75 @@ router.get("/committees/:id/members", async (req, res): Promise<void> => {
   }
 });
 
-// ---------------------------------------------------------------------------
-// Committee Payment History — Excel-style grid (Paid / Pending per month)
+router.get("/committees/:id/collections", async (req, res): Promise<void> => {
+  try {
+    const rawId = req.params.id;
+    const commUuid = await resolveCommitteeUuid(rawId);
+    if (!commUuid) {
+      res.json({ success: true, collections: [], data: [] });
+      return;
+    }
+
+    const result = await pool.query(`
+      SELECT 
+        col.id::text,
+        col.receipt_number as "receiptNumber",
+        col.amount::numeric as amount,
+        col.payment_mode as "paymentMode",
+        col.collected_at as "paymentDate",
+        col.notes,
+        c.name as "customerName",
+        c.mobile as "customerMobile",
+        COALESCE(t.normalized_token_number, col.token_number, 1) as "tokenNumber"
+      FROM collections col
+      LEFT JOIN customers c ON c.id::text = col.customer_uuid::text
+      LEFT JOIN tokens t ON t.id::text = col.token_uuid::text
+      WHERE col.committee_uuid::text = $1
+      ORDER BY col.collected_at DESC NULLS LAST, col.id DESC
+      LIMIT 500
+    `, [commUuid]);
+
+    res.json({ success: true, collections: result.rows, data: result.rows });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+router.get("/committees/:id/lottery-history", async (req, res): Promise<void> => {
+  try {
+    const rawId = req.params.id;
+    const commUuid = await resolveCommitteeUuid(rawId);
+    if (!commUuid) {
+      res.json({ success: true, lotteries: [], data: [] });
+      return;
+    }
+
+    const result = await pool.query(`
+      SELECT 
+        l.id::text AS id,
+        l.draw_date AS "drawDate",
+        COALESCE(l.token_number, t.normalized_token_number, 1) AS "tokenNumber",
+        COALESCE(cust.name, 'Winner') AS "winnerName",
+        cust.mobile AS "winnerMobile",
+        cust.id::text AS "winnerCustomerId",
+        l.reward_description AS "rewardDescription",
+        l.status::text AS "status",
+        l.notes AS "notes",
+        comm.name AS "committeeName"
+      FROM lotteries l
+      LEFT JOIN customers cust ON cust.id::text = l.winner_customer_uuid::text
+      LEFT JOIN committees comm ON comm.id::text = l.committee_uuid::text
+      LEFT JOIN tokens t ON t.id::text = l.winner_token_uuid::text
+      WHERE l.committee_uuid::text = $1
+      ORDER BY l.draw_date DESC NULLS LAST, l.id DESC
+    `, [commUuid]);
+
+    res.json({ success: true, lotteries: result.rows, data: result.rows });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
 // ---------------------------------------------------------------------------
 router.get("/committees/:id/payment-history", async (req, res): Promise<void> => {
   try {
@@ -2776,45 +2920,41 @@ router.get("/gifts/summary", async (req, res) => {
     const result = await queryWithRetry(
       () => pool.query(`
         SELECT 
-          (SELECT COUNT(*)::int FROM gift_inventory) as "totalItems",
-          (SELECT COUNT(*)::int FROM gift_distributions WHERE status = 'given') as "totalDistributed",
-          (SELECT COUNT(*)::int FROM gift_distributions WHERE status = 'pending') as "pendingDistribution",
-          (SELECT COUNT(*)::int FROM gift_categories) as "totalCategories"
+          COUNT(*)::int as "totalItems",
+          COUNT(*) FILTER (WHERE UPPER(status::text) IN ('DISTRIBUTED', 'DELIVERED', 'GIVEN', 'COLLECTED'))::int as "totalDistributed",
+          COUNT(*) FILTER (WHERE UPPER(status::text) NOT IN ('DISTRIBUTED', 'DELIVERED', 'GIVEN', 'COLLECTED'))::int as "pendingDistribution",
+          COUNT(DISTINCT gift_name)::int as "totalCategories"
+        FROM gift_distributions
       `),
       { routeName: "GET /gifts/summary", retries: 2, delayMs: 500 }
     );
     const row = result.rows[0] || {};
     res.json({
+      success: true,
       totalItems: Number(row.totalItems || 0),
       totalDistributed: Number(row.totalDistributed || 0),
       pendingDistribution: Number(row.pendingDistribution || 0),
       totalCategories: Number(row.totalCategories || 0)
     });
-  } catch (err) {
-    res.json({ totalItems: 0, totalDistributed: 0, pendingDistribution: 0, totalCategories: 0 });
+  } catch (err: any) {
+    res.json({ success: true, totalItems: 0, totalDistributed: 0, pendingDistribution: 0, totalCategories: 0 });
   }
 });
 
 router.get("/gifts/inventory", async (req, res) => {
   try {
     const result = await pool.query(`
-      SELECT 
-        gi.id,
-        gi.category_id as "categoryId",
-        gi.name,
-        gi.description,
-        gi.estimated_value as "estimatedValue",
-        gi.quantity_total as "quantityTotal",
-        gi.quantity_available as "quantityAvailable",
-        gi.quantity_distributed as "quantityDistributed",
-        gi.status::text as "status",
-        gc.name as "categoryName"
-      FROM gift_inventory gi
-      LEFT JOIN gift_categories gc ON gi.category_id = gc.id
-      ORDER BY gi.id DESC
+      SELECT DISTINCT
+        gift_name as name,
+        COUNT(*)::int as "quantityTotal",
+        COUNT(*) FILTER (WHERE UPPER(status::text) IN ('DISTRIBUTED', 'DELIVERED', 'GIVEN', 'COLLECTED'))::int as "quantityDistributed",
+        'active' as status
+      FROM gift_distributions
+      GROUP BY gift_name
+      ORDER BY gift_name ASC
       LIMIT 100
     `);
-    res.json(result.rows);
+    res.json({ success: true, inventory: result.rows, data: result.rows });
   } catch (err) {
     res.status(500).json({ success: false, error: "Failed to fetch gift inventory" });
   }
@@ -2825,27 +2965,24 @@ router.get("/gifts/distributions", async (req, res) => {
     const result = await queryWithRetry(
       () => pool.query(`
       SELECT 
-        gd.id,
-        gd.gift_id as "giftId",
-        gd.customer_id as "customerId",
-        gd.quantity,
+        gd.id::text as id,
+        gd.token_number as "tokenNumber",
+        COALESCE(gd.customer_name, c.name, 'Member') as "customerName",
+        c.mobile as "customerMobile",
+        COALESCE(gd.gift_name, gd.notes, 'Gift') as "giftName",
         gd.distribution_date as "distributionDate",
         gd.status::text as "status",
         gd.notes,
-        gd.is_returned as "isReturned",
-        gd.return_date as "returnDate",
-        gd.return_notes as "returnNotes",
-        gi.name as "giftName",
-        c.name as "customerName"
+        comm.name as "committeeName"
       FROM gift_distributions gd
-      LEFT JOIN gift_inventory gi ON gd.gift_id = gi.id
-      LEFT JOIN customers c ON gd.customer_id = c.id
-      ORDER BY gd.id DESC
-      LIMIT 100
+      LEFT JOIN customers c ON c.id::text = gd.customer_uuid::text
+      LEFT JOIN committees comm ON comm.id::text = gd.committee_uuid::text
+      ORDER BY gd.distribution_date DESC NULLS LAST, gd.id DESC
+      LIMIT 500
     `),
       { routeName: "GET /gifts/distributions", retries: 2, delayMs: 500 }
     );
-    res.json(result.rows);
+    res.json({ success: true, distributions: result.rows, data: result.rows });
   } catch (err) {
     res.status(500).json({ success: false, error: "Failed to fetch gift distributions" });
   }

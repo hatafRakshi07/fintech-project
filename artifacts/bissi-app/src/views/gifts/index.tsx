@@ -464,8 +464,8 @@ export default function GiftsPage() {
     staleTime: 30000,
   });
 
-  const winners = (data?.winners as Winner[]) || [];
-  const total = data?.total || 0;
+  const winners: Winner[] = (data?.winners || data?.gifts || data?.distributions || data?.data || []) as Winner[];
+  const total = data?.total || winners.length;
 
   // Extract unique months for Month Filter dropdown
   const availableMonths = Array.from(

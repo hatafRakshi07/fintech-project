@@ -513,16 +513,241 @@ function GiftRecordTab({ committeeId }: { committeeId: string | number }) {
   );
 }
 
+function CommitteeLotteryTab({ committeeId }: { committeeId: string | number }) {
+  const { data, isLoading } = useQuery<any>({
+    queryKey: ["committee-lottery-history", committeeId],
+    queryFn: () => customFetch(`/committees/${committeeId}/lottery-history`),
+    enabled: !!committeeId,
+  });
+
+  const lotteries = data?.lotteries || data?.data || [];
+
+  if (isLoading) {
+    return (
+      <Card className="border shadow-sm">
+        <CardContent className="flex items-center justify-center py-16 text-muted-foreground gap-2">
+          <Clock className="h-4 w-4 animate-spin text-amber-500" /> Loading lottery history…
+        </CardContent>
+      </Card>
+    );
+  }
+
+  return (
+    <Card className="border shadow-sm">
+      <CardContent className="p-0 overflow-x-auto">
+        <Table>
+          <TableHeader>
+            <TableRow className="bg-amber-500/10">
+              <TableHead className="pl-5">Draw Date</TableHead>
+              <TableHead>Winning Token (टोकन सं.)</TableHead>
+              <TableHead>Winner Name</TableHead>
+              <TableHead>Mobile</TableHead>
+              <TableHead>Reward Description</TableHead>
+              <TableHead className="pr-5 text-right">Status</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {lotteries.length === 0 ? (
+              <TableRow>
+                <TableCell colSpan={6} className="text-center py-12 text-muted-foreground">
+                  No lottery draw history recorded for this committee yet.
+                </TableCell>
+              </TableRow>
+            ) : (
+              lotteries.map((l: any) => (
+                <TableRow key={l.id} className="hover:bg-amber-500/5 transition-colors text-xs">
+                  <TableCell className="pl-5 font-mono text-muted-foreground">
+                    {l.drawDate ? new Date(l.drawDate).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" }) : "—"}
+                  </TableCell>
+                  <TableCell className="font-mono font-bold text-amber-600">
+                    #{l.tokenNumber}
+                  </TableCell>
+                  <TableCell className="font-semibold text-foreground">
+                    {l.winnerCustomerId ? (
+                      <Link href={`/customers/${l.winnerCustomerId}`}>
+                        <span className="hover:underline hover:text-primary cursor-pointer">{l.winnerName}</span>
+                      </Link>
+                    ) : (
+                      l.winnerName
+                    )}
+                  </TableCell>
+                  <TableCell className="font-mono text-muted-foreground">
+                    {l.winnerMobile || "—"}
+                  </TableCell>
+                  <TableCell className="font-medium text-foreground">
+                    <Badge variant="outline" className="bg-amber-500/10 text-amber-700 dark:text-amber-300 border-amber-500/30">
+                      ✨ {l.rewardDescription || "Lucky Winner"}
+                    </Badge>
+                  </TableCell>
+                  <TableCell className="pr-5 text-right font-bold capitalize text-emerald-600">
+                    {l.status || "Completed"}
+                  </TableCell>
+                </TableRow>
+              ))
+            )}
+          </TableBody>
+        </Table>
+      </CardContent>
+    </Card>
+  );
+}
+
+function CommitteeInterestTab({ committeeId }: { committeeId: string | number }) {
+  const { data, isLoading } = useQuery<any>({
+    queryKey: ["committee-interests", committeeId],
+    queryFn: () => customFetch(`/committees/${committeeId}/interests`),
+    enabled: !!committeeId,
+  });
+
+  const interests = data?.interests || data?.data || [];
+
+  if (isLoading) {
+    return (
+      <Card className="border shadow-sm">
+        <CardContent className="flex items-center justify-center py-16 text-muted-foreground gap-2">
+          <Clock className="h-4 w-4 animate-spin text-blue-500" /> Loading committee interest accounts…
+        </CardContent>
+      </Card>
+    );
+  }
+
+  return (
+    <Card className="border shadow-sm">
+      <CardContent className="p-0 overflow-x-auto">
+        <Table>
+          <TableHeader>
+            <TableRow className="bg-blue-500/10">
+              <TableHead className="pl-5">Serial #</TableHead>
+              <TableHead>Customer Name</TableHead>
+              <TableHead>Mobile</TableHead>
+              <TableHead>Due Day</TableHead>
+              <TableHead className="text-right">Monthly Interest Amount</TableHead>
+              <TableHead className="text-right">Total Interest Paid</TableHead>
+              <TableHead className="pr-5 text-right">Status</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {interests.length === 0 ? (
+              <TableRow>
+                <TableCell colSpan={7} className="text-center py-12 text-muted-foreground">
+                  No interest accounts associated with members of this committee.
+                </TableCell>
+              </TableRow>
+            ) : (
+              interests.map((acc: any) => (
+                <TableRow key={acc.id} className="hover:bg-blue-500/5 transition-colors text-xs">
+                  <TableCell className="pl-5 font-mono font-bold text-blue-600">
+                    #{acc.serial}
+                  </TableCell>
+                  <TableCell className="font-semibold text-foreground">
+                    <Link href={`/customers/${acc.customerId}`}>
+                      <span className="hover:underline hover:text-primary cursor-pointer">{acc.customerName}</span>
+                    </Link>
+                  </TableCell>
+                  <TableCell className="font-mono text-muted-foreground">
+                    {acc.customerMobile || "—"}
+                  </TableCell>
+                  <TableCell className="font-mono text-muted-foreground">
+                    {acc.dueDay ? `${acc.dueDay}th of month` : "—"}
+                  </TableCell>
+                  <TableCell className="text-right font-bold text-foreground">
+                    {formatCurrency(Number(acc.interestAmount || 0))}
+                  </TableCell>
+                  <TableCell className="text-right font-bold text-emerald-600">
+                    {formatCurrency(Number(acc.totalPaid || 0))}
+                  </TableCell>
+                  <TableCell className="pr-5 text-right">
+                    <Badge variant={acc.status === "ACTIVE" ? "default" : "secondary"}>
+                      {acc.status}
+                    </Badge>
+                  </TableCell>
+                </TableRow>
+              ))
+            )}
+          </TableBody>
+        </Table>
+      </CardContent>
+    </Card>
+  );
+}
+
+function CommitteeReportsTab({ committee, members, collections }: { committee: any; members: any[]; collections: any[] }) {
+  const totalCollected = collections.reduce((s, c) => s + Number(c.amount || 0), 0);
+  const poolSize = (committee?.installmentAmount || 0) * (committee?.memberLimit || 100);
+  const remaining = poolSize - totalCollected;
+
+  return (
+    <div className="space-y-4">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <Card className="border shadow-sm">
+          <CardHeader className="p-4 pb-2"><CardTitle className="text-xs uppercase text-muted-foreground">Total Pool Target</CardTitle></CardHeader>
+          <CardContent className="p-4 pt-0 text-2xl font-black text-foreground">{formatCurrency(poolSize)}</CardContent>
+        </Card>
+        <Card className="border shadow-sm">
+          <CardHeader className="p-4 pb-2"><CardTitle className="text-xs uppercase text-muted-foreground">Total Collected to Date</CardTitle></CardHeader>
+          <CardContent className="p-4 pt-0 text-2xl font-black text-emerald-600">{formatCurrency(totalCollected)}</CardContent>
+        </Card>
+        <Card className="border shadow-sm">
+          <CardHeader className="p-4 pb-2"><CardTitle className="text-xs uppercase text-muted-foreground">Remaining Pool</CardTitle></CardHeader>
+          <CardContent className="p-4 pt-0 text-2xl font-black text-blue-600">{formatCurrency(Math.max(0, remaining))}</CardContent>
+        </Card>
+      </div>
+
+      <Card className="border shadow-sm">
+        <CardHeader><CardTitle className="text-sm font-bold">Committee Summary Report</CardTitle></CardHeader>
+        <CardContent className="space-y-2 text-xs">
+          <div className="flex justify-between py-2 border-b"><span>Committee Name</span><span className="font-bold">{committee?.name}</span></div>
+          <div className="flex justify-between py-2 border-b"><span>Total Members Joined</span><span className="font-bold">{members.length} / {committee?.memberLimit}</span></div>
+          <div className="flex justify-between py-2 border-b"><span>Monthly Installment</span><span className="font-bold">{formatCurrency(committee?.installmentAmount || 0)}</span></div>
+          <div className="flex justify-between py-2 border-b"><span>Total Collection Transactions</span><span className="font-bold">{collections.length}</span></div>
+          <div className="flex justify-between py-2"><span>Scheme Duration</span><span className="font-bold">{committee?.duration || 20} Months</span></div>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
+function CommitteeDocumentsTab({ committee }: { committee: any }) {
+  return (
+    <Card className="border shadow-sm">
+      <CardHeader><CardTitle className="text-sm font-bold">Committee Rules & Documents (दस्तावेज़ एवं नियम)</CardTitle></CardHeader>
+      <CardContent className="space-y-4 text-xs">
+        <div className="p-4 rounded-lg bg-muted/50 border space-y-2">
+          <h4 className="font-bold text-foreground">Terms & Conditions (नियम व शर्तें)</h4>
+          <p className="text-muted-foreground leading-relaxed whitespace-pre-line">
+            {committee?.rules || "1. प्रत्येक माह की निश्चित तारीख को किश्त जमा करना अनिवार्य है।\n2. ड्रा में लकी विजेता बनने पर किश्त पूर्ण मानी जाएगी।\n3. नियत समय पर भुगतान न करने पर विलम्ब शुल्क देय होगा।"}
+          </p>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
 export default function CommitteeDetailPage() {
   const params = useParams<{ id: string }>();
-  const id = parseInt(params.id ?? "0", 10);
+  const id = params.id || "";
   const [isAddMemberOpen, setIsAddMemberOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
 
-  const { data: committee, isLoading } = useGetCommittee(id);
-  const { data: rawMembers } = useListCommitteeMembers(id);
-  const { data: rawCollections } = useListCollections({ committeeId: id, limit: 200 });
+  const { data: committee, isLoading } = useQuery<any>({
+    queryKey: ["committee-detail", id],
+    queryFn: () => customFetch(`/committees/${id}`),
+    enabled: !!id,
+  });
+
+  const { data: rawMembers } = useQuery<any[]>({
+    queryKey: ["committee-members", id],
+    queryFn: () => customFetch(`/committees/${id}/members`),
+    enabled: !!id,
+  });
+
+  const { data: collectionsRes } = useQuery<any>({
+    queryKey: ["committee-collections", id],
+    queryFn: () => customFetch(`/committees/${id}/collections`),
+    enabled: !!id,
+  });
+
   const { data: rawCustomers } = useListCustomers({ limit: 500 });
   
   const addMember = useAddCommitteeMember();
@@ -530,7 +755,7 @@ export default function CommitteeDetailPage() {
   const { toast } = useToast();
 
   const members = safeArray<any>(rawMembers);
-  const collections = safeArray<any>(rawCollections);
+  const collections = collectionsRes?.collections || collectionsRes?.data || [];
   const customers = safeArray<any>(rawCustomers);
 
   const form = useForm<z.infer<typeof addMemberSchema>>({
@@ -540,13 +765,13 @@ export default function CommitteeDetailPage() {
 
   const onAddMember = (values: z.infer<typeof addMemberSchema>) => {
     addMember.mutate(
-      { id, data: { customerId: values.customerId, tokenNumber: values.tokenNumber || undefined } },
+      { id: parseInt(id) || (id as any), data: { customerId: values.customerId, tokenNumber: values.tokenNumber || undefined } },
       {
         onSuccess: () => {
           toast({ title: "Member added successfully" });
           setIsAddMemberOpen(false);
           form.reset();
-          queryClient.invalidateQueries({ queryKey: getListCommitteeMembersQueryKey(id) });
+          queryClient.invalidateQueries({ queryKey: ["committee-members", id] });
         },
         onError: () => toast({ title: "Failed to add member", variant: "destructive" }),
       }
@@ -561,9 +786,9 @@ export default function CommitteeDetailPage() {
   const availableCustomers = customers.filter((c) => !memberIds.has(c.id));
 
   // Group members by customer
-  const grouped = new Map<number, { name: string; mobile: string | null; ref: string; tokens: { number: string; status: string }[]; customerId: number }>();
+  const grouped = new Map<string, { name: string; mobile: string | null; ref: string; tokens: { number: string; status: string }[]; customerId: string }>();
   for (const m of members) {
-    const custId = m.customerId || m.id;
+    const custId = String(m.customerId || m.id);
     if (!grouped.has(custId)) {
       grouped.set(custId, {
         customerId: custId,
@@ -573,7 +798,7 @@ export default function CommitteeDetailPage() {
         tokens: [],
       });
     }
-    const tokenNum = m.tokenNumber || m.token_number || String(m.id);
+    const tokenNum = String(m.tokenNumber || m.token_number || m.id);
     const rawSt = (m.status || "active").toString().toUpperCase();
     const isLucky = rawSt === "LUCKY" || rawSt === "OUT" || rawSt === "WINNER" || (m as any).isWinner;
     grouped.get(custId)!.tokens.push({
@@ -725,37 +950,33 @@ export default function CommitteeDetailPage() {
         </Card>
       </div>
 
-      {/* Rules & Regulations Card */}
-      {(committee as any).rules && (
-        <Card className="border shadow-sm bg-gradient-to-r from-amber-500/5 via-card to-card border-amber-500/20">
-          <CardHeader className="p-4 pb-1">
-            <CardTitle className="text-xs font-bold uppercase tracking-wider text-amber-700 dark:text-amber-400 flex items-center gap-2">
-              <ShieldCheck className="h-4 w-4 text-amber-500" /> Bissi Rules & Terms (नियम व शर्तें)
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="p-4 pt-1">
-            <p className="text-xs text-foreground/90 whitespace-pre-line leading-relaxed font-medium">
-              {(committee as any).rules}
-            </p>
-          </CardContent>
-        </Card>
-      )}
-
       {/* Tabs & Controls */}
       <Tabs defaultValue="members" className="w-full">
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 pb-2">
-          <TabsList className="bg-muted/60 p-1">
-            <TabsTrigger value="members" className="px-4 font-semibold">
+          <TabsList className="bg-muted/60 p-1 flex-wrap h-auto">
+            <TabsTrigger value="members" className="px-3 font-semibold">
               Members ({allGroupedList.length})
             </TabsTrigger>
-            <TabsTrigger value="payment-history" className="px-4 font-semibold gap-1.5">
+            <TabsTrigger value="payment-history" className="px-3 font-semibold gap-1.5">
               <ClipboardList className="h-3.5 w-3.5" /> Payment History
             </TabsTrigger>
-            <TabsTrigger value="gift-records" className="px-4 font-semibold gap-1.5 text-purple-600 dark:text-purple-400">
-              <Gift className="h-3.5 w-3.5" /> Gift Record (उपहार)
-            </TabsTrigger>
-            <TabsTrigger value="collections" className="px-4 font-semibold">
+            <TabsTrigger value="collections" className="px-3 font-semibold">
               Collections ({collections.length})
+            </TabsTrigger>
+            <TabsTrigger value="gift-records" className="px-3 font-semibold gap-1.5 text-purple-600 dark:text-purple-400">
+              <Gift className="h-3.5 w-3.5" /> Gift Records (उपहार)
+            </TabsTrigger>
+            <TabsTrigger value="lottery-history" className="px-3 font-semibold gap-1.5 text-amber-600 dark:text-amber-400">
+              <Sparkles className="h-3.5 w-3.5" /> Lottery History (ड्रा)
+            </TabsTrigger>
+            <TabsTrigger value="interest" className="px-3 font-semibold gap-1.5 text-blue-600">
+              <Banknote className="h-3.5 w-3.5" /> Interest
+            </TabsTrigger>
+            <TabsTrigger value="reports" className="px-3 font-semibold">
+              Reports
+            </TabsTrigger>
+            <TabsTrigger value="documents" className="px-3 font-semibold">
+              Documents
             </TabsTrigger>
           </TabsList>
 
@@ -895,11 +1116,6 @@ export default function CommitteeDetailPage() {
           <PaymentHistoryTab committeeId={id} />
         </TabsContent>
 
-        {/* Gift Record Tab Content */}
-        <TabsContent value="gift-records" className="mt-2">
-          <GiftRecordTab committeeId={id} />
-        </TabsContent>
-
         {/* Collections Tab Content */}
         <TabsContent value="collections" className="mt-2">
           <Card className="border shadow-sm">
@@ -923,7 +1139,7 @@ export default function CommitteeDetailPage() {
                       </TableCell>
                     </TableRow>
                   ) : (
-                    collections.map((col) => (
+                    collections.map((col: any) => (
                       <TableRow key={col.id} className="hover:bg-muted/50 transition-colors">
                         <TableCell className="pl-5 font-mono text-xs font-semibold text-muted-foreground">
                           {col.receiptNumber || `REC-${col.id}`}
@@ -941,11 +1157,11 @@ export default function CommitteeDetailPage() {
                           </Badge>
                         </TableCell>
                         <TableCell className="text-right font-black text-emerald-600 text-sm">
-                          {formatCurrency(col.amount)}
+                          {formatCurrency(Number(col.amount || 0))}
                         </TableCell>
                         <TableCell className="pr-5 text-right text-xs font-mono text-muted-foreground">
-                          {col.collectedAt
-                            ? new Date(col.collectedAt).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })
+                          {col.paymentDate
+                            ? new Date(col.paymentDate).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })
                             : "—"}
                         </TableCell>
                       </TableRow>
@@ -955,6 +1171,31 @@ export default function CommitteeDetailPage() {
               </Table>
             </CardContent>
           </Card>
+        </TabsContent>
+
+        {/* Gift Record Tab Content */}
+        <TabsContent value="gift-records" className="mt-2">
+          <GiftRecordTab committeeId={id} />
+        </TabsContent>
+
+        {/* Lottery History Tab Content */}
+        <TabsContent value="lottery-history" className="mt-2">
+          <CommitteeLotteryTab committeeId={id} />
+        </TabsContent>
+
+        {/* Interest Tab Content */}
+        <TabsContent value="interest" className="mt-2">
+          <CommitteeInterestTab committeeId={id} />
+        </TabsContent>
+
+        {/* Reports Tab Content */}
+        <TabsContent value="reports" className="mt-2">
+          <CommitteeReportsTab committee={committee} members={members} collections={collections} />
+        </TabsContent>
+
+        {/* Documents Tab Content */}
+        <TabsContent value="documents" className="mt-2">
+          <CommitteeDocumentsTab committee={committee} />
         </TabsContent>
       </Tabs>
     </div>
