@@ -2795,6 +2795,47 @@ router.post("/interests/accounts/:id/pay", async (req, res) => {
   }
 });
 
+router.post("/interests/transactions", async (req, res) => {
+  // Create a byaj payment record
+  const { accountId, amount, month, year, paymentDate, notes } = req.body;
+  if (!accountId || !amount) { res.status(400).json({ success: false, error: "accountId and amount required" }); return; }
+  try {
+    const periodMonth = `${year || new Date().getFullYear()}-${String(month || new Date().getMonth()+1).padStart(2,'0')}-01`;
+    const a = await pool.query(`SELECT ba.*, c.id AS cid FROM byaj_accounts ba JOIN customers c ON c.id=ba.customer_id WHERE ba.id=$1`, [accountId]);
+    if (!a.rows.length) { res.status(404).json({ success: false, error: "Account not found" }); return; }
+    const acc = a.rows[0];
+    await pool.query(
+      `INSERT INTO byaj_payments (account_id,customer_id,period_month,payment_date,amount,notes)
+       VALUES ($1,$2,$3::date,$4::date,$5,$6)
+       ON CONFLICT (account_id,period_month) DO UPDATE SET amount=$5,notes=$6`,
+      [acc.id, acc.cid, periodMonth, paymentDate||periodMonth, amount, notes||null]
+    );
+    await pool.query(
+      `INSERT INTO payment_ledger (customer_id,module,source_table,amount,payment_date,period_month)
+       VALUES ($1,'BYAJ','byaj_payments',$2,$3::date,$4::date)`,
+      [acc.cid, amount, paymentDate||periodMonth, periodMonth]
+    );
+    res.json({ success: true });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+router.post("/interests/accounts", async (req, res) => {
+  const { customerId, principalAmount, interestRate, startDate, notes, branchId } = req.body;
+  if (!customerId || !principalAmount) { res.status(400).json({ success: false, error: "customerId and principalAmount required" }); return; }
+  try {
+    const r = await pool.query(
+      `INSERT INTO byaj_accounts (customer_id, interest_amount, address, notes, status)
+       VALUES ($1::uuid, $2, $3, $4, 'ACTIVE') RETURNING id`,
+      [customerId, principalAmount, null, notes||null]
+    );
+    res.json({ success: true, id: r.rows[0].id });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
 // Accounting & Recovery Fallbacks
 router.use("/accounting", (_req, res) => {
   res.json({ success: true, data: [] });
