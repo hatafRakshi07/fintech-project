@@ -11,6 +11,7 @@ import { calendarV2Router } from "./calendar-v2";
 import officeRouter from "./office";
 import dailyDiaryRouter from "./daily-diary";
 import lotteryManagementRouter from "./lottery-management";
+import v2Router from "./v2";
 import { pool, queryWithRetry, getPoolStats } from "@workspace/db";
 
 const router: IRouter = Router();
@@ -3151,5 +3152,7 @@ router.use("/v2/dashboard", dashboardV2Router);
 router.use("/v2/migration", migrationV2Router);
 router.use("/v2/ledger", ledgerV2Router);
 router.use("/v2/calendar", calendarV2Router);
+// V2 clean architecture routes (MI, BYAJ, Loans, Payment Ledger)
+router.use("/v2", v2Router);
 
 export default router;
