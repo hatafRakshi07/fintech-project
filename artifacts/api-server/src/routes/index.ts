@@ -490,13 +490,14 @@ router.get(["/gifts/bissi-winners", "/gifts"], async (req, res): Promise<void> =
     const statusFilter = (req.query.status as string) || "ALL";
 
     let query = `
-      SELECT gd.id, gd.token_number as "tokenNumber", gd.customer_name as "winnerName",
-             gd.gift_name as "giftName", gd.distribution_date as "drawDate",
+      SELECT gd.id, gd.token_number as "tokenNumber",
+             COALESCE(c.name, 'Member') as "winnerName",
+             COALESCE(gd.notes, 'Gift') as "giftName", gd.distribution_date as "drawDate",
              gd.status, gd.notes, COALESCE(cm.name, 'Bissi Scheme') as "committeeName",
              cm.bissi_int_id as "committeeId", c.mobile as "winnerMobile"
       FROM gift_distributions gd
-      LEFT JOIN committees cm ON (cm.id::text = gd.committee_uuid::text OR cm.id::text = gd.committee_uuid::text)
-      LEFT JOIN customers c ON (c.id::text = gd.customer_uuid::text OR c.id::text = gd.customer_uuid::text)
+      LEFT JOIN committees cm ON cm.id::text = gd.committee_id::text
+      LEFT JOIN customers c ON c.id::text = gd.customer_id::text
     `;
 
     const where: string[] = [];
