@@ -2681,33 +2681,118 @@ router.get("/gifts/categories", async (req, res) => {
 
 router.get("/interests/summary", async (req, res) => {
   try {
-    const result = await pool.query("SELECT COUNT(*)::int as count FROM customers");
-    res.json({ success: true, totalAccounts: Number(result.rows[0]?.count || 1163), data: { totalAccounts: 1163 } });
-  } catch (err) {
-    res.json({ success: true, totalAccounts: 1163, data: { totalAccounts: 1163 } });
+    const r = await pool.query(`
+      SELECT
+        COUNT(*)::int                              AS "activeAccounts",
+        COALESCE(SUM(interest_amount),0)::numeric  AS "totalInterestAmount",
+        (SELECT COUNT(*)::int FROM byaj_payments
+         WHERE period_month = DATE_TRUNC('month', CURRENT_DATE)::date) AS "paidThisMonth",
+        (SELECT COUNT(*)::int FROM v2_byaj_pending WHERE is_pending)   AS "pendingThisMonth"
+      FROM byaj_accounts WHERE status = 'ACTIVE'
+    `);
+    const row = r.rows[0] || {};
+    res.json({
+      success: true,
+      activeAccounts: row.activeAccounts || 0,
+      totalInterestAmount: parseFloat(row.totalInterestAmount) || 0,
+      paidThisMonth: row.paidThisMonth || 0,
+      pendingThisMonth: row.pendingThisMonth || 0,
+    });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message });
   }
 });
 
 router.get("/interests/accounts", async (req, res) => {
+  const search = ((req.query.search as string) || "").trim();
+  const page   = Math.max(1, parseInt((req.query.page as string) || "1", 10));
+  const limit  = Math.min(200, parseInt((req.query.limit as string) || "50", 10));
+  const offset = (page - 1) * limit;
   try {
-    const result = await pool.query("SELECT id, name, mobile, reference_number FROM customers LIMIT 100");
-    const formatted = result.rows.map(r => ({
-      id: r.id,
-      customerName: r.name,
-      mobile: r.mobile,
-      accountNumber: r.reference_number || `INT-${r.id}`,
-      principalAmount: 0,
-      interestRate: 0,
-      status: "ACTIVE"
-    }));
-    res.json({ success: true, accounts: formatted, data: formatted });
-  } catch (err) {
-    res.json({ success: true, accounts: [], data: [] });
+    const params: any[] = [];
+    let where = "WHERE ba.status = 'ACTIVE'";
+    if (search) {
+      params.push(`%${search}%`);
+      where += ` AND (c.name ILIKE $${params.length} OR c.mobile ILIKE $${params.length})`;
+    }
+    params.push(limit, offset);
+    const [dataRes, cntRes] = await Promise.all([
+      pool.query(`
+        SELECT ba.id, ba.customer_id AS "customerId", c.name AS "customerName", c.mobile AS "customerMobile",
+               ba.byaj_serial AS serial, ba.interest_amount AS "interestAmount",
+               ba.interest_amount AS "principalAmount",
+               ba.due_day AS "dueDay", ba.address, ba.reason1, ba.reply, ba.status,
+               0 AS "interestRate",
+               (SELECT COALESCE(SUM(bp2.amount),0) FROM byaj_payments bp2 WHERE bp2.account_id=ba.id) AS "totalInterestPaid",
+               CASE WHEN NOT EXISTS (
+                 SELECT 1 FROM byaj_payments bp3 WHERE bp3.account_id=ba.id
+                   AND bp3.period_month=DATE_TRUNC('month',CURRENT_DATE)::date
+               ) THEN ba.interest_amount ELSE 0 END AS "pendingInterest",
+               (SELECT bp.amount FROM byaj_payments bp
+                WHERE bp.account_id = ba.id
+                  AND bp.period_month = DATE_TRUNC('month',CURRENT_DATE)::date LIMIT 1) AS "paidThisMonth"
+        FROM byaj_accounts ba
+        JOIN customers c ON c.id = ba.customer_id
+        ${where}
+        ORDER BY ba.byaj_serial ASC NULLS LAST, c.name ASC
+        LIMIT $${params.length-1} OFFSET $${params.length}
+      `, params),
+      pool.query(`SELECT COUNT(*) FROM byaj_accounts ba JOIN customers c ON c.id=ba.customer_id ${where}`, params.slice(0,-2)),
+    ]);
+    res.json({ success: true, accounts: dataRes.rows, data: dataRes.rows, total: parseInt(cntRes.rows[0].count,10), page, limit });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message });
   }
 });
 
 router.get("/interests/transactions", async (req, res) => {
-  res.json({ success: true, transactions: [], data: [] });
+  try {
+    const r = await pool.query(`
+      SELECT bp.id, bp.account_id AS "accountId", bp.customer_id AS "customerId",
+             c.name AS "customerName", bp.amount, bp.period_month AS "periodMonth",
+             bp.payment_date AS "paymentDate", bp.raw_value, bp.created_at
+      FROM byaj_payments bp
+      JOIN customers c ON c.id = bp.customer_id
+      ORDER BY bp.payment_date DESC LIMIT 200
+    `);
+    res.json({ success: true, transactions: r.rows, data: r.rows });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+router.get("/interests/pending", async (_req, res) => {
+  try {
+    const r = await pool.query(`SELECT * FROM v2_byaj_pending WHERE is_pending ORDER BY due_day ASC NULLS LAST, customer_name ASC`);
+    res.json({ success: true, pending: r.rows, total: r.rows.length });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+router.post("/interests/accounts/:id/pay", async (req, res) => {
+  const { amount, paymentMode = "CASH", notes } = req.body;
+  if (!amount) { res.status(400).json({ success: false, error: "amount required" }); return; }
+  try {
+    const a = await pool.query(`SELECT ba.*, c.id AS cid FROM byaj_accounts ba JOIN customers c ON c.id=ba.customer_id WHERE ba.id=$1`, [req.params.id]);
+    if (!a.rows.length) { res.status(404).json({ success: false, error: "Not found" }); return; }
+    const acc = a.rows[0];
+    const month = new Date().toISOString().slice(0,7) + '-01';
+    await pool.query(
+      `INSERT INTO byaj_payments (account_id,customer_id,period_month,payment_date,amount,payment_mode,notes)
+       VALUES ($1,$2,$3::date,CURRENT_DATE,$4,$5::pay_mode,$6)
+       ON CONFLICT (account_id,period_month) DO UPDATE SET amount=$4,notes=$6`,
+      [acc.id, acc.cid, month, amount, paymentMode.toUpperCase(), notes||null]
+    );
+    await pool.query(
+      `INSERT INTO payment_ledger (customer_id,module,source_table,amount,payment_date,period_month)
+       VALUES ($1,'BYAJ','byaj_payments',$2,CURRENT_DATE,$3::date)`,
+      [acc.cid, amount, month]
+    );
+    res.json({ success: true });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message });
+  }
 });
 
 // Accounting & Recovery Fallbacks
