@@ -134,20 +134,20 @@ router.get("/customers", async (req, res) => {
       `;
       if (search) {
         countQuery = `SELECT COUNT(DISTINCT cust.id) ${baseWhere} WHERE (cust.name ILIKE $2 OR cust.mobile ILIKE $2 OR cust.reference_number ILIKE $2)`;
-        dataQuery = `SELECT DISTINCT cust.id, cust.name, cust.mobile, cust.reference_number, cust.address, cust.status, cust.branch_id ${baseWhere} WHERE (cust.name ILIKE $2 OR cust.mobile ILIKE $2 OR cust.reference_number ILIKE $2) LIMIT $3 OFFSET $4`;
+        dataQuery = `SELECT DISTINCT cust.id, cust.name, cust.mobile, cust.reference_number, cust.address, cust.status ${baseWhere} WHERE (cust.name ILIKE $2 OR cust.mobile ILIKE $2 OR cust.reference_number ILIKE $2) LIMIT $3 OFFSET $4`;
         params = [committeeId, `%${search}%`, limit, offset];
       } else {
         countQuery = `SELECT COUNT(DISTINCT cust.id) ${baseWhere}`;
-        dataQuery = `SELECT DISTINCT cust.id, cust.name, cust.mobile, cust.reference_number, cust.address, cust.status, cust.branch_id ${baseWhere} LIMIT $2 OFFSET $3`;
+        dataQuery = `SELECT DISTINCT cust.id, cust.name, cust.mobile, cust.reference_number, cust.address, cust.status ${baseWhere} LIMIT $2 OFFSET $3`;
         params = [committeeId, limit, offset];
       }
     } else if (search) {
       countQuery = "SELECT COUNT(*) FROM customers WHERE name ILIKE $1 OR mobile ILIKE $1 OR reference_number ILIKE $1";
-      dataQuery = "SELECT id, name, mobile, reference_number, address, status, branch_id FROM customers WHERE name ILIKE $1 OR mobile ILIKE $1 OR reference_number ILIKE $1 LIMIT $2 OFFSET $3";
+      dataQuery = "SELECT id, name, mobile, reference_number, address, status FROM customers WHERE name ILIKE $1 OR mobile ILIKE $1 OR reference_number ILIKE $1 LIMIT $2 OFFSET $3";
       params = [`%${search}%`, limit, offset];
     } else {
       countQuery = "SELECT COUNT(*) FROM customers";
-      dataQuery = "SELECT id, name, mobile, reference_number, address, status, branch_id FROM customers LIMIT $1 OFFSET $2";
+      dataQuery = "SELECT id, name, mobile, reference_number, address, status FROM customers LIMIT $1 OFFSET $2";
       params = [limit, offset];
     }
 
@@ -167,7 +167,7 @@ router.get("/customers", async (req, res) => {
     const formattedRows = dataRes.rows.map(r => ({
       ...r,
       referenceNumber: r.reference_number,
-      branchId: r.branch_id,
+      branchId: null,
       branchName: "Shree Krishna Associate",
     }));
 
@@ -836,7 +836,7 @@ router.get("/committees/:id/members", async (req, res): Promise<void> => {
         t.id,
         t.committee_id as "committeeId",
         t.customer_id as "customerId",
-        t.token_number as "tokenNumber",
+        t.normalized_token_number as "tokenNumber",
         t.status::text as "status",
         c.name as "customerName",
         c.reference_number as "customerReferenceNumber",
@@ -845,8 +845,8 @@ router.get("/committees/:id/members", async (req, res): Promise<void> => {
       LEFT JOIN customers c ON t.customer_id = c.id
       WHERE t.committee_id = $1
       ORDER BY 
-        CASE WHEN t.token_number ~ '^[0-9]+' THEN substring(t.token_number from '^[0-9]+')::int ELSE 99999 END ASC,
-        t.token_number ASC
+        CASE WHEN t.normalized_token_number ~ '^[0-9]+' THEN substring(t.normalized_token_number from '^[0-9]+')::int ELSE 99999 END ASC,
+        t.normalized_token_number ASC
     `, [committeeId]);
 
     res.json(result.rows);
@@ -1094,13 +1094,13 @@ router.get("/committees/:id/payment-history", async (req, res): Promise<void> =>
       const params: any[] = [parseInt(committeeId, 10)];
       if (search) {
         params.push(`%${search}%`);
-        searchCondition = ` AND (cust.name ILIKE $${params.length} OR cust.mobile ILIKE $${params.length} OR t.token_number ILIKE $${params.length})`;
+        searchCondition = ` AND (cust.name ILIKE $${params.length} OR cust.mobile ILIKE $${params.length} OR t.normalized_token_number ILIKE $${params.length})`;
       }
 
       const v1Res = await pool.query(
         `SELECT
            t.id::text as "tokenId",
-           t.token_number as "tokenNumber",
+           t.normalized_token_number as "tokenNumber",
            t.status::text as "tokenStatus",
            cust.id::text as "customerId",
            cust.name as "customerName",
@@ -1115,8 +1115,8 @@ router.get("/committees/:id/payment-history", async (req, res): Promise<void> =>
          JOIN customers cust ON cust.id = t.customer_id
          LEFT JOIN collections col ON col.customer_id = cust.id AND col.committee_id = t.committee_id
          WHERE t.committee_id = $1${searchCondition}
-         GROUP BY t.id, t.token_number, t.status, cust.id, cust.name, cust.mobile, cust.address
-         ORDER BY CASE WHEN t.token_number ~ '^[0-9]+$' THEN CAST(t.token_number AS integer) ELSE 99999 END ASC`,
+         GROUP BY t.id, t.normalized_token_number, t.status, cust.id, cust.name, cust.mobile, cust.address
+         ORDER BY CASE WHEN t.normalized_token_number ~ '^[0-9]+$' THEN CAST(t.normalized_token_number AS integer) ELSE 99999 END ASC`,
         params
       );
 
@@ -1189,7 +1189,7 @@ router.get("/tokens", async (req, res) => {
     const limit = parseInt((req.query.limit as string) || "5000", 10);
     const result = await queryWithRetry(
       () => pool.query(`
-      SELECT t.id, t.token_number, t.customer_id, t.committee_id, t.status, t.created_at,
+      SELECT t.id, t.normalized_token_number as token_number, t.customer_id, t.committee_id, t.status, t.created_at,
              c.name as customer_name, cm.name as committee_name
       FROM tokens t
       LEFT JOIN customers c ON c.id = t.customer_id
@@ -2398,20 +2398,20 @@ router.get("/committees/:id/gift-matrix", async (req, res): Promise<void> => {
     const params: any[] = [committeeId];
     if (search) {
       params.push(`%${search}%`);
-      searchCond = ` AND (cust.name ILIKE $2 OR cust.mobile ILIKE $2 OR t.token_number ILIKE $2)`;
+      searchCond = ` AND (cust.name ILIKE $2 OR cust.mobile ILIKE $2 OR t.normalized_token_number ILIKE $2)`;
     }
 
     const tokensRes = await pool.query(`
       SELECT 
         t.id::text as "tokenId",
-        t.token_number as "tokenNumber",
+        t.normalized_token_number as "tokenNumber",
         cust.id::text as "customerId",
         cust.name as "customerName",
         cust.mobile as "customerMobile"
       FROM tokens t
       JOIN customers cust ON cust.id = t.customer_id
       WHERE t.committee_id = $1 ${searchCond}
-      ORDER BY CASE WHEN t.token_number ~ '^[0-9]+$' THEN CAST(t.token_number AS integer) ELSE 99999 END ASC, t.token_number ASC
+      ORDER BY CASE WHEN t.normalized_token_number ~ '^[0-9]+$' THEN CAST(t.normalized_token_number AS integer) ELSE 99999 END ASC, t.normalized_token_number ASC
     `, params);
 
     const members = tokensRes.rows;
