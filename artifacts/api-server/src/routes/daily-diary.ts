@@ -54,6 +54,22 @@ function parsePlanAmount(plan: string): number {
 // ─────────────────────────────────────────────────────────────────────────────
 // GET /daily-diary/dashboard
 // ─────────────────────────────────────────────────────────────────────────────
+// Root route — return the loans list (frontend calls /api/daily-diary)
+router.get("/", async (_req, res) => {
+  try {
+    await ensureTables();
+    const r = await pool.query(
+      `SELECT id, customer_name AS "customerName", mobile_number AS mobile,
+              loan_amount AS "loanAmount", collection_plan AS "collectionPlan",
+              start_date AS "startDate", status, notes
+       FROM daily_diary_loans WHERE status='ACTIVE' ORDER BY created_at DESC LIMIT 200`
+    );
+    res.json({ success: true, loans: r.rows, data: r.rows, total: r.rows.length });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
 router.get("/dashboard", async (_req, res) => {
   try {
     await ensureTables();

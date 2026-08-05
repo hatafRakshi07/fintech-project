@@ -1540,9 +1540,192 @@ router.get("/collections/pending-verifications", async (_req, res) => {
 });
 
 // EXPLICIT REQUIREMENT: No Loan Data to be served
-router.get("/loans", (_req, res) => {
-  res.json({ success: true, loans: [], data: [] });
+router.get("/loans/summary", async (_req, res) => {
+  try {
+    const r = await pool.query(`
+      SELECT
+        COUNT(*)::int                                                                    AS "totalLoans",
+        COUNT(*) FILTER (WHERE stage IN ('APPLIED','APPROVED'))::int                   AS "pendingApproval",
+        COUNT(*) FILTER (WHERE stage = 'REPAYING')::int                                AS "activeLoans",
+        COUNT(*) FILTER (WHERE stage = 'DEFAULTED')::int                               AS "defaultedLoans",
+        COALESCE(SUM(principal_amount) FILTER (WHERE stage NOT IN ('CLOSED')),0)::numeric AS "totalOutstanding",
+        COALESCE(SUM(disbursed_amount) FILTER (WHERE stage NOT IN ('CLOSED')),0)::numeric AS "totalDisbursed",
+        (SELECT COALESCE(SUM(total_paid),0)::numeric FROM loan_payments
+         WHERE DATE_TRUNC('month',payment_date)=DATE_TRUNC('month',CURRENT_DATE))      AS "collectedThisMonth"
+      FROM loan_accounts
+    `);
+    const row = r.rows[0] || {};
+    res.json({ success: true, ...row, totalActiveLoans: row.activeLoans, outstandingAmount: row.totalOutstanding });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message });
+  }
 });
+
+router.get("/loans", async (req, res) => {
+  const search = ((req.query.search as string) || "").trim();
+  const status = (req.query.status as string) || null;
+  const page   = Math.max(1, parseInt((req.query.page as string) || "1", 10));
+  const limit  = Math.min(200, parseInt((req.query.limit as string) || "20", 10));
+  const offset = (page - 1) * limit;
+  try {
+    const params: any[] = [];
+    const conditions: string[] = [];
+    if (search) {
+      params.push(`%${search}%`);
+      conditions.push(`(c.name ILIKE $${params.length} OR c.mobile ILIKE $${params.length})`);
+    }
+    if (status && status !== "all") {
+      params.push(status.toUpperCase());
+      conditions.push(`la.stage::text = $${params.length}`);
+    }
+    const where = conditions.length ? `WHERE ${conditions.join(" AND ")}` : "";
+    params.push(limit, offset);
+
+    const [dataRes, cntRes] = await Promise.all([
+      pool.query(`
+        SELECT la.id, la.customer_id AS "customerId", c.name AS "customerName", c.mobile,
+               la.principal_amount AS "principalAmount",
+               la.disbursed_amount AS "disbursedAmount",
+               la.interest_rate_pct AS "interestRate",
+               la.tenure_months AS tenure,
+               la.disbursal_date AS "disbursedAt",
+               la.stage AS status,
+               la.security, la.notes,
+               (SELECT COALESCE(SUM(lp.total_paid),0) FROM loan_payments lp WHERE lp.loan_id=la.id) AS "totalRepaid"
+        FROM loan_accounts la
+        JOIN customers c ON c.id = la.customer_id
+        ${where}
+        ORDER BY la.created_at DESC
+        LIMIT $${params.length-1} OFFSET $${params.length}
+      `, params),
+      pool.query(`SELECT COUNT(*) FROM loan_accounts la JOIN customers c ON c.id=la.customer_id ${where}`, params.slice(0,-2)),
+    ]);
+
+    res.json({ success: true, loans: dataRes.rows, data: dataRes.rows, total: parseInt(cntRes.rows[0].count,10), page, limit });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+router.post("/loans", async (req, res) => {
+  const { customerId, principalAmount, interestRate, interestType, tenure, purpose, notes } = req.body;
+  if (!customerId || !principalAmount) {
+    res.status(400).json({ success: false, error: "customerId and principalAmount required" });
+    return;
+  }
+  try {
+    const r = await pool.query(
+      `INSERT INTO loan_accounts (customer_id, principal_amount, interest_rate_pct, tenure_months, stage, notes)
+       VALUES ($1::uuid, $2, $3, $4, 'APPLIED', $5) RETURNING id`,
+      [customerId, principalAmount, interestRate || 0, tenure || 12, notes || purpose || null]
+    );
+    res.json({ success: true, id: r.rows[0].id });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+router.patch("/loans/:id", async (req, res) => {
+  const { status, disbursedAt, disbursedAmount } = req.body;
+  try {
+    const stageMap: Record<string, string> = {
+      active: 'REPAYING', approved: 'APPROVED', disbursed: 'DISBURSED',
+      closed: 'CLOSED', rejected: 'DEFAULTED', pending: 'APPLIED',
+    };
+    const stage = stageMap[status?.toLowerCase()] || status?.toUpperCase();
+    await pool.query(
+      `UPDATE loan_accounts SET stage=$1::loan_stage, disbursed_amount=COALESCE($2,disbursed_amount),
+       disbursal_date=COALESCE($3::date,disbursal_date), updated_at=NOW() WHERE id=$4::uuid`,
+      [stage, disbursedAmount || null, disbursedAt ? disbursedAt.split('T')[0] : null, req.params.id]
+    );
+    res.json({ success: true });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+router.get("/loans/:id", async (req, res) => {
+  try {
+    const [loanRes, pmtsRes] = await Promise.all([
+      pool.query(
+        `SELECT la.*, c.name AS "customerName", c.mobile FROM loan_accounts la JOIN customers c ON c.id=la.customer_id WHERE la.id=$1::uuid`,
+        [req.params.id]
+      ),
+      pool.query(`SELECT * FROM loan_payments WHERE loan_id=$1::uuid ORDER BY payment_date DESC`, [req.params.id]),
+    ]);
+    if (!loanRes.rows.length) { res.status(404).json({ success: false, error: "Not found" }); return; }
+    res.json({ success: true, loan: loanRes.rows[0], payments: pmtsRes.rows });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// ── Reports ──────────────────────────────────────────────────────────────────
+
+router.get("/reports/collection", async (req, res) => {
+  const from = (req.query.from as string) || new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().split('T')[0];
+  const to   = (req.query.to   as string) || new Date().toISOString().split('T')[0];
+  try {
+    const [dailyRes, moduleRes, totalRes] = await Promise.all([
+      pool.query(`
+        SELECT payment_date::text AS date,
+               SUM(amount)::numeric AS total,
+               SUM(CASE WHEN payment_mode='CASH' THEN amount ELSE 0 END)::numeric AS cash,
+               SUM(CASE WHEN payment_mode!='CASH' THEN amount ELSE 0 END)::numeric AS online,
+               COUNT(*)::int AS count
+        FROM payment_ledger
+        WHERE payment_date BETWEEN $1::date AND $2::date
+        GROUP BY payment_date ORDER BY payment_date ASC
+      `, [from, to]),
+      pool.query(`
+        SELECT module,
+               SUM(amount)::numeric AS total,
+               COUNT(*)::int AS count
+        FROM payment_ledger
+        WHERE payment_date BETWEEN $1::date AND $2::date
+        GROUP BY module ORDER BY total DESC
+      `, [from, to]),
+      pool.query(`
+        SELECT SUM(amount)::numeric AS total,
+               SUM(CASE WHEN payment_mode='CASH' THEN amount ELSE 0 END)::numeric AS cash,
+               SUM(CASE WHEN payment_mode!='CASH' THEN amount ELSE 0 END)::numeric AS online,
+               COUNT(*)::int AS count
+        FROM payment_ledger
+        WHERE payment_date BETWEEN $1::date AND $2::date
+      `, [from, to]),
+    ]);
+    res.json({
+      success: true,
+      period: { from, to },
+      summary: totalRes.rows[0],
+      daily: dailyRes.rows,
+      byModule: moduleRes.rows,
+    });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+router.get("/reports/loan", async (_req, res) => {
+  try {
+    const r = await pool.query(`
+      SELECT la.stage AS status,
+             COUNT(*)::int AS count,
+             SUM(la.principal_amount)::numeric AS totalPrincipal,
+             COALESCE(SUM(lp_total.paid),0)::numeric AS totalRepaid
+      FROM loan_accounts la
+      LEFT JOIN LATERAL (
+        SELECT SUM(total_paid) AS paid FROM loan_payments WHERE loan_id=la.id
+      ) lp_total ON true
+      GROUP BY la.stage
+    `);
+    res.json({ success: true, data: r.rows, byStatus: r.rows });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// ── Daily Diary root route ───────────────────────────────────────────────────
 
 router.get("/lotteries", async (req, res) => {
   try {
