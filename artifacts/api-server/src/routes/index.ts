@@ -2707,15 +2707,16 @@ router.get("/gifts/monthly-schedule", async (req, res) => {
 // GET /committees/:id/gift-matrix — Full Token-wise Gift Sheet Matrix (Nov 2025 - July 2026+)
 router.get("/committees/:id/gift-matrix", async (req, res): Promise<void> => {
   try {
-    const committeeId = parseInt(req.params.id, 10);
-    const search = ((req.query.search as string) || "").trim();
-
-    if (isNaN(committeeId)) {
-      res.status(400).json({ success: false, error: "Invalid committee ID" });
+    const rawId = req.params.id;
+    const commUuid = await resolveCommitteeUuid(rawId);
+    if (!commUuid) {
+      res.json({ success: true, committee: null, months: [], members: [] });
       return;
     }
 
-    const commRes = await pool.query("SELECT id, name FROM committees WHERE id = $1", [committeeId]);
+    const search = ((req.query.search as string) || "").trim();
+
+    const commRes = await pool.query("SELECT id::text, name FROM committees WHERE id::text = $1", [commUuid]);
     if (commRes.rows.length === 0) {
       res.status(404).json({ success: false, error: "Committee not found" });
       return;
@@ -2724,89 +2725,85 @@ router.get("/committees/:id/gift-matrix", async (req, res): Promise<void> => {
 
     // Fetch all tokens and members in committee
     let searchCond = "";
-    const params: any[] = [committeeId];
+    const params: any[] = [commUuid];
     if (search) {
       params.push(`%${search}%`);
-      searchCond = ` AND (cust.name ILIKE $2 OR cust.mobile ILIKE $2 OR t.normalized_token_number ILIKE $2)`;
+      searchCond = ` AND (cust.name ILIKE $2 OR cust.mobile ILIKE $2 OR t.raw_token_number ILIKE $2 OR t.normalized_token_number::text ILIKE $2)`;
     }
 
     const tokensRes = await pool.query(`
       SELECT 
         t.id::text as "tokenId",
-        t.normalized_token_number as "tokenNumber",
+        COALESCE(t.normalized_token_number, 1) as "tokenNumber",
         cust.id::text as "customerId",
         cust.name as "customerName",
         cust.mobile as "customerMobile"
       FROM tokens t
-      JOIN customers cust ON cust.id = t.customer_id
-      WHERE t.committee_id = $1 ${searchCond}
-      ORDER BY CASE WHEN t.normalized_token_number ~ '^[0-9]+$' THEN CAST(t.normalized_token_number AS integer) ELSE 99999 END ASC, t.normalized_token_number ASC
+      LEFT JOIN customers cust ON cust.id::text = t.customer_id::text
+      WHERE t.committee_id::text = $1 ${searchCond}
+      ORDER BY t.normalized_token_number ASC NULLS LAST, t.id ASC
     `, params);
 
     const members = tokensRes.rows;
 
-    // Fetch all gift distributions for this committee ordered by distribution_date ASC
+    // Fetch all gift distributions for this committee
     const giftsRes = await pool.query(`
       SELECT 
-        gd.token_id::text as "tokenId",
-        gd.customer_id::text as "customerId",
+        gd.token_uuid::text as "tokenId",
+        gd.customer_uuid::text as "customerId",
         gd.notes,
-        gi.name as gift_name,
+        gd.gift_name,
         gd.distribution_date
       FROM gift_distributions gd
-      LEFT JOIN gift_inventory gi ON gi.id = gd.gift_id
-      WHERE gd.committee_id = $1
-      ORDER BY gd.distribution_date ASC, gd.id ASC
-    `, [committeeId]);
+      WHERE gd.committee_uuid::text = $1
+      ORDER BY gd.distribution_date ASC NULLS LAST, gd.id ASC
+    `, [commUuid]);
 
-    // Default full sequence of months by committee
-    const defaultMonthsByCommittee: Record<number, string[]> = {
-      1: ["Nov-25", "Dec-25", "Jan-26", "Feb-26", "Mar-26", "Apr-26", "May-26", "Jun-26", "Jul-26", "Aug-26"],
-      2: ["Apr-25", "May-25", "Jun-25", "Jul-25", "Aug-25", "Sep-25", "Oct-25", "Nov-25", "Dec-25", "Jan-26", "Feb-26", "Mar-26", "Apr-26", "May-26", "Jun-26", "Jul-26", "Aug-26"],
-      3: ["Jun-24", "Jul-24", "Aug-24", "Sep-24", "Oct-24", "Nov-24", "Dec-24", "Jan-25", "Feb-25", "Mar-25", "Apr-25", "May-25", "Jun-25", "Jul-25", "Aug-25", "Sep-25", "Oct-25", "Nov-25", "Dec-25", "Jan-26", "Feb-26", "Mar-26", "Apr-26", "May-26", "Jun-26", "Jul-26", "Aug-26"],
-      4: ["Jun-26", "Jul-26", "Aug-26", "Sep-26", "Oct-26", "Nov-26", "Dec-26", "Jan-27", "Feb-27"]
-    };
+    const defaultMonths = [
+      "Jun-24", "Jul-24", "Aug-24", "Sep-24", "Oct-24", "Nov-24", "Dec-24", "Jan-25",
+      "Feb-25", "Mar-25", "Apr-25", "May-25", "Jun-25", "Jul-25", "Aug-25", "Sep-25",
+      "Oct-25", "Nov-25", "Dec-25", "Jan-26"
+    ];
 
-    const monthMap = new Map<string, string>(); // monthLabel -> formatted
-    const defaultMonths = defaultMonthsByCommittee[committeeId] || [];
+    const monthMap = new Map<string, string>();
     defaultMonths.forEach(m => monthMap.set(m, m));
 
-    const tokenGiftsMap = new Map<string, Map<string, { gift: string; isCash: boolean; id?: number }>>();
+    const tokenGiftsMap = new Map<string, Map<string, { gift: string; isCash: boolean }>>();
 
     for (const g of giftsRes.rows) {
-      if (!g.tokenId) continue;
       const notes = g.notes || "";
       const mMatch = notes.match(/Month:\s*([^|]+)/i);
       const giftMatch = notes.match(/Gift:\s*(.+)/i);
 
       let rawMonth = mMatch ? mMatch[1].trim() : "";
       let giftItem = giftMatch ? giftMatch[1].trim() : (g.gift_name || "Gift");
-      if (!rawMonth) continue;
-
-      // Normalize month label (e.g. 'April-25' -> 'Apr-25')
-      let normMonth = rawMonth.replace(/January/i, "Jan")
-                              .replace(/February/i, "Feb")
-                              .replace(/March/i, "Mar")
-                              .replace(/April/i, "Apr")
-                              .replace(/June/i, "Jun")
-                              .replace(/July/i, "Jul")
-                              .replace(/August/i, "Aug")
-                              .replace(/September/i, "Sep")
-                              .replace(/Septmber/i, "Sep")
-                              .replace(/October/i, "Oct")
-                              .replace(/November/i, "Nov")
-                              .replace(/December/i, "Dec")
-                              .replace(/\s+/g, "");
+      
+      let normMonth = rawMonth ? rawMonth.replace(/January/i, "Jan")
+                               .replace(/February/i, "Feb")
+                               .replace(/March/i, "Mar")
+                               .replace(/April/i, "Apr")
+                               .replace(/June/i, "Jun")
+                               .replace(/July/i, "Jul")
+                               .replace(/August/i, "Aug")
+                               .replace(/September/i, "Sep")
+                               .replace(/October/i, "Oct")
+                               .replace(/November/i, "Nov")
+                               .replace(/December/i, "Dec")
+                               .replace(/\s+/g, "")
+                               : (g.distribution_date ? new Date(g.distribution_date).toLocaleDateString("en-IN", { month: "short", year: "2-digit" }).replace(/\s+/g, "-") : "Jun-24");
 
       if (!monthMap.has(normMonth)) {
         monthMap.set(normMonth, normMonth);
       }
 
-      if (!tokenGiftsMap.has(g.tokenId)) {
-        tokenGiftsMap.set(g.tokenId, new Map());
+      const tokId = g.tokenId || "";
+      if (tokId) {
+        if (!tokenGiftsMap.has(tokId)) {
+          tokenGiftsMap.set(tokId, new Map());
+        }
+        const isCash = giftItem.toLowerCase().includes("cash") || giftItem.toLowerCase().includes("money");
+        tokenGiftsMap.get(tokId)!.set(normMonth, { gift: giftItem, isCash });
       }
-      const isCash = giftItem.toLowerCase().includes("cash") || giftItem.toLowerCase().includes("money");
-      tokenGiftsMap.get(g.tokenId)!.set(normMonth, { gift: giftItem, isCash });
     }
 
     const monthsList = Array.from(monthMap.keys());
@@ -3602,7 +3599,81 @@ router.use("/v2/migration", migrationV2Router);
 router.use("/v2/ledger", ledgerV2Router);
 router.use("/v2/calendar", calendarV2Router);
 // V2 clean architecture routes (MI, BYAJ, Loans, Payment Ledger)
-router.use("/v2", v2Router);
+router.get("/lottery/customer/:id/history", async (req, res): Promise<void> => {
+  try {
+    const customerId = req.params.id;
+    const result = await pool.query(`
+      SELECT 
+        l.id::text as id,
+        l.draw_date as "lotteryDate",
+        l.draw_date as "date",
+        COALESCE(l.reward_description, 'Lucky Winner Gift') as "giftName",
+        COALESCE(t.normalized_token_number, l.token_number, 1) as "tokenNumber",
+        c.name as "bissiName",
+        l.status::text as status,
+        l.notes
+      FROM lotteries l
+      LEFT JOIN committees c ON c.id::text = l.committee_uuid::text
+      LEFT JOIN tokens t ON t.id::text = l.winner_token_uuid::text
+      WHERE l.winner_customer_uuid::text = $1
+      ORDER BY l.draw_date DESC NULLS LAST
+    `, [customerId]);
+
+    res.json({
+      success: true,
+      gifts: result.rows,
+      data: result.rows
+    });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+router.get("/kyc/pending", async (req, res): Promise<void> => {
+  try {
+    const result = await pool.query(`
+      SELECT 
+        c.id::text as id,
+        c.name,
+        c.mobile,
+        c.reference_number as "referenceNumber",
+        c.aadhaar,
+        c.pan,
+        c.created_at as "createdAt"
+      FROM customers c
+      WHERE (c.aadhaar IS NULL OR c.aadhaar = '' OR c.pan IS NULL OR c.pan = '')
+      ORDER BY c.created_at DESC NULLS LAST
+      LIMIT 100
+    `);
+    res.json({ success: true, customers: result.rows, data: result.rows, total: result.rows.length });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+router.get("/collections/today-summary", async (req, res): Promise<void> => {
+  try {
+    const result = await pool.query(`
+      SELECT 
+        COALESCE(SUM(amount), 0)::numeric as "todayTotal",
+        COUNT(*)::int as "todayCount",
+        COALESCE(SUM(CASE WHEN LOWER(payment_mode) = 'cash' THEN amount ELSE 0 END), 0)::numeric as "todayCash",
+        COALESCE(SUM(CASE WHEN LOWER(payment_mode) IN ('online', 'upi', 'bank') THEN amount ELSE 0 END), 0)::numeric as "todayOnline"
+      FROM collections
+      WHERE DATE(collected_at) = CURRENT_DATE
+    `);
+    const row = result.rows[0] || {};
+    res.json({
+      success: true,
+      todayTotal: Number(row.todayTotal || 0),
+      todayCount: Number(row.todayCount || 0),
+      todayCash: Number(row.todayCash || 0),
+      todayOnline: Number(row.todayOnline || 0)
+    });
+  } catch (err: any) {
+    res.json({ success: true, todayTotal: 0, todayCount: 0, todayCash: 0, todayOnline: 0 });
+  }
+});
 
 export default router;
 
