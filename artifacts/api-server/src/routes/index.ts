@@ -495,8 +495,8 @@ router.get(["/gifts/bissi-winners", "/gifts"], async (req, res): Promise<void> =
              gd.status, gd.notes, COALESCE(cm.name, 'Bissi Scheme') as "committeeName",
              cm.bissi_int_id as "committeeId", c.mobile as "winnerMobile"
       FROM gift_distributions gd
-      LEFT JOIN committees cm ON (cm.id = gd.committee_uuid OR cm.id::text = gd.committee_uuid::text)
-      LEFT JOIN customers c ON (c.id = gd.customer_uuid OR c.id::text = gd.customer_uuid::text)
+      LEFT JOIN committees cm ON (cm.id::text = gd.committee_uuid::text OR cm.id::text = gd.committee_uuid::text)
+      LEFT JOIN customers c ON (c.id::text = gd.customer_uuid::text OR c.id::text = gd.customer_uuid::text)
     `;
 
     const where: string[] = [];
@@ -626,7 +626,7 @@ router.get("/committees", async (req, res) => {
         FROM committees c
         LEFT JOIN (
           SELECT committee_id::text as comm_id,
-            COUNT(*) FILTER(WHERE status='ACTIVE')::int AS active_count,
+            COUNT(*) FILTER(WHERE UPPER(status::text)='ACTIVE')::int AS active_count,
             COUNT(*)::int AS total_count
           FROM tokens GROUP BY committee_id::text
         ) tok_sub ON c.id::text = tok_sub.comm_id
@@ -2317,7 +2317,7 @@ router.get("/dashboard/all", async (req, res) => {
           COALESCE(mon.total, 0)::numeric AS "thisMonthCollected",
           COALESCE(pend.pending_count, 0)::int AS "thisMonthPendingCount"
         FROM committees c
-        LEFT JOIN (SELECT committee_id, COUNT(*) FILTER(WHERE status='ACTIVE')::int AS active_count FROM tokens GROUP BY committee_id) tok ON tok.committee_id = c.id
+        LEFT JOIN (SELECT committee_id, COUNT(*) FILTER(WHERE UPPER(status::text)='ACTIVE')::int AS active_count FROM tokens GROUP BY committee_id) tok ON tok.committee_id = c.id
         LEFT JOIN (SELECT committee_uuid, SUM(amount)::numeric AS total FROM collections WHERE committee_uuid IS NOT NULL GROUP BY committee_uuid) life ON life.committee_uuid = c.id
         LEFT JOIN (SELECT committee_uuid, SUM(amount)::numeric AS total FROM collections WHERE committee_uuid IS NOT NULL ${monthCond} GROUP BY committee_uuid) mon ON mon.committee_uuid = c.id
         LEFT JOIN (SELECT t2.committee_id, COUNT(*)::int AS pending_count FROM tokens t2 WHERE t2.status='ACTIVE' AND NOT EXISTS (SELECT 1 FROM collections col WHERE col.token_uuid = t2.id ${monthCond}) GROUP BY t2.committee_id) pend ON pend.committee_id = c.id
@@ -2871,7 +2871,7 @@ router.get("/interests/summary", async (req, res) => {
         (SELECT COUNT(*)::int FROM byaj_payments
          WHERE period_month = DATE_TRUNC('month', CURRENT_DATE)::date) AS "paidThisMonth",
         (SELECT COUNT(*)::int FROM v2_byaj_pending WHERE is_pending)   AS "pendingThisMonth"
-      FROM byaj_accounts WHERE status = 'ACTIVE'
+      FROM byaj_accounts WHERE UPPER(status::text) = 'ACTIVE'
     `);
     const row = r.rows[0] || {};
     res.json({
@@ -3467,5 +3467,7 @@ router.use("/v2/calendar", calendarV2Router);
 router.use("/v2", v2Router);
 
 export default router;
+
+
 
 
