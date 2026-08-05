@@ -458,7 +458,14 @@ export default function GiftsPage() {
   params.set("limit", String(PER_PAGE));
   params.set("offset", String(page * PER_PAGE));
 
-  const { data, isLoading } = useQuery<{ success: boolean; winners: Winner[]; total: number }>({
+  const { data, isLoading } = useQuery<{
+    success?: boolean;
+    winners?: Winner[];
+    gifts?: Winner[];
+    distributions?: Winner[];
+    data?: Winner[];
+    total?: number;
+  }>({
     queryKey: ["gifts-bissi-winners", committeeId, rewardType, search, page],
     queryFn: () => customFetch(`/gifts/bissi-winners?${params.toString()}`),
     staleTime: 30000,
